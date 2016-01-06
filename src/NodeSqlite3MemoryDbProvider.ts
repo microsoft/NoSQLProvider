@@ -13,15 +13,25 @@ import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 
 export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase {
+    private _sqlite3: any;
     private _db: any;
+
+    constructor(sqlite3: any) {
+        super();
+
+        this._sqlite3 = sqlite3;
+    }
+
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
-        var sqlite3 = require('sqlite3');
+        if (!this._sqlite3) {
+            return SyncTasks.Rejected<void>('No support for react native sqlite in this environment');
+        }
 
-        sqlite3.verbose();
+        this._sqlite3.verbose();
 
-        this._db = new sqlite3.Database(':memory:');
+        this._db = new this._sqlite3.Database(':memory:');
 
         return this._ourVersionChecker(wipeIfExists);
     }

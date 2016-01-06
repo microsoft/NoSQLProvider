@@ -15,14 +15,17 @@ var SyncTasks = require('synctasks');
 var SqlProviderBase = require('./SqlProviderBase');
 var NodeSqlite3MemoryDbProvider = (function (_super) {
     __extends(NodeSqlite3MemoryDbProvider, _super);
-    function NodeSqlite3MemoryDbProvider() {
-        _super.apply(this, arguments);
+    function NodeSqlite3MemoryDbProvider(sqlite3) {
+        _super.call(this);
+        this._sqlite3 = sqlite3;
     }
     NodeSqlite3MemoryDbProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
         _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
-        var sqlite3 = require('sqlite3');
-        sqlite3.verbose();
-        this._db = new sqlite3.Database(':memory:');
+        if (!this._sqlite3) {
+            return SyncTasks.Rejected('No support for react native sqlite in this environment');
+        }
+        this._sqlite3.verbose();
+        this._db = new this._sqlite3.Database(':memory:');
         return this._ourVersionChecker(wipeIfExists);
     };
     NodeSqlite3MemoryDbProvider.prototype.openTransaction = function (storeNames, writeNeeded) {

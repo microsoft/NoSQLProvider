@@ -14,18 +14,18 @@ var SyncTasks = require('synctasks');
 var SqlProviderBase = require('./SqlProviderBase');
 var ReactNativeSqliteProvider = (function (_super) {
     __extends(ReactNativeSqliteProvider, _super);
-    function ReactNativeSqliteProvider() {
-        _super.apply(this, arguments);
+    function ReactNativeSqliteProvider(reactNativeSqlite) {
+        _super.call(this);
+        this._reactNativeSqlite = reactNativeSqlite;
     }
     ReactNativeSqliteProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
         var _this = this;
         _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
-        var sqlite = require('react-native-sqlite');
-        if (!sqlite || !sqlite.open) {
+        if (!this._reactNativeSqlite || !this._reactNativeSqlite.open) {
             return SyncTasks.Rejected('No support for react native sqlite in this environment');
         }
         var deferred = SyncTasks.Defer();
-        sqlite.open(dbName + '.sqlite', function (error, database) {
+        this._reactNativeSqlite.open(dbName + '.sqlite', function (error, database) {
             if (error) {
                 deferred.reject('Error opening database: ' + error);
                 return;

@@ -13,7 +13,7 @@ import InMemoryProvider = require('../InMemoryProvider');
 function openProvider(providerName: string, schema: NoSqlProvider.DbSchema) {
     let provider: NoSqlProvider.DbProvider = null;
     if (providerName === 'sqlite3test') {
-        provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider();
+        provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider(sqlite3);
     } else if (providerName === 'indexeddbtest') {
         const engine = new sqlite3.Database(':memory:');
         const scope = indexeddbjs.makeScope('sqlite3', engine);

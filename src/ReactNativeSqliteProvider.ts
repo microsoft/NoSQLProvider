@@ -18,19 +18,25 @@ interface ReactNativeSqliteDatabase {
 }
 
 export class ReactNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
+    private _reactNativeSqlite: any;
     private _db: ReactNativeSqliteDatabase;
+
+    constructor(reactNativeSqlite: any) {
+        super();
+
+        this._reactNativeSqlite = reactNativeSqlite;
+    }
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
-        var sqlite = require('react-native-sqlite');
-        if (!sqlite || !sqlite.open) {
+        if (!this._reactNativeSqlite || !this._reactNativeSqlite.open) {
             return SyncTasks.Rejected<void>('No support for react native sqlite in this environment');
         }
 
         let deferred = SyncTasks.Defer<void>();
 
-        sqlite.open(dbName + '.sqlite', (error, database) => {
+        this._reactNativeSqlite.open(dbName + '.sqlite', (error, database) => {
             if (error) {
                 deferred.reject('Error opening database: ' + error);
                 return;

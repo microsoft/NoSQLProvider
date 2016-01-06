@@ -8,7 +8,7 @@ var NoSqlProviderUtils = require('../NoSqlProviderUtils');
 function openProvider(providerName, schema) {
     var provider = null;
     if (providerName === 'sqlite3test') {
-        provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider();
+        provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider(sqlite3);
     }
     else if (providerName === 'indexeddbtest') {
         var engine = new sqlite3.Database(':memory:');
