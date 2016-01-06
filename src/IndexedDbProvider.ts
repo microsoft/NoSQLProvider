@@ -9,7 +9,7 @@
 import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
-import NoSqlProvider = require('./NoSqlProvider');
+import NoSqlProvider = require('./NoSqlProviderInterfaces');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 // The DbProvider implementation for IndexedDB.  This one is fairly straightforward since the library's access patterns pretty

@@ -9,7 +9,7 @@
 
 import SyncTasks = require('synctasks');
 
-import NoSqlProvider = require('./NoSqlProvider');
+import NoSqlProvider = require('./NoSqlProviderInterfaces');
 import SqlProviderBase = require('./SqlProviderBase');
 
 export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase {

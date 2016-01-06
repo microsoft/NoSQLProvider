@@ -6,7 +6,7 @@
  * NoSqlProvider provider setup for WebSql, a browser storage backing.
  */
 import SyncTasks = require('synctasks');
-import NoSqlProvider = require('./NoSqlProvider');
+import NoSqlProvider = require('./NoSqlProviderInterfaces');
 import SqlProviderBase = require('./SqlProviderBase');
 export declare class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
     private _db;

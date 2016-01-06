@@ -8,7 +8,7 @@
 
 import SyncTasks = require('synctasks');
 
-import NoSqlProvider = require('./NoSqlProvider');
+import NoSqlProvider = require('./NoSqlProviderInterfaces');
 import SqlProviderBase = require('./SqlProviderBase');
 
 // The DbProvider implementation for WebSQL.  This provider does a bunch of awkward stuff to pretend that a relational SQL store

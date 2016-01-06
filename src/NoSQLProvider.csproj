@@ -27,6 +27,7 @@
     <TypeScriptCompile Include="IndexedDbProvider.ts" />
     <TypeScriptCompile Include="InMemoryProvider.ts" />
     <TypeScriptCompile Include="NodeSqlite3MemoryDbProvider.ts" />
+    <TypeScriptCompile Include="NoSqlProviderInterfaces.ts" />
     <TypeScriptCompile Include="NoSqlProvider.ts" />
     <TypeScriptCompile Include="NoSqlProviderUtils.ts" />
     <TypeScriptCompile Include="ReactNativeSqliteProvider.ts" />

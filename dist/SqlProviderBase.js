@@ -12,7 +12,7 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var _ = require('lodash');
 var SyncTasks = require('synctasks');
-var NoSqlProvider = require('./NoSqlProvider');
+var NoSqlProvider = require('./NoSqlProviderInterfaces');
 var NoSqlProviderUtils = require('./NoSqlProviderUtils');
 var SqlProviderBase = (function (_super) {
     __extends(SqlProviderBase, _super);

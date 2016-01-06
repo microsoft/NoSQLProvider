@@ -1,5 +1,5 @@
 import SyncTasks = require('synctasks');
-import NoSqlProvider = require('./NoSqlProvider');
+import NoSqlProvider = require('./NoSqlProviderInterfaces');
 export declare abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     protected _getDbVersion(): SyncTasks.Promise<number>;
     protected _changeDbVersion(oldVersion: number, newVersion: number): SyncTasks.Promise<SqlTransaction>;

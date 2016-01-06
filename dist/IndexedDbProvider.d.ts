@@ -1,5 +1,5 @@
 import SyncTasks = require('synctasks');
-import NoSqlProvider = require('./NoSqlProvider');
+import NoSqlProvider = require('./NoSqlProviderInterfaces');
 export declare class IndexedDbProvider extends NoSqlProvider.DbProvider {
     private _db;
     private _test;
