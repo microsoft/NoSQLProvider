@@ -12,7 +12,7 @@ import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 
 // The DbProvider implementation for Native Sqlite on cordova
-class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
+export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
     private _db: SqliteDatabase;
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
@@ -69,5 +69,3 @@ class CordovaNativeSqliteTransaction extends SqlProviderBase.SqliteSqlTransactio
         return true;
     }
 }
-
-export = CordovaNativeSqliteProvider;

@@ -5,23 +5,20 @@ var sqlite3 = require('sqlite3');
 var indexeddbjs = require('indexeddb-js');
 var NoSqlProvider = require('../NoSqlProvider');
 var NoSqlProviderUtils = require('../NoSqlProviderUtils');
-var NodeSqlite3MemoryDbProvider = require('../NodeSqlite3MemoryDbProvider');
-var IndexedDbProvider = require('../IndexedDbProvider');
-var InMemoryProvider = require('../InMemoryProvider');
 function openProvider(providerName, schema) {
     var provider = null;
     if (providerName === 'sqlite3test') {
-        provider = new NodeSqlite3MemoryDbProvider();
+        provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider();
     }
     else if (providerName === 'indexeddbtest') {
         var engine = new sqlite3.Database(':memory:');
         var scope = indexeddbjs.makeScope('sqlite3', engine);
         global['IDBKeyRange'] = scope.IDBKeyRange;
         var idbFactory = scope.indexedDB;
-        provider = new IndexedDbProvider(idbFactory, false);
+        provider = new NoSqlProvider.IndexedDbProvider(idbFactory, false);
     }
     else if (providerName === 'memory') {
-        provider = new InMemoryProvider();
+        provider = new NoSqlProvider.InMemoryProvider();
     }
     return NoSqlProvider.openListOfProviders([provider], 'test', schema, true);
 }

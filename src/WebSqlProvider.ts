@@ -14,7 +14,7 @@ import SqlProviderBase = require('./SqlProviderBase');
 // The DbProvider implementation for WebSQL.  This provider does a bunch of awkward stuff to pretend that a relational SQL store
 // is actually a NoSQL store.  We store the raw object as a JSON.encoded string in the nsp_data column, and have an nsp_pk column
 // for the primary keypath value, then nsp_i_[index name] columns for each of the indexes.
-class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
+export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
     private _db: Database;
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
@@ -72,5 +72,3 @@ class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
         return deferred.promise();
     }
 }
-
-export = WebSqlProvider;

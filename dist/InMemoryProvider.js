@@ -41,6 +41,7 @@ var InMemoryProvider = (function (_super) {
     };
     return InMemoryProvider;
 })(NoSqlProvider.DbProvider);
+exports.InMemoryProvider = InMemoryProvider;
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
 var InMemoryTransaction = (function () {
     function InMemoryTransaction(prov) {
@@ -162,4 +163,3 @@ var InMemoryIndex = (function () {
     };
     return InMemoryIndex;
 })();
-module.exports = InMemoryProvider;

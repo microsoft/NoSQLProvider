@@ -57,3 +57,9 @@ export declare abstract class DbProvider {
     getRange<T>(storeName: string, indexName: string, keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
 }
 export declare function openListOfProviders(providersToTry: DbProvider[], dbName: string, schema: DbSchema, wipeIfExists?: boolean, verbose?: boolean): SyncTasks.Promise<DbProvider>;
+export * from './CordovaNativeSqliteProvider';
+export * from './IndexedDbProvider';
+export * from './InMemoryProvider';
+export * from './NodeSqlite3MemoryDbProvider';
+export * from './ReactNativeSqliteProvider';
+export * from './WebSqlProvider';

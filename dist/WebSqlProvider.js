@@ -70,4 +70,4 @@ var WebSqlProvider = (function (_super) {
     };
     return WebSqlProvider;
 })(SqlProviderBase.SqlProviderBase);
-module.exports = WebSqlProvider;
+exports.WebSqlProvider = WebSqlProvider;

@@ -1,6 +1,6 @@
 import SyncTasks = require('synctasks');
 import NoSqlProvider = require('./NoSqlProvider');
-declare class IndexedDbProvider extends NoSqlProvider.DbProvider {
+export declare class IndexedDbProvider extends NoSqlProvider.DbProvider {
     private _db;
     private _test;
     private _dbFactory;
@@ -11,4 +11,3 @@ declare class IndexedDbProvider extends NoSqlProvider.DbProvider {
     close(): SyncTasks.Promise<void>;
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction>;
 }
-export = IndexedDbProvider;

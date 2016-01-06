@@ -219,6 +219,7 @@ var IndexedDbProvider = (function (_super) {
     };
     return IndexedDbProvider;
 })(NoSqlProvider.DbProvider);
+exports.IndexedDbProvider = IndexedDbProvider;
 // DbTransaction implementation for the IndexedDB DbProvider.
 var IndexedDbTransaction = (function () {
     function IndexedDbTransaction(trans, schema, storeNames, fakeComplicatedKeys) {
@@ -478,4 +479,3 @@ var IndexedDbIndex = (function () {
     };
     return IndexedDbIndex;
 })();
-module.exports = IndexedDbProvider;

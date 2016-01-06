@@ -15,7 +15,7 @@ import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 // The DbProvider implementation for IndexedDB.  This one is fairly straightforward since the library's access patterns pretty
 // closely mirror IndexedDB's.  We mostly do a lot of wrapping of the APIs into JQuery promises and have some fancy footwork to
 // do semi-automatic schema upgrades.
-class IndexedDbProvider extends NoSqlProvider.DbProvider {
+export class IndexedDbProvider extends NoSqlProvider.DbProvider {
     private _db: IDBDatabase;
     private _test: boolean;
     private _dbFactory: IDBFactory;
@@ -545,5 +545,3 @@ class IndexedDbIndex implements NoSqlProvider.DbIndex {
         return deferred.promise();
     }
 }
-
-export = IndexedDbProvider;

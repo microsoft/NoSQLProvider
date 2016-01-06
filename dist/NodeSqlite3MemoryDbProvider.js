@@ -12,7 +12,6 @@ var __extends = (this && this.__extends) || function (d, b) {
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var SyncTasks = require('synctasks');
-var sqlite3 = require('sqlite3');
 var SqlProviderBase = require('./SqlProviderBase');
 var NodeSqlite3MemoryDbProvider = (function (_super) {
     __extends(NodeSqlite3MemoryDbProvider, _super);
@@ -21,6 +20,7 @@ var NodeSqlite3MemoryDbProvider = (function (_super) {
     }
     NodeSqlite3MemoryDbProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
         _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
+        var sqlite3 = require('sqlite3');
         sqlite3.verbose();
         this._db = new sqlite3.Database(':memory:');
         return this._ourVersionChecker(wipeIfExists);
@@ -47,6 +47,7 @@ var NodeSqlite3MemoryDbProvider = (function (_super) {
     };
     return NodeSqlite3MemoryDbProvider;
 })(SqlProviderBase.SqlProviderBase);
+exports.NodeSqlite3MemoryDbProvider = NodeSqlite3MemoryDbProvider;
 var NodeSqlite3Transaction = (function (_super) {
     __extends(NodeSqlite3Transaction, _super);
     function NodeSqlite3Transaction(db, schema, verbose) {
@@ -97,4 +98,3 @@ var NodeSqlite3Transaction = (function (_super) {
     };
     return NodeSqlite3Transaction;
 })(SqlProviderBase.SqlTransaction);
-module.exports = NodeSqlite3MemoryDbProvider;

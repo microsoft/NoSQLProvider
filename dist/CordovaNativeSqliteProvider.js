@@ -60,6 +60,7 @@ var CordovaNativeSqliteProvider = (function (_super) {
     };
     return CordovaNativeSqliteProvider;
 })(SqlProviderBase.SqlProviderBase);
+exports.CordovaNativeSqliteProvider = CordovaNativeSqliteProvider;
 var CordovaNativeSqliteTransaction = (function (_super) {
     __extends(CordovaNativeSqliteTransaction, _super);
     function CordovaNativeSqliteTransaction() {
@@ -71,4 +72,3 @@ var CordovaNativeSqliteTransaction = (function (_super) {
     };
     return CordovaNativeSqliteTransaction;
 })(SqlProviderBase.SqliteSqlTransaction);
-module.exports = CordovaNativeSqliteProvider;

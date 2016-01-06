@@ -7,6 +7,9 @@
  * numerous different backend store types, invisible to the consumer.  The
  * usage semantics are very similar to IndexedDB.
  */
+function __export(m) {
+    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
+}
 var SyncTasks = require('synctasks');
 // Abstract base type for a database provider.  Has accessors for opening transactions and one-off accesor helpers.
 // Note: this is a different concept than a DbStore or DbIndex, although it provides a similar (or identical) interface.
@@ -102,3 +105,9 @@ function openListOfProviders(providersToTry, dbName, schema, wipeIfExists, verbo
     return task.promise();
 }
 exports.openListOfProviders = openListOfProviders;
+__export(require('./CordovaNativeSqliteProvider'));
+__export(require('./IndexedDbProvider'));
+__export(require('./InMemoryProvider'));
+__export(require('./NodeSqlite3MemoryDbProvider'));
+__export(require('./ReactNativeSqliteProvider'));
+__export(require('./WebSqlProvider'));

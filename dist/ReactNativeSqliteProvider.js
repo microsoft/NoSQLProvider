@@ -56,6 +56,7 @@ var ReactNativeSqliteProvider = (function (_super) {
     };
     return ReactNativeSqliteProvider;
 })(SqlProviderBase.SqlProviderBase);
+exports.ReactNativeSqliteProvider = ReactNativeSqliteProvider;
 var ReactNativeSqliteTransaction = (function (_super) {
     __extends(ReactNativeSqliteTransaction, _super);
     function ReactNativeSqliteTransaction(db, schema, verbose) {
@@ -98,4 +99,3 @@ var ReactNativeSqliteTransaction = (function (_super) {
     };
     return ReactNativeSqliteTransaction;
 })(SqlProviderBase.SqlTransaction);
-module.exports = ReactNativeSqliteProvider;

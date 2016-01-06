@@ -9,15 +9,15 @@
 
 import SyncTasks = require('synctasks');
 
-import sqlite3 = require('sqlite3');
-
 import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 
-class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase {
+export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase {
     private _db: any;
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
+
+        var sqlite3 = require('sqlite3');
 
         sqlite3.verbose();
 
@@ -107,5 +107,3 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
         return deferred.promise();
     }
 }
-
-export = NodeSqlite3MemoryDbProvider;

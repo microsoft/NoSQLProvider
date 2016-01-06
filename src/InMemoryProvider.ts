@@ -13,7 +13,7 @@ import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 // Very simple in-memory dbprovider for handling IE inprivate windows (and unit tests, maybe?)
-class InMemoryProvider extends NoSqlProvider.DbProvider {
+export class InMemoryProvider extends NoSqlProvider.DbProvider {
     private _stores: { [storeName: string]: InMemoryStore } = {};
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
@@ -183,5 +183,3 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
         return SyncTasks.Resolved(_.flatten(results));
     }
 }
- 
-export = InMemoryProvider;

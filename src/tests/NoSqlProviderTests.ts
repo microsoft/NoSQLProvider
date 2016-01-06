@@ -7,23 +7,22 @@ import indexeddbjs = require('indexeddb-js');
 
 import NoSqlProvider = require('../NoSqlProvider');
 import NoSqlProviderUtils = require('../NoSqlProviderUtils');
-import NodeSqlite3MemoryDbProvider = require('../NodeSqlite3MemoryDbProvider');
 import IndexedDbProvider = require('../IndexedDbProvider');
 import InMemoryProvider = require('../InMemoryProvider');
 
 function openProvider(providerName: string, schema: NoSqlProvider.DbSchema) {
     let provider: NoSqlProvider.DbProvider = null;
     if (providerName === 'sqlite3test') {
-        provider = new NodeSqlite3MemoryDbProvider();
+        provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider();
     } else if (providerName === 'indexeddbtest') {
         const engine = new sqlite3.Database(':memory:');
         const scope = indexeddbjs.makeScope('sqlite3', engine);
         global['IDBKeyRange'] = scope.IDBKeyRange;
 
         const idbFactory = scope.indexedDB;
-        provider = new IndexedDbProvider(idbFactory, false);
+        provider = new NoSqlProvider.IndexedDbProvider(idbFactory, false);
     } else if (providerName === 'memory') {
-        provider = new InMemoryProvider();
+        provider = new NoSqlProvider.InMemoryProvider();
     }
     return NoSqlProvider.openListOfProviders([provider], 'test', schema, true);
 }

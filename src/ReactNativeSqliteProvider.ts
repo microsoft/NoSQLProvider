@@ -17,7 +17,7 @@ interface ReactNativeSqliteDatabase {
     close(callback: (error: any) => void): void;
 }
 
-class ReactNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
+export class ReactNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
     private _db: ReactNativeSqliteDatabase;
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
@@ -116,5 +116,3 @@ class ReactNativeSqliteTransaction extends SqlProviderBase.SqlTransaction {
         return deferred.promise();
     }
 }
-
-export = ReactNativeSqliteProvider;

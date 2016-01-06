@@ -177,3 +177,10 @@ export function openListOfProviders(providersToTry: DbProvider[], dbName: string
 
     return task.promise();
 }
+
+export * from './CordovaNativeSqliteProvider';
+export * from './IndexedDbProvider';
+export * from './InMemoryProvider';
+export * from './NodeSqlite3MemoryDbProvider';
+export * from './ReactNativeSqliteProvider';
+export * from './WebSqlProvider';
