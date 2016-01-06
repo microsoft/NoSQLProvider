@@ -1,0 +1,34 @@
+{
+	"name": "nosqlprovider",
+	"version": "0.1.1",
+	"description": "A cross-browser/platform indexeddb-like client library",
+	"author": "David de Regt <David.de.Regt@microsoft.com>",
+	"scripts": {
+		"test": "mocha dist/tests/nosqlprovidertests.js"
+	},
+	"main": "dist/nosqlprovider.js",
+	"dependencies": {
+		"lodash": "^3.10.0",
+		"synctasks": "deregtd/SyncTasks"
+	},
+	"devDependencies": {
+		"indexeddb-js": "^0.0.14",
+		"sqlite3": "^3.0.9"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/deregtd/NoSQLProvider"
+	},
+	"bugs": {
+		"url": "https://github.com/deregtd/NoSQLProvider/issues"
+	},
+	"typings": "dist/nosqlprovider.d.ts",
+	"keywords": [
+		"nosql",
+		"indexeddb",
+		"websql",
+		"sqlite",
+		"browser"
+	],
+	"license": "MIT"
+}
