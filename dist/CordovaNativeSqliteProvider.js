@@ -18,15 +18,16 @@ var CordovaNativeSqliteProvider = (function (_super) {
     function CordovaNativeSqliteProvider() {
         _super.apply(this, arguments);
     }
-    CordovaNativeSqliteProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
+    CordovaNativeSqliteProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose, plugin) {
+        if (plugin === void 0) { plugin = window.sqlitePlugin; }
         _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
-        if (!window.sqlitePlugin || !window.sqlitePlugin.openDatabase) {
+        if (!plugin || !plugin.openDatabase) {
             return SyncTasks.Rejected('No support for native sqlite in this browser');
         }
         if (typeof (navigator) !== 'undefined' && navigator.userAgent.indexOf('Mobile Crosswalk') !== -1) {
             return SyncTasks.Rejected('Android NativeSqlite is broken, skipping');
         }
-        this._db = window.sqlitePlugin.openDatabase({
+        this._db = plugin.openDatabase({
             name: dbName + '.db',
             location: 2,
             androidDatabaseImplementation: 2,

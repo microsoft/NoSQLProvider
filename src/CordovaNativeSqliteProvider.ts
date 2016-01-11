@@ -14,10 +14,11 @@ import SqlProviderBase = require('./SqlProviderBase');
 // The DbProvider implementation for Native Sqlite on cordova
 export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
     private _db: SqliteDatabase;
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
+    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean,
+        plugin: SqlitePlugin = window.sqlitePlugin): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
-        if (!window.sqlitePlugin || !window.sqlitePlugin.openDatabase) {
+        if (!plugin || !plugin.openDatabase) {
             return SyncTasks.Rejected<void>('No support for native sqlite in this browser');
         }
 
@@ -25,7 +26,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             return SyncTasks.Rejected<void>('Android NativeSqlite is broken, skipping');
         }
 
-        this._db = window.sqlitePlugin.openDatabase({
+        this._db = plugin.openDatabase({
             name: dbName + '.db',
             location: 2,
             androidDatabaseImplementation: 2,
