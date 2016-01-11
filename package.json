@@ -4,7 +4,7 @@
 	"description": "A cross-browser/platform indexeddb-like client library",
 	"author": "David de Regt <David.de.Regt@microsoft.com>",
 	"scripts": {
-		"test": "mocha dist/tests/nosqlprovidertests.js"
+		"test": "mocha dist/tests/NoSqlProviderTests.js"
 	},
 	"main": "dist/nosqlprovider.js",
 	"dependencies": {
