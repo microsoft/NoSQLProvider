@@ -25,7 +25,7 @@ var CordovaNativeSqliteProvider = (function (_super) {
         if (!this._plugin || !this._plugin.openDatabase) {
             return SyncTasks.Rejected('No support for native sqlite in this browser');
         }
-        if (typeof (navigator) !== 'undefined' && navigator.userAgent.indexOf('Mobile Crosswalk') !== -1) {
+        if (typeof (navigator) !== 'undefined' && navigator.userAgent && navigator.userAgent.indexOf('Mobile Crosswalk') !== -1) {
             return SyncTasks.Rejected('Android NativeSqlite is broken, skipping');
         }
         this._db = this._plugin.openDatabase({
