@@ -23,6 +23,9 @@
 		"url": "https://github.com/deregtd/NoSQLProvider/issues"
 	},
 	"typings": "dist/nosqlprovider.d.ts",
+	"typescript": {
+		"definition": "dist/nosqlprovider.d.ts"
+	},
 	"keywords": [
 		"nosql",
 		"indexeddb",
