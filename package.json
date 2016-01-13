@@ -9,7 +9,7 @@
 	"main": "dist/nosqlprovider.js",
 	"dependencies": {
 		"lodash": "^3.10.0",
-		"synctasks": "deregtd/SyncTasks"
+		"synctasks": "^0.1.2"
 	},
 	"devDependencies": {
 		"indexeddb-js": "^0.0.14",
