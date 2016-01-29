@@ -31,9 +31,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
 
         this._db = this._plugin.openDatabase({
             name: dbName + '.db',
-            location: 2,
-            androidDatabaseImplementation: 2,
-            androidLockWorkaround: 1
+            location: 2
         });
 
         if (!this._db) {
