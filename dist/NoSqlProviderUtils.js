@@ -133,3 +133,8 @@ function formListOfSerializedKeys(keyOrKeys, keyPath) {
     return formListOfKeys(keyOrKeys, keyPath).map(function (key) { return serializeKeyToString(key, keyPath); });
 }
 exports.formListOfSerializedKeys = formListOfSerializedKeys;
+function isIE() {
+    return (typeof (document) !== 'undefined' && document.all !== null && document.documentMode <= 11) ||
+        (typeof (navigator) !== 'undefined' && navigator.userAgent && navigator.userAgent.indexOf('Edge/') !== -1);
+}
+exports.isIE = isIE;

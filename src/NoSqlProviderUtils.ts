@@ -144,3 +144,8 @@ export function serializeKeyToString(key: any | any[], keyPath: string | string[
 export function formListOfSerializedKeys(keyOrKeys: any | any[], keyPath: string | string[]): string[] {
     return formListOfKeys(keyOrKeys, keyPath).map(key => serializeKeyToString(key, keyPath));
 }
+
+export function isIE() {
+    return (typeof (document) !== 'undefined' && document.all !== null && document.documentMode <= 11) ||
+        (typeof (navigator) !== 'undefined' && navigator.userAgent && navigator.userAgent.indexOf('Edge/') !== -1);
+}

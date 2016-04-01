@@ -27,6 +27,9 @@ function openProvider(providerName, schema, wipeFirst) {
     else if (providerName === 'indexeddb') {
         provider = new NoSqlProvider.IndexedDbProvider();
     }
+    else if (providerName === 'indexeddbfakekeys') {
+        provider = new NoSqlProvider.IndexedDbProvider(void 0, false);
+    }
     else if (providerName === 'websql') {
         provider = new NoSqlProvider.WebSqlProvider();
     }
@@ -34,7 +37,7 @@ function openProvider(providerName, schema, wipeFirst) {
 }
 describe('NoSqlProvider', function () {
     this.timeout(30000);
-    var provsToTest = typeof window === 'undefined' ? ['sqlite3test', 'indexeddbtest', 'memory'] : ['indexeddb', 'websql'];
+    var provsToTest = typeof window === 'undefined' ? ['sqlite3test', 'indexeddbtest', 'memory'] : NoSqlProviderUtils.isIE() ? ['indexeddb'] : ['indexeddb', 'indexeddbfakekeys', 'websql'];
     it('Number/value/type sorting', function () {
         var pairsToTest = [
             [0, 1],

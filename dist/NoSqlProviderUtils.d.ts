@@ -9,3 +9,4 @@ export declare function serializeValueToOrderableString(val: any): string;
 export declare function serializeNumberToOrderableString(n: number): string;
 export declare function serializeKeyToString(key: any | any[], keyPath: string | string[]): string;
 export declare function formListOfSerializedKeys(keyOrKeys: any | any[], keyPath: string | string[]): string[];
+export declare function isIE(): boolean;

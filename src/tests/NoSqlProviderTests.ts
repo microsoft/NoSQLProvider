@@ -26,6 +26,8 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
         provider = new NoSqlProvider.InMemoryProvider();
     } else if (providerName === 'indexeddb') {
         provider = new NoSqlProvider.IndexedDbProvider();
+    } else if (providerName === 'indexeddbfakekeys') {
+        provider = new NoSqlProvider.IndexedDbProvider(void 0, false);
     } else if (providerName === 'websql') {
         provider = new NoSqlProvider.WebSqlProvider();
     }
@@ -35,7 +37,7 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
 describe('NoSqlProvider', function () {
     this.timeout(30000);
 
-    let provsToTest = typeof window === 'undefined' ? ['sqlite3test', 'indexeddbtest', 'memory'] : ['indexeddb', 'websql'];
+    let provsToTest = typeof window === 'undefined' ? ['sqlite3test', 'indexeddbtest', 'memory'] : NoSqlProviderUtils.isIE() ? ['indexeddb'] : ['indexeddb', 'indexeddbfakekeys', 'websql'];
 
     it('Number/value/type sorting', () => {
         const pairsToTest = [

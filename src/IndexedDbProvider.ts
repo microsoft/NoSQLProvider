@@ -33,10 +33,13 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
             // IE/Edge's IndexedDB implementation doesn't support compound keys, so we have to fake it by implementing them similar to how
             // the WebSqlProvider does, by concatenating the values into another field which then gets its own index.
-            let isIE = (typeof (document) !== 'undefined' && document.all !== null && document.documentMode <= 11) ||
-                (typeof (navigator) !== 'undefined' && navigator.userAgent && navigator.userAgent.indexOf('Edge/') !== -1);
+            let isIE = NoSqlProviderUtils.isIE();
 
-            this._fakeComplicatedKeys = isIE;
+            if (typeof explicitDbFactorySupportsCompoundKeys !== 'undefined') {
+                this._fakeComplicatedKeys = !explicitDbFactorySupportsCompoundKeys;
+            } else {
+                this._fakeComplicatedKeys = isIE;
+            }
         }
     }
 
@@ -219,7 +222,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         }, err => {
             if (err && err.type === 'error' && err.target && err.target.error && err.target.error.name === 'VersionError') {
                 if (!wipeIfExists) {
-                    console.log('Database version too new, Wiping: ' + err.target.error.message);
+                    console.log('Database version too new, Wiping: ' + (err.target.error.message || err.target.error.name));
 
                     return this.open(dbName, schema, true, verbose);
                 }
@@ -242,6 +245,9 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             // Pull the alternate multientry stores into the transaction as well
             intStoreNames.forEach(storeName => {
                 let storeSchema = _.find(this._schema.stores, s => s.name === storeName);
+                if (!storeSchema) {
+                    return SyncTasks.Rejected('Can\'t find store: ' + storeName);
+                }
                 if (storeSchema.indexes) {
                     storeSchema.indexes.forEach(indexSchema => {
                         if (indexSchema.multiEntry) {
