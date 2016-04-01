@@ -8,18 +8,8 @@ var NoSqlProviderUtils = require('../NoSqlProviderUtils');
 SyncTasks.config.catchExceptions = false;
 function openProvider(providerName, schema, wipeFirst) {
     var provider = null;
-    if (providerName === 'sqlite3test') {
-        var sqlite3 = require('sqlite3');
-        provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider(sqlite3);
-    }
-    else if (providerName === 'indexeddbtest') {
-        var sqlite3 = require('sqlite3');
-        var engine = new sqlite3.Database(':memory:');
-        var indexeddbjs = require('indexeddb-js');
-        var scope = indexeddbjs.makeScope('sqlite3', engine);
-        global['IDBKeyRange'] = scope.IDBKeyRange;
-        var idbFactory = scope.indexedDB;
-        provider = new NoSqlProvider.IndexedDbProvider(idbFactory, false);
+    if (providerName === 'sqlite3memory') {
+        provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider();
     }
     else if (providerName === 'memory') {
         provider = new NoSqlProvider.InMemoryProvider();
@@ -36,8 +26,8 @@ function openProvider(providerName, schema, wipeFirst) {
     return NoSqlProvider.openListOfProviders([provider], 'test', schema, wipeFirst);
 }
 describe('NoSqlProvider', function () {
-    this.timeout(30000);
-    var provsToTest = typeof window === 'undefined' ? ['sqlite3test', 'indexeddbtest', 'memory'] : NoSqlProviderUtils.isIE() ? ['indexeddb'] : ['indexeddb', 'indexeddbfakekeys', 'websql'];
+    //this.timeout(30000);
+    var provsToTest = typeof window === 'undefined' ? ['sqlite3memory', 'memory'] : NoSqlProviderUtils.isIE() ? ['indexeddb', 'memory'] : ['indexeddb', 'indexeddbfakekeys', 'websql', 'memory'];
     it('Number/value/type sorting', function () {
         var pairsToTest = [
             [0, 1],
@@ -77,8 +67,7 @@ describe('NoSqlProvider', function () {
             describe('Data Manipulation', function () {
                 // Setter should set the testable parameter on the first param to the value in the second param, and third param to the
                 // second index column for compound indexes.
-                var tester = function (prov, indexName, compound, setter, noRange) {
-                    if (noRange === void 0) { noRange = false; }
+                var tester = function (prov, indexName, compound, setter) {
                     var putters = [1, 2, 3, 4, 5].map(function (v) {
                         var obj = { val: 'val' + v };
                         if (indexName) {
@@ -101,73 +90,68 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret.length, 5, 'getAll');
                             [1, 2, 3, 4, 5].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; }), 'cant find ' + v); });
                         });
-                        var t1b = (provName === 'indexeddbtest') ? null : prov.getAll('test', indexName, false, 3).then(function (ret) {
+                        var t1b = prov.getAll('test', indexName, false, 3).then(function (ret) {
                             assert.equal(ret.length, 3, 'getAll lim3');
                             [1, 2, 3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; }), 'cant find ' + v); });
                         });
-                        var t1c = (provName === 'indexeddbtest') ? null : prov.getAll('test', indexName, false, 3, 1).then(function (ret) {
+                        var t1c = prov.getAll('test', indexName, false, 3, 1).then(function (ret) {
                             assert.equal(ret.length, 3, 'getAll lim3 off1');
                             [2, 3, 4].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; }), 'cant find ' + v); });
                         });
-                        var t2 = noRange ? null : prov.getOnly('test', indexName, formIndex(3)).then(function (ret) {
+                        var t2 = prov.getOnly('test', indexName, formIndex(3)).then(function (ret) {
                             assert.equal(ret.length, 1, 'getOnly');
                             assert.equal(ret[0].val, 'val3');
                         });
-                        var t3 = noRange ? null : prov.getRange('test', indexName, formIndex(2), formIndex(4)).then(function (ret) {
+                        var t3 = prov.getRange('test', indexName, formIndex(2), formIndex(4)).then(function (ret) {
                             assert.equal(ret.length, 3, 'getRange++');
                             [2, 3, 4].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                         });
-                        var t3b = (noRange || provName === 'indexeddbtest') ? null :
-                            prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1).then(function (ret) {
-                                assert.equal(ret.length, 1, 'getRange++ lim1');
-                                [2].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
-                            });
-                        var t3b2 = (noRange || provName === 'indexeddbtest') ? null :
-                            prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 1).then(function (ret) {
-                                assert.equal(ret.length, 1, 'getRange++ lim1 rev');
-                                [4].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
-                            });
-                        var t3c = (noRange || provName === 'indexeddbtest') ? null :
-                            prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1, 1).then(function (ret) {
-                                assert.equal(ret.length, 1, 'getRange++ lim1 off1');
-                                [3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
-                            });
-                        var t3d = (noRange || provName === 'indexeddbtest') ? null :
-                            prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 2, 1).then(function (ret) {
-                                assert.equal(ret.length, 2, 'getRange++ lim2 off1');
-                                [3, 4].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
-                            });
-                        var t3d2 = (noRange || provName === 'indexeddbtest') ? null :
-                            prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1).then(function (ret) {
-                                assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
-                                assert.equal(ret[0].val, 'val3');
-                                [2, 3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
-                            });
-                        var t4 = noRange ? null : prov.getRange('test', indexName, formIndex(2), formIndex(4), true, false).then(function (ret) {
+                        var t3b = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1).then(function (ret) {
+                            assert.equal(ret.length, 1, 'getRange++ lim1');
+                            [2].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
+                        });
+                        var t3b2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 1).then(function (ret) {
+                            assert.equal(ret.length, 1, 'getRange++ lim1 rev');
+                            [4].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
+                        });
+                        var t3c = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1, 1).then(function (ret) {
+                            assert.equal(ret.length, 1, 'getRange++ lim1 off1');
+                            [3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
+                        });
+                        var t3d = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 2, 1).then(function (ret) {
+                            assert.equal(ret.length, 2, 'getRange++ lim2 off1');
+                            [3, 4].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
+                        });
+                        var t3d2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1).then(function (ret) {
+                            assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
+                            assert.equal(ret[0].val, 'val3');
+                            [2, 3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
+                        });
+                        var t4 = prov.getRange('test', indexName, formIndex(2), formIndex(4), true, false).then(function (ret) {
                             assert.equal(ret.length, 2, 'getRange-+');
                             [3, 4].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                         });
-                        var t5 = noRange ? null : prov.getRange('test', indexName, formIndex(2), formIndex(4), false, true).then(function (ret) {
+                        var t5 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, true).then(function (ret) {
                             assert.equal(ret.length, 2, 'getRange+-');
                             [2, 3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                         });
-                        var t6 = noRange ? null : prov.getRange('test', indexName, formIndex(2), formIndex(4), true, true).then(function (ret) {
+                        var t6 = prov.getRange('test', indexName, formIndex(2), formIndex(4), true, true).then(function (ret) {
                             assert.equal(ret.length, 1, 'getRange--');
                             [3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                         });
                         return SyncTasks.whenAll([t1, t1b, t1c, t2, t3, t3b, t3b2, t3c, t3d, t3d2, t4, t5, t6]).then(function () {
                             if (compound) {
-                                var tt1 = noRange ? null : prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
+                                var tt1 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
                                     .then(function (ret) {
                                     assert.equal(ret.length, 2, 'getRange2++');
                                     [2, 3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                                 });
-                                var tt2 = noRange ? null : prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
+                                var tt2 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
                                     .then(function (ret) {
                                     assert.equal(ret.length, 2, 'getRange2+-');
                                     [2, 3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                                 });
-                                var tt3 = noRange ? null : prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
+                                var tt3 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
                                     .then(function (ret) {
                                     assert.equal(ret.length, 1, 'getRange2-+');
                                     [3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
@@ -214,8 +198,7 @@ describe('NoSqlProvider', function () {
                             }
                         ]
                     }, true).then(function (prov) {
-                        // The indexeddb lib we're using for unit tests doesn't support range queries on the PK, so ignore those for now...
-                        return tester(prov, null, false, function (obj, v) { obj.id = v; }, provName === 'indexeddbtest');
+                        return tester(prov, null, false, function (obj, v) { obj.id = v; });
                     });
                 });
                 it('Simple index put/get, getAll, getOnly, and getRange', function () {
@@ -247,8 +230,7 @@ describe('NoSqlProvider', function () {
                             }
                         ]
                     }, true).then(function (prov) {
-                        // The indexeddb lib we're using for unit tests doesn't support range queries on the PK, so ignore those for now...
-                        return tester(prov, null, false, function (obj, v) { obj.a = { b: v }; }, provName === 'indexeddbtest');
+                        return tester(prov, null, false, function (obj, v) { obj.a = { b: v }; });
                     });
                 });
                 it('Multipart index basic test', function () {
@@ -280,7 +262,7 @@ describe('NoSqlProvider', function () {
                             }
                         ]
                     }, true).then(function (prov) {
-                        return tester(prov, null, true, function (obj, v1, v2) { obj.a = v1; obj.b = v2; }, provName === 'indexeddbtest');
+                        return tester(prov, null, true, function (obj, v1, v2) { obj.a = v1; obj.b = v2; });
                     });
                 });
                 it('Compound index basic test', function () {
@@ -327,11 +309,11 @@ describe('NoSqlProvider', function () {
                                 assert.equal(ret.length, 4);
                                 ret.forEach(function (r) { assert.equal(r.val, 'b'); });
                             });
-                            var g2b = (provName === 'indexeddbtest') ? null : prov.getAll('test', 'key', false, 2).then(function (ret) {
+                            var g2b = prov.getAll('test', 'key', false, 2).then(function (ret) {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(function (r) { assert.equal(r.val, 'b'); });
                             });
-                            var g2c = (provName === 'indexeddbtest') ? null : prov.getAll('test', 'key', false, 2, 1).then(function (ret) {
+                            var g2c = prov.getAll('test', 'key', false, 2, 1).then(function (ret) {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(function (r) { assert.equal(r.val, 'b'); });
                             });
@@ -350,21 +332,9 @@ describe('NoSqlProvider', function () {
                     });
                 });
             });
-            describe('Schema Upgrades', function () {
-                it('Basic schema upgrade path', function () {
-                    return openProvider(provName, {
-                        version: 1,
-                        stores: [
-                            {
-                                name: 'test',
-                                primaryKeyPath: 'id'
-                            }
-                        ]
-                    }, true).then(function (prov) {
-                        return prov.put('test', { id: 'abc' }).then(function () {
-                            return prov.close();
-                        });
-                    }).then(function () {
+            if (provName !== 'memory' && provName !== 'sqlite3memory') {
+                describe('Schema Upgrades', function () {
+                    it('Opening an older DB version', function () {
                         return openProvider(provName, {
                             version: 2,
                             stores: [
@@ -373,81 +343,275 @@ describe('NoSqlProvider', function () {
                                     primaryKeyPath: 'id'
                                 }
                             ]
-                        }, false).then(function (prov) {
-                            return prov.get('test', 'abc').then(function (item) {
-                                assert(!!item);
-                                return prov.close();
-                            });
-                        });
-                    });
-                });
-                it('Removing old store then accessing it', function () {
-                    return openProvider(provName, {
-                        version: 1,
-                        stores: [
-                            {
-                                name: 'test',
-                                primaryKeyPath: 'id'
-                            }
-                        ]
-                    }, true).then(function (prov) {
-                        return prov.put('test', { id: 'abc' }).then(function () {
+                        }, true).then(function (prov) {
                             return prov.close();
-                        });
-                    }).then(function () {
-                        return openProvider(provName, {
-                            version: 2,
-                            stores: [
-                                {
-                                    name: 'test2',
-                                    primaryKeyPath: 'id'
-                                }
-                            ]
-                        }, false).then(function (prov) {
-                            return prov.get('test', 'abc').then(function (item) {
-                                return prov.close().then(function () {
-                                    return SyncTasks.Rejected('Shouldn\'t have worked');
+                        }).then(function () {
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test2',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, false).then(function (prov) {
+                                return prov.get('test', 'abc').then(function (item) {
+                                    return prov.close().then(function () {
+                                        return SyncTasks.Rejected('Shouldn\'t have worked');
+                                    });
+                                }, function () {
+                                    // Expected to fail, so chain from failure to success
+                                    return prov.close();
                                 });
-                            }, function () {
-                                // Expected to fail, so chain from failure to success
-                                return prov.close();
                             });
                         });
                     });
-                });
-                it('Opening an older DB version', function () {
-                    return openProvider(provName, {
-                        version: 2,
-                        stores: [
-                            {
-                                name: 'test',
-                                primaryKeyPath: 'id'
-                            }
-                        ]
-                    }, true).then(function (prov) {
-                        return prov.close();
-                    }).then(function () {
+                    it('Basic NOOP schema upgrade path', function () {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
-                                    name: 'test2',
+                                    name: 'test',
                                     primaryKeyPath: 'id'
                                 }
                             ]
-                        }, false).then(function (prov) {
-                            return prov.get('test', 'abc').then(function (item) {
-                                return prov.close().then(function () {
-                                    return SyncTasks.Rejected('Shouldn\'t have worked');
-                                });
-                            }, function () {
-                                // Expected to fail, so chain from failure to success
+                        }, true).then(function (prov) {
+                            return prov.put('test', { id: 'abc' }).then(function () {
                                 return prov.close();
+                            });
+                        }).then(function () {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, false).then(function (prov) {
+                                return prov.get('test', 'abc').then(function (item) {
+                                    assert(!!item);
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+                    it('Adding new store', function () {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        }, true).then(function (prov) {
+                            return prov.put('test', { id: 'abc' }).then(function () {
+                                return prov.close();
+                            });
+                        }).then(function () {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    },
+                                    {
+                                        name: 'test2',
+                                        primaryKeyPath: 'ttt'
+                                    }
+                                ]
+                            }, false).then(function (prov) {
+                                return prov.put('test2', { id: 'def', ttt: 'ghi' }).then(function () {
+                                    var p1 = prov.get('test', 'abc').then(function (item) {
+                                        assert(!!item);
+                                        assert.equal(item.id, 'abc');
+                                    });
+                                    var p2 = prov.get('test2', 'abc').then(function (item) {
+                                        assert(!item);
+                                    });
+                                    var p3 = prov.get('test2', 'def').then(function (item) {
+                                        assert(!item);
+                                    });
+                                    var p4 = prov.get('test2', 'ghi').then(function (item) {
+                                        assert(!!item);
+                                        assert.equal(item.id, 'def');
+                                    });
+                                    return SyncTasks.whenAll([p1, p2, p3, p4]).then(function () {
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+                    });
+                    it('Removing old store', function () {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        }, true).then(function (prov) {
+                            return prov.put('test', { id: 'abc' }).then(function () {
+                                return prov.close();
+                            });
+                        }).then(function () {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test2',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, false).then(function (prov) {
+                                return prov.get('test', 'abc').then(function (item) {
+                                    return prov.close().then(function () {
+                                        return SyncTasks.Rejected('Shouldn\'t have worked');
+                                    });
+                                }, function () {
+                                    // Expected to fail, so chain from failure to success
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+                    it('Add index', function () {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        }, true).then(function (prov) {
+                            return prov.put('test', { id: 'abc', tt: 'a' }).then(function () {
+                                return prov.close();
+                            });
+                        }).then(function () {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                                name: 'ind1',
+                                                keyPath: 'tt'
+                                            }]
+                                    }
+                                ]
+                            }, false).then(function (prov) {
+                                var p1 = prov.getOnly('test', 'ind1', 'a').then(function (items) {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                    assert.equal(items[0].tt, 'a');
+                                });
+                                var p2 = prov.getOnly('test', null, 'abc').then(function (items) {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                    assert.equal(items[0].tt, 'a');
+                                });
+                                var p3 = prov.getOnly('test', 'ind1', 'abc').then(function (items) {
+                                    assert.equal(items.length, 0);
+                                });
+                                return SyncTasks.whenAll([p1, p2, p3]).then(function () {
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+                    it('Removing old index', function () {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt'
+                                        }]
+                                }
+                            ]
+                        }, true).then(function (prov) {
+                            return prov.put('test', { id: 'abc', tt: 'a' }).then(function () {
+                                return prov.close();
+                            });
+                        }).then(function () {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, false).then(function (prov) {
+                                return prov.getOnly('test', 'ind1', 'a').then(function (items) {
+                                    return prov.close().then(function () {
+                                        return SyncTasks.Rejected('Shouldn\'t have worked');
+                                    });
+                                }, function () {
+                                    // Expected to fail, so chain from failure to success
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+                    it('Changing index keypath', function () {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt'
+                                        }]
+                                }
+                            ]
+                        }, true).then(function (prov) {
+                            return prov.put('test', { id: 'abc', tt: 'a', ttb: 'b' }).then(function () {
+                                return prov.close();
+                            });
+                        }).then(function () {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                                name: 'ind1',
+                                                keyPath: 'ttb'
+                                            }]
+                                    }
+                                ]
+                            }, false).then(function (prov) {
+                                var p1 = prov.getOnly('test', 'ind1', 'a').then(function (items) {
+                                    assert.equal(items.length, 0);
+                                });
+                                var p2 = prov.getOnly('test', 'ind1', 'b').then(function (items) {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].ttb, 'b');
+                                });
+                                var p3 = prov.getOnly('test', 'ind1', 'abc').then(function (items) {
+                                    assert.equal(items.length, 0);
+                                });
+                                return SyncTasks.whenAll([p1, p2, p3]).then(function () {
+                                    return prov.close();
+                                });
                             });
                         });
                     });
                 });
-            });
+            }
         });
     });
 });

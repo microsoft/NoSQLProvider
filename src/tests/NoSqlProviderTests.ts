@@ -10,18 +10,8 @@ SyncTasks.config.catchExceptions = false;
 
 function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipeFirst: boolean) {
     let provider: NoSqlProvider.DbProvider = null;
-    if (providerName === 'sqlite3test') {
-        var sqlite3 = require('sqlite3');
-        provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider(sqlite3);
-    } else if (providerName === 'indexeddbtest') {
-        var sqlite3 = require('sqlite3');
-        const engine = new sqlite3.Database(':memory:');
-        var indexeddbjs = require('indexeddb-js');
-        const scope = indexeddbjs.makeScope('sqlite3', engine);
-        global['IDBKeyRange'] = scope.IDBKeyRange;
-
-        const idbFactory = scope.indexedDB;
-        provider = new NoSqlProvider.IndexedDbProvider(idbFactory, false);
+    if (providerName === 'sqlite3memory') {
+        provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider();
     } else if (providerName === 'memory') {
         provider = new NoSqlProvider.InMemoryProvider();
     } else if (providerName === 'indexeddb') {
@@ -35,9 +25,9 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
 }
 
 describe('NoSqlProvider', function () {
-    this.timeout(30000);
+    //this.timeout(30000);
 
-    let provsToTest = typeof window === 'undefined' ? ['sqlite3test', 'indexeddbtest', 'memory'] : NoSqlProviderUtils.isIE() ? ['indexeddb'] : ['indexeddb', 'indexeddbfakekeys', 'websql'];
+    let provsToTest = typeof window === 'undefined' ? ['sqlite3memory', 'memory'] : NoSqlProviderUtils.isIE() ? ['indexeddb', 'memory'] : ['indexeddb', 'indexeddbfakekeys', 'websql', 'memory'];
 
     it('Number/value/type sorting', () => {
         const pairsToTest = [
@@ -84,7 +74,7 @@ describe('NoSqlProvider', function () {
                 // Setter should set the testable parameter on the first param to the value in the second param, and third param to the
                 // second index column for compound indexes.
                 var tester = (prov: NoSqlProvider.DbProvider, indexName: string, compound: boolean,
-                    setter: (obj: any, indexval1: string, indexval2: string) => void, noRange: boolean = false) => {
+                    setter: (obj: any, indexval1: string, indexval2: string) => void) => {
                     var putters = [1, 2, 3, 4, 5].map(v => {
                         var obj: any = { val: 'val' + v };
                         if (indexName) {
@@ -108,87 +98,82 @@ describe('NoSqlProvider', function () {
                             [1, 2, 3, 4, 5].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
-                        let t1b = (provName === 'indexeddbtest') ? null : prov.getAll<any>('test', indexName, false, 3).then(ret => {
+                        let t1b = prov.getAll<any>('test', indexName, false, 3).then(ret => {
                             assert.equal(ret.length, 3, 'getAll lim3');
                             [1, 2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
-                        let t1c = (provName === 'indexeddbtest') ? null : prov.getAll<any>('test', indexName, false, 3, 1).then(ret => {
+                        let t1c = prov.getAll<any>('test', indexName, false, 3, 1).then(ret => {
                             assert.equal(ret.length, 3, 'getAll lim3 off1');
                             [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
-                        let t2 = noRange ? null : prov.getOnly<any>('test', indexName, formIndex(3)).then(ret => {
+                        let t2 = prov.getOnly<any>('test', indexName, formIndex(3)).then(ret => {
                             assert.equal(ret.length, 1, 'getOnly');
                             assert.equal(ret[0].val, 'val3');
                         });
 
-                        let t3 = noRange ? null : prov.getRange<any>('test', indexName, formIndex(2), formIndex(4)).then(ret => {
+                        let t3 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4)).then(ret => {
                             assert.equal(ret.length, 3, 'getRange++');
                             [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
 
-                        let t3b = (noRange || provName === 'indexeddbtest') ? null :
-                            prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 1).then(ret => {
+                        let t3b = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 1).then(ret => {
                                 assert.equal(ret.length, 1, 'getRange++ lim1');
                                 [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3b2 = (noRange || provName === 'indexeddbtest') ? null :
-                            prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, true, 1).then(ret => {
+                        let t3b2 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, true, 1).then(ret => {
                                 assert.equal(ret.length, 1, 'getRange++ lim1 rev');
                                 [4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3c = (noRange || provName === 'indexeddbtest') ? null :
-                            prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 1, 1).then(ret => {
+                        let t3c = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 1, 1).then(ret => {
                                 assert.equal(ret.length, 1, 'getRange++ lim1 off1');
                                 [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3d = (noRange || provName === 'indexeddbtest') ? null :
-                            prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 2, 1).then(ret => {
+                        let t3d = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 2, 1).then(ret => {
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1');
                                 [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3d2 = (noRange || provName === 'indexeddbtest') ? null :
-                            prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1).then(ret => {
+                        let t3d2 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1).then(ret => {
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
                                 assert.equal(ret[0].val, 'val3');
                                 [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t4 = noRange ? null : prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), true, false).then(ret => {
+                        let t4 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), true, false).then(ret => {
                             assert.equal(ret.length, 2, 'getRange-+');
                             [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
 
-                        let t5 = noRange ? null : prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, true).then(ret => {
+                        let t5 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, true).then(ret => {
                             assert.equal(ret.length, 2, 'getRange+-');
                             [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
 
-                        let t6 = noRange ? null : prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), true, true).then(ret => {
+                        let t6 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), true, true).then(ret => {
                             assert.equal(ret.length, 1, 'getRange--');
                             [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
 
                         return SyncTasks.whenAll([t1, t1b, t1c, t2, t3, t3b, t3b2, t3c, t3d, t3d2, t4, t5, t6]).then(() => {
                             if (compound) {
-                                let tt1 = noRange ? null : prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3))
+                                let tt1 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3))
                                     .then(ret => {
                                         assert.equal(ret.length, 2, 'getRange2++');
                                         [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
 
-                                let tt2 = noRange ? null : prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
+                                let tt2 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
                                     .then(ret => {
                                         assert.equal(ret.length, 2, 'getRange2+-');
                                         [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
 
-                                let tt3 = noRange ? null : prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
+                                let tt3 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
                                     .then(ret => {
                                         assert.equal(ret.length, 1, 'getRange2-+');
                                         [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
@@ -239,8 +224,7 @@ describe('NoSqlProvider', function () {
                             }
                         ]
                     }, true).then(prov => {
-                        // The indexeddb lib we're using for unit tests doesn't support range queries on the PK, so ignore those for now...
-                        return tester(prov, null, false, (obj, v) => { obj.id = v; }, provName === 'indexeddbtest');
+                        return tester(prov, null, false, (obj, v) => { obj.id = v; });
                     });
                 });
 
@@ -274,8 +258,7 @@ describe('NoSqlProvider', function () {
                             }
                         ]
                     }, true).then(prov => {
-                        // The indexeddb lib we're using for unit tests doesn't support range queries on the PK, so ignore those for now...
-                        return tester(prov, null, false, (obj, v) => { obj.a = { b: v }; }, provName === 'indexeddbtest');
+                        return tester(prov, null, false, (obj, v) => { obj.a = { b: v }; });
                     });
                 });
 
@@ -309,7 +292,7 @@ describe('NoSqlProvider', function () {
                             }
                         ]
                     }, true).then(prov => {
-                        return tester(prov, null, true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; }, provName === 'indexeddbtest');
+                        return tester(prov, null, true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
                     });
                 });
 
@@ -358,11 +341,11 @@ describe('NoSqlProvider', function () {
                                 assert.equal(ret.length, 4);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
-                            var g2b = (provName === 'indexeddbtest') ? null : prov.getAll<any>('test', 'key', false, 2).then(ret => {
+                            var g2b = prov.getAll<any>('test', 'key', false, 2).then(ret => {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
-                            var g2c = (provName === 'indexeddbtest') ? null : prov.getAll<any>('test', 'key', false, 2, 1).then(ret => {
+                            var g2c = prov.getAll<any>('test', 'key', false, 2, 1).then(ret => {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
@@ -382,21 +365,9 @@ describe('NoSqlProvider', function () {
                 });
             });
 
-            describe('Schema Upgrades', () => {
-                it('Basic schema upgrade path', () => {
-                    return openProvider(provName, {
-                        version: 1,
-                        stores: [
-                            {
-                                name: 'test',
-                                primaryKeyPath: 'id'
-                            }
-                        ]
-                    }, true).then(prov => {
-                        return prov.put('test', { id: 'abc' }).then(() => {
-                            return prov.close();
-                        });
-                    }).then(() => {
+            if (provName !== 'memory' && provName !== 'sqlite3memory') {
+                describe('Schema Upgrades', () => {
+                    it('Opening an older DB version', () => {
                         return openProvider(provName, {
                             version: 2,
                             stores: [
@@ -405,83 +376,281 @@ describe('NoSqlProvider', function () {
                                     primaryKeyPath: 'id'
                                 }
                             ]
-                        }, false).then(prov => {
-                            return prov.get('test', 'abc').then(item => {
-                                assert(!!item);
-                                return prov.close();
-                            });
-                        });
-                    });
-                });
-
-                it('Removing old store then accessing it', () => {
-                    return openProvider(provName, {
-                        version: 1,
-                        stores: [
-                            {
-                                name: 'test',
-                                primaryKeyPath: 'id'
-                            }
-                        ]
-                    }, true).then(prov => {
-                        return prov.put('test', { id: 'abc' }).then(() => {
+                        }, true).then(prov => {
                             return prov.close();
-                        });
-                    }).then(() => {
-                        return openProvider(provName, {
-                            version: 2,
-                            stores: [
-                                {
-                                    name: 'test2',
-                                    primaryKeyPath: 'id'
-                                }
-                            ]
-                        }, false).then(prov => {
-                            return prov.get('test', 'abc').then(item => {
-                                return prov.close().then(() => {
-                                    return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test2',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                return prov.get('test', 'abc').then(item => {
+                                    return prov.close().then(() => {
+                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                    });
+                                }, () => {
+                                    // Expected to fail, so chain from failure to success
+                                    return prov.close();
                                 });
-                            }, () => {
-                                // Expected to fail, so chain from failure to success
-                                return prov.close();
                             });
                         });
                     });
-                });
 
-                it('Opening an older DB version', () => {
-                    return openProvider(provName, {
-                        version: 2,
-                        stores: [
-                            {
-                                name: 'test',
-                                primaryKeyPath: 'id'
-                            }
-                        ]
-                    }, true).then(prov => {
-                        return prov.close();
-                    }).then(() => {
+                    it('Basic NOOP schema upgrade path', () => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
-                                    name: 'test2',
+                                    name: 'test',
                                     primaryKeyPath: 'id'
                                 }
                             ]
-                        }, false).then(prov => {
-                            return prov.get('test', 'abc').then(item => {
-                                return prov.close().then(() => {
-                                    return SyncTasks.Rejected<void>('Shouldn\'t have worked');
-                                });
-                            }, () => {
-                                // Expected to fail, so chain from failure to success
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc' }).then(() => {
                                 return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                return prov.get('test', 'abc').then(item => {
+                                    assert(!!item);
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
+                    it('Adding new store', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc' }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    },
+                                    {
+                                        name: 'test2',
+                                        primaryKeyPath: 'ttt'
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                return prov.put('test2', { id: 'def', ttt: 'ghi' }).then(() => {
+                                    const p1 = prov.get<any>('test', 'abc').then(item => {
+                                        assert(!!item);
+                                        assert.equal(item.id, 'abc');
+                                    });
+                                    const p2 = prov.get<any>('test2', 'abc').then(item => {
+                                        assert(!item);
+                                    });
+                                    const p3 = prov.get<any>('test2', 'def').then(item => {
+                                        assert(!item);
+                                    });
+                                    const p4 = prov.get<any>('test2', 'ghi').then(item => {
+                                        assert(!!item);
+                                        assert.equal(item.id, 'def');
+                                    });
+                                    return SyncTasks.whenAll([p1, p2, p3, p4]).then(() => {
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+                    });
+
+                    it('Removing old store', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc' }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test2',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                return prov.get('test', 'abc').then(item => {
+                                    return prov.close().then(() => {
+                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                    });
+                                }, () => {
+                                    // Expected to fail, so chain from failure to success
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
+                    it('Add index', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', tt: 'a' }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt'
+                                        }]
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                    assert.equal(items[0].tt, 'a');
+                                });
+                                const p2 = prov.getOnly<any>('test', null, 'abc').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                    assert.equal(items[0].tt, 'a');
+                                });
+                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                    assert.equal(items.length, 0);
+                                });
+                                return SyncTasks.whenAll([p1, p2, p3]).then(() => {
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
+                    it('Removing old index', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [{
+                                        name: 'ind1',
+                                        keyPath: 'tt'
+                                    }]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', tt: 'a' }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                return prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                    return prov.close().then(() => {
+                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                    });
+                                }, () => {
+                                    // Expected to fail, so chain from failure to success
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
+                    it('Changing index keypath', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [{
+                                        name: 'ind1',
+                                        keyPath: 'tt'
+                                    }]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', tt: 'a', ttb: 'b' }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'ttb'
+                                        }]
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                    assert.equal(items.length, 0);
+                                });
+                                const p2 = prov.getOnly<any>('test', 'ind1', 'b').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].ttb, 'b');
+                                });
+                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                    assert.equal(items.length, 0);
+                                });
+                                return SyncTasks.whenAll([p1, p2, p3]).then(() => {
+                                    return prov.close();
+                                });
                             });
                         });
                     });
                 });
-            });
+            }
         });
     });
 });

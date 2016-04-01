@@ -60,10 +60,33 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     }
 
     protected _upgradeDb(trans: SqlTransaction, oldVersion: number, wipeAnyway: boolean): SyncTasks.Promise<void> {
-        return trans.runQuery('SELECT tbl_name from sqlite_master WHERE type = \'table\'', [])
+        // Get a list of all tables and indexes on the tables
+        return trans.runQuery('SELECT type, name, tbl_name from sqlite_master', [])
             .then(rows => {
-                var tableNames = _.map(rows, row => row['tbl_name']).filter(name => name !== '__WebKitDatabaseInfoTable__' &&
-                    name !== 'metadata');
+                let tableNames: string[] = [];
+                let indexNames: { [table: string]: string[] } = {};
+                
+                rows.forEach(row => {
+                    if (row['tbl_name'] === '__WebKitDatabaseInfoTable__' || row['tbl_name'] === 'metadata') {
+                        return;
+                    }
+                    if (row['type'] === 'table') {
+                        tableNames.push(row['name']);
+                        if (!indexNames[row['name']]) {
+                            indexNames[row['name']] = [];
+                        }
+                    }
+                    if (row['type'] === 'index') {
+                        if (row['name'].substring(0, 17) === 'sqlite_autoindex_') {
+                            // auto-index, ignore
+                            return;
+                        }
+                        if (!indexNames[row['tbl_name']]) {
+                            indexNames[row['tbl_name']] = [];
+                        }
+                        indexNames[row['tbl_name']].push(row['name']);
+                    }
+                });
 
                 // Check each table!
                 var dropQueries = [];
@@ -140,27 +163,30 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             // If the table exists, we can't read its schema due to websql security rules,
                             // so just make a copy and fully migrate the data over.
 
-                            let tempTablePromise = trans.runQuery('ALTER TABLE ' + storeSchema.name + ' RENAME TO temp_' +
-                                storeSchema.name);
+                            // Nuke old indexes on the original table (since they don't change names and we don't need them anymore)
+                            let nukeIndexesAndRename = SyncTasks.whenAll(indexNames[storeSchema.name].map(indexName =>
+                                trans.runQuery('DROP INDEX ' + indexName)
+                            )).then(() => {
+                                // Then rename the table to a temp_[name] table so we can migrate the data out of it
+                                return trans.runQuery('ALTER TABLE ' + storeSchema.name + ' RENAME TO temp_' + storeSchema.name);
+                            });
 
                             // Migrate the data over using our existing put functions (since it will do the right things with the indexes)
                             // and delete the temp table.
                             let migrator = () => {
                                 var store = trans.getStore(storeSchema.name);
-                                var puts = [];
+                                var objs = [];
                                 return trans.getResultsFromQueryWithCallback('SELECT nsp_data FROM temp_' + storeSchema.name, null,
                                     (obj) => {
-                                        puts.push(store.put(obj));
+                                        objs.push(obj);
                                     }).then(() => {
-                                        return SyncTasks.whenAll(puts).then(() => {
+                                        return store.put(objs).then(() => {
                                             return trans.runQuery('DROP TABLE temp_' + storeSchema.name);
                                         });
                                     });
                             };
 
-                            tableNames = _.filter(tableNames, name => name !== storeSchema.name);
-
-                            tableQueries.push(tempTablePromise.then(tableMaker).then(migrator));
+                            tableQueries.push(nukeIndexesAndRename.then(tableMaker).then(migrator));
                         } else {
                             // Table doesn't exist -- just go ahead and create it without the migration path
                             tableQueries.push(tableMaker());

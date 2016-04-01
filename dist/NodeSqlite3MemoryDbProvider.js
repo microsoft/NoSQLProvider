@@ -14,19 +14,18 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var SyncTasks = require('synctasks');
 var SqlProviderBase = require('./SqlProviderBase');
+var sqlite3 = require('sqlite3');
 var NodeSqlite3MemoryDbProvider = (function (_super) {
     __extends(NodeSqlite3MemoryDbProvider, _super);
-    function NodeSqlite3MemoryDbProvider(sqlite3) {
-        _super.call(this);
-        this._sqlite3 = sqlite3;
+    function NodeSqlite3MemoryDbProvider() {
+        _super.apply(this, arguments);
     }
     NodeSqlite3MemoryDbProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
         _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
-        if (!this._sqlite3) {
-            return SyncTasks.Rejected('No support for react native sqlite in this environment');
+        if (verbose) {
+            sqlite3.verbose();
         }
-        this._sqlite3.verbose();
-        this._db = new this._sqlite3.Database(':memory:');
+        this._db = new sqlite3.Database(':memory:');
         return this._ourVersionChecker(wipeIfExists);
     };
     NodeSqlite3MemoryDbProvider.prototype.openTransaction = function (storeNames, writeNeeded) {
@@ -70,9 +69,11 @@ var NodeSqlite3Transaction = (function (_super) {
             if (err) {
                 console.log('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
                 deferred.reject(err);
+                stmt.finalize();
                 return;
             }
             deferred.resolve(rows);
+            stmt.finalize();
         });
         return deferred.promise();
     };
@@ -87,6 +88,7 @@ var NodeSqlite3Transaction = (function (_super) {
             if (err) {
                 console.log('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
                 deferred.reject(err);
+                stmt.finalize();
                 return;
             }
             callback(JSON.parse(row.nsp_data));
@@ -94,9 +96,11 @@ var NodeSqlite3Transaction = (function (_super) {
             if (err) {
                 console.log('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
                 deferred.reject(err);
+                stmt.finalize();
                 return;
             }
             deferred.resolve();
+            stmt.finalize();
         });
         return deferred.promise();
     };

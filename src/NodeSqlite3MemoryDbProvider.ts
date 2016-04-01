@@ -11,27 +11,19 @@ import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProviderInterfaces');
 import SqlProviderBase = require('./SqlProviderBase');
+import sqlite3 = require('sqlite3');
 
 export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase {
-    private _sqlite3: any;
-    private _db: any;
-
-    constructor(sqlite3: any) {
-        super();
-
-        this._sqlite3 = sqlite3;
-    }
+    private _db: sqlite3.Database;
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
-        if (!this._sqlite3) {
-            return SyncTasks.Rejected<void>('No support for react native sqlite in this environment');
+        if (verbose) {
+            sqlite3.verbose();
         }
 
-        this._sqlite3.verbose();
-
-        this._db = new this._sqlite3.Database(':memory:');
+        this._db = new sqlite3.Database(':memory:');
 
         return this._ourVersionChecker(wipeIfExists);
     }
@@ -59,9 +51,9 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
 }
 
 class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
-    private _db: any;
+    private _db: sqlite3.Database;
 
-    constructor(db: any, schema: NoSqlProvider.DbSchema, verbose: boolean) {
+    constructor(db: sqlite3.Database, schema: NoSqlProvider.DbSchema, verbose: boolean) {
         super(schema, verbose);
 
         // TODO dadere (#333862): Make this an actual transaction
@@ -81,9 +73,11 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
             if (err) {
                 console.log('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
                 deferred.reject(err);
+                stmt.finalize();
                 return;
             }
             deferred.resolve(rows);
+            stmt.finalize();
         });
 
         return deferred.promise();
@@ -102,6 +96,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
             if (err) {
                 console.log('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
                 deferred.reject(err);
+                stmt.finalize();
                 return;
             }
             callback(JSON.parse(row.nsp_data));
@@ -109,9 +104,11 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
             if (err) {
                 console.log('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
                 deferred.reject(err);
+                stmt.finalize();
                 return;
             }
             deferred.resolve();
+            stmt.finalize();
         });
 
         return deferred.promise();

@@ -65,10 +65,32 @@ var SqlProviderBase = (function (_super) {
     };
     SqlProviderBase.prototype._upgradeDb = function (trans, oldVersion, wipeAnyway) {
         var _this = this;
-        return trans.runQuery('SELECT tbl_name from sqlite_master WHERE type = \'table\'', [])
+        // Get a list of all tables and indexes on the tables
+        return trans.runQuery('SELECT type, name, tbl_name from sqlite_master', [])
             .then(function (rows) {
-            var tableNames = _.map(rows, function (row) { return row['tbl_name']; }).filter(function (name) { return name !== '__WebKitDatabaseInfoTable__' &&
-                name !== 'metadata'; });
+            var tableNames = [];
+            var indexNames = {};
+            rows.forEach(function (row) {
+                if (row['tbl_name'] === '__WebKitDatabaseInfoTable__' || row['tbl_name'] === 'metadata') {
+                    return;
+                }
+                if (row['type'] === 'table') {
+                    tableNames.push(row['name']);
+                    if (!indexNames[row['name']]) {
+                        indexNames[row['name']] = [];
+                    }
+                }
+                if (row['type'] === 'index') {
+                    if (row['name'].substring(0, 17) === 'sqlite_autoindex_') {
+                        // auto-index, ignore
+                        return;
+                    }
+                    if (!indexNames[row['tbl_name']]) {
+                        indexNames[row['tbl_name']] = [];
+                    }
+                    indexNames[row['tbl_name']].push(row['name']);
+                }
+            });
             // Check each table!
             var dropQueries = [];
             if (wipeAnyway || (_this._schema.lastUsableVersion && oldVersion < _this._schema.lastUsableVersion)) {
@@ -133,23 +155,27 @@ var SqlProviderBase = (function (_super) {
                     if (_.contains(tableNames, storeSchema.name)) {
                         // If the table exists, we can't read its schema due to websql security rules,
                         // so just make a copy and fully migrate the data over.
-                        var tempTablePromise = trans.runQuery('ALTER TABLE ' + storeSchema.name + ' RENAME TO temp_' +
-                            storeSchema.name);
+                        // Nuke old indexes on the original table (since they don't change names and we don't need them anymore)
+                        var nukeIndexesAndRename = SyncTasks.whenAll(indexNames[storeSchema.name].map(function (indexName) {
+                            return trans.runQuery('DROP INDEX ' + indexName);
+                        })).then(function () {
+                            // Then rename the table to a temp_[name] table so we can migrate the data out of it
+                            return trans.runQuery('ALTER TABLE ' + storeSchema.name + ' RENAME TO temp_' + storeSchema.name);
+                        });
                         // Migrate the data over using our existing put functions (since it will do the right things with the indexes)
                         // and delete the temp table.
                         var migrator = function () {
                             var store = trans.getStore(storeSchema.name);
-                            var puts = [];
+                            var objs = [];
                             return trans.getResultsFromQueryWithCallback('SELECT nsp_data FROM temp_' + storeSchema.name, null, function (obj) {
-                                puts.push(store.put(obj));
+                                objs.push(obj);
                             }).then(function () {
-                                return SyncTasks.whenAll(puts).then(function () {
+                                return store.put(objs).then(function () {
                                     return trans.runQuery('DROP TABLE temp_' + storeSchema.name);
                                 });
                             });
                         };
-                        tableNames = _.filter(tableNames, function (name) { return name !== storeSchema.name; });
-                        tableQueries.push(tempTablePromise.then(tableMaker).then(migrator));
+                        tableQueries.push(nukeIndexesAndRename.then(tableMaker).then(migrator));
                     }
                     else {
                         // Table doesn't exist -- just go ahead and create it without the migration path
