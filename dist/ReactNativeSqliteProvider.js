@@ -5,6 +5,7 @@
  *
  * NoSqlProvider provider setup for react-native-sqlite, a React Native plugin that wraps sqlite.
  */
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
@@ -55,7 +56,7 @@ var ReactNativeSqliteProvider = (function (_super) {
         return SyncTasks.Resolved(new ReactNativeSqliteTransaction(this._db, this._schema, this._verbose));
     };
     return ReactNativeSqliteProvider;
-})(SqlProviderBase.SqlProviderBase);
+}(SqlProviderBase.SqlProviderBase));
 exports.ReactNativeSqliteProvider = ReactNativeSqliteProvider;
 var ReactNativeSqliteTransaction = (function (_super) {
     __extends(ReactNativeSqliteTransaction, _super);
@@ -98,4 +99,4 @@ var ReactNativeSqliteTransaction = (function (_super) {
         return deferred.promise();
     };
     return ReactNativeSqliteTransaction;
-})(SqlProviderBase.SqlTransaction);
+}(SqlProviderBase.SqlTransaction));

@@ -7,6 +7,7 @@
  * numerous different backend store types, invisible to the consumer.  The
  * usage semantics are very similar to IndexedDB.
  */
+"use strict";
 function __export(m) {
     for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
 }

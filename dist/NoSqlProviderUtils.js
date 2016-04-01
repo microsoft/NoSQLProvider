@@ -5,6 +5,7 @@
 *
 * Reusable helper functions for NoSqlProvider providers/transactions/etc.
 */
+"use strict";
 var _ = require('lodash');
 function isArray(obj) {
     return (Object.prototype.toString.call(obj) === '[object Array]');

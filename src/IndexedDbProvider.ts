@@ -80,6 +80,8 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
         var dbOpen = this._dbFactory.open(dbName, schema.version);
 
+        let migrationPutters: SyncTasks.Promise<void>[] = [];
+
         dbOpen.onupgradeneeded = (event) => {
             var db: IDBDatabase = dbOpen.result;
             var target = <IDBOpenDBRequest>(event.currentTarget || event.target);
@@ -141,7 +143,6 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                 }
 
                 // Check any indexes in the schema that need to be created
-                let migrationPutters: SyncTasks.Promise<void>[] = [];
                 _.each(storeSchema.indexes, indexSchema => {
                     if (!_.contains(store.indexNames, indexSchema.name)) {
                         var keyPath = indexSchema.keyPath;
@@ -205,8 +206,9 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         var promise = IndexedDbProvider.WrapRequest<IDBDatabase>(dbOpen);
 
         return promise.then(db => {
-            this._db = db;
-
+            return SyncTasks.whenAll(migrationPutters).then(() => {
+                this._db = db;
+            });
         });
     }
 

@@ -8,7 +8,7 @@ import NoSqlProviderUtils = require('../NoSqlProviderUtils');
 // Don't trap exceptions so we immediately see them with a stack trace
 SyncTasks.config.catchExceptions = false;
 
-function openProvider(providerName: string, schema: NoSqlProvider.DbSchema) {
+function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipeFirst: boolean) {
     let provider: NoSqlProvider.DbProvider = null;
     if (providerName === 'sqlite3test') {
         var sqlite3 = require('sqlite3');
@@ -29,7 +29,7 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema) {
     } else if (providerName === 'websql') {
         provider = new NoSqlProvider.WebSqlProvider();
     }
-    return NoSqlProvider.openListOfProviders([provider], 'test', schema, true);
+    return NoSqlProvider.openListOfProviders([provider], 'test', schema, wipeFirst);
 }
 
 describe('NoSqlProvider', function () {
@@ -208,7 +208,7 @@ describe('NoSqlProvider', function () {
                             primaryKeyPath: 'id'
                         }
                     ]
-                }).then(prov => {
+                }, true).then(prov => {
                     return prov.put('test', { id: 'a', val: 'b' }).then(() => {
                         return prov.get<any>('test', 'a').then(ret => {
                             assert.equal(ret.val, 'b');
@@ -233,7 +233,7 @@ describe('NoSqlProvider', function () {
                             primaryKeyPath: 'id'
                         }
                     ]
-                }).then(prov => {
+                }, true).then(prov => {
                     // The indexeddb lib we're using for unit tests doesn't support range queries on the PK, so ignore those for now...
                     return tester(prov, null, false, (obj, v) => { obj.id = v; }, provName === 'indexeddbtest');
                 });
@@ -254,7 +254,7 @@ describe('NoSqlProvider', function () {
                             ]
                         }
                     ]
-                }).then(prov => {
+                }, true).then(prov => {
                     return tester(prov, 'index', false, (obj, v) => { obj.a = v; });
                 });
             });
@@ -268,7 +268,7 @@ describe('NoSqlProvider', function () {
                             primaryKeyPath: 'a.b'
                         }
                     ]
-                }).then(prov => {
+                }, true).then(prov => {
                     // The indexeddb lib we're using for unit tests doesn't support range queries on the PK, so ignore those for now...
                     return tester(prov, null, false, (obj, v) => { obj.a = { b: v }; }, provName === 'indexeddbtest');
                 });
@@ -289,7 +289,7 @@ describe('NoSqlProvider', function () {
                             ]
                         }
                     ]
-                }).then(prov => {
+                }, true).then(prov => {
                     return tester(prov, 'index', false, (obj, v) => { obj.a = { b: v }; });
                 });
             });
@@ -303,7 +303,7 @@ describe('NoSqlProvider', function () {
                             primaryKeyPath: ['a', 'b']
                         }
                     ]
-                }).then(prov => {
+                }, true).then(prov => {
                     return tester(prov, null, true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; }, provName === 'indexeddbtest');
                 });
             });
@@ -323,7 +323,7 @@ describe('NoSqlProvider', function () {
                             ]
                         }
                     ]
-                }).then(prov => {
+                }, true).then(prov => {
                     return tester(prov, 'index', true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
                 });
             });
@@ -344,7 +344,7 @@ describe('NoSqlProvider', function () {
                             ]
                         }
                     ]
-                }).then(prov => {
+                }, true).then(prov => {
                     return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } }).then(() => {
                         var g1 = prov.get<any>('test', 'a').then(ret => {
                             assert.equal(ret.val, 'b');
@@ -370,6 +370,37 @@ describe('NoSqlProvider', function () {
                             ret.forEach(r => { assert.equal(r.val, 'b'); });
                         });
                         return SyncTasks.whenAll([g1, g2, g2b, g2c, g3, g4]).then(() => {
+                            return prov.close();
+                        });
+                    });
+                });
+            });
+
+            it('Basic schema upgrade path', () => {
+                return openProvider(provName, {
+                    version: 1,
+                    stores: [
+                        {
+                            name: 'test',
+                            primaryKeyPath: 'id'
+                        }
+                    ]
+                }, false).then(prov => {
+                    return prov.put('test', { id: 'abc' }).then(() => {
+                        return prov.close();
+                    });
+                }).then(() => {
+                    return openProvider(provName, {
+                        version: 2,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, false).then(prov => {
+                        return prov.get('test', 'abc').then(item => {
+                            assert(!!item);
                             return prov.close();
                         });
                     });

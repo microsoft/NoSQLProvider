@@ -5,6 +5,7 @@
  *
  * NoSqlProvider provider setup for cordova-native-sqlite, a cordova plugin backed by sqlite3.
  */
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
@@ -61,7 +62,7 @@ var CordovaNativeSqliteProvider = (function (_super) {
         return deferred.promise();
     };
     return CordovaNativeSqliteProvider;
-})(SqlProviderBase.SqlProviderBase);
+}(SqlProviderBase.SqlProviderBase));
 exports.CordovaNativeSqliteProvider = CordovaNativeSqliteProvider;
 var CordovaNativeSqliteTransaction = (function (_super) {
     __extends(CordovaNativeSqliteTransaction, _super);
@@ -73,4 +74,4 @@ var CordovaNativeSqliteTransaction = (function (_super) {
         return true;
     };
     return CordovaNativeSqliteTransaction;
-})(SqlProviderBase.SqliteSqlTransaction);
+}(SqlProviderBase.SqliteSqlTransaction));

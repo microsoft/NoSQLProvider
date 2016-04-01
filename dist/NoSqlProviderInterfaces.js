@@ -5,6 +5,7 @@
  *
  * Basic interfaces and openListOfProviders function to export for module usage.
  */
+"use strict";
 var SyncTasks = require('synctasks');
 // Abstract base type for a database provider.  Has accessors for opening transactions and one-off accesor helpers.
 // Note: this is a different concept than a DbStore or DbIndex, although it provides a similar (or identical) interface.
@@ -74,7 +75,7 @@ var DbProvider = (function () {
         });
     };
     return DbProvider;
-})();
+}());
 exports.DbProvider = DbProvider;
 // Runs down the given providers in order and tries to instantiate them.  If they're not supported, it will continue until it finds one
 // that does work, or it will reject the promise if it runs out of providers and none work.

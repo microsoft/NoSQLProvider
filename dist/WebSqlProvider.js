@@ -5,6 +5,7 @@
  *
  * NoSqlProvider provider setup for WebSql, a browser storage backing.
  */
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
@@ -69,5 +70,5 @@ var WebSqlProvider = (function (_super) {
         return deferred.promise();
     };
     return WebSqlProvider;
-})(SqlProviderBase.SqlProviderBase);
+}(SqlProviderBase.SqlProviderBase));
 exports.WebSqlProvider = WebSqlProvider;

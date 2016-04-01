@@ -5,6 +5,7 @@
  *
  * Abstract helpers for all NoSqlProvider DbProviders that are based on SQL backings.
  */
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
@@ -81,13 +82,13 @@ var SqlProviderBase = (function (_super) {
             else {
                 // Just delete tables we don't care about anymore.  Only care about the raw data in the tables since we're going to
                 // re-insert all data anyways, so clear out any multiEntry index tables.
-                var tableNamesNeeded = [];
+                var tableNamesNeeded_1 = [];
                 _this._schema.stores.forEach(function (store) {
-                    tableNamesNeeded.push(store.name);
+                    tableNamesNeeded_1.push(store.name);
                 });
-                dropQueries = _.filter(tableNames, function (name) { return !_.contains(tableNamesNeeded, name); })
+                dropQueries = _.filter(tableNames, function (name) { return !_.contains(tableNamesNeeded_1, name); })
                     .map(function (name) { return trans.runQuery('DROP TABLE ' + name); });
-                tableNames = _.filter(tableNames, function (name) { return _.contains(tableNamesNeeded, name); });
+                tableNames = _.filter(tableNames, function (name) { return _.contains(tableNamesNeeded_1, name); });
             }
             return SyncTasks.whenAll(dropQueries).then(function () {
                 var tableQueries = [];
@@ -159,7 +160,7 @@ var SqlProviderBase = (function (_super) {
             .then(function () { return void 0; });
     };
     return SqlProviderBase;
-})(NoSqlProvider.DbProvider);
+}(NoSqlProvider.DbProvider));
 exports.SqlProviderBase = SqlProviderBase;
 // The DbTransaction implementation for the WebSQL DbProvider.  All WebSQL accesses go through the transaction
 // object, so this class actually has several helpers for executing SQL queries, getting results from them, etc.
@@ -195,7 +196,7 @@ var SqlTransaction = (function () {
         return false;
     };
     return SqlTransaction;
-})();
+}());
 exports.SqlTransaction = SqlTransaction;
 // Generic base transaction for anything that matches the syntax of a SQLTransaction interface for executing sql commands.
 // Conveniently, this works for both WebSql and cordova's Sqlite plugin.
@@ -239,7 +240,7 @@ var SqliteSqlTransaction = (function (_super) {
         return deferred.promise();
     };
     return SqliteSqlTransaction;
-})(SqlTransaction);
+}(SqlTransaction));
 exports.SqliteSqlTransaction = SqliteSqlTransaction;
 // DbStore implementation for the SQL-based DbProviders.  Implements the getters/setters against the transaction object and all of the
 // glue for index/compound key support.
@@ -295,9 +296,9 @@ var SqlStore = (function () {
         return this._trans.nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
             qmarksValues.join('),(') + ')', args).then(function () {
             if (_.any(_this._schema.indexes, function (index) { return index.multiEntry; })) {
-                var queries = [];
+                var queries_1 = [];
                 _.each(items, function (item) {
-                    queries.push(_this._trans.runQuery('SELECT rowid a FROM ' + _this._schema.name + ' WHERE nsp_pk = ?', [NoSqlProviderUtils.getSerializedKeyForKeypath(item, _this._schema.primaryKeyPath)])
+                    queries_1.push(_this._trans.runQuery('SELECT rowid a FROM ' + _this._schema.name + ' WHERE nsp_pk = ?', [NoSqlProviderUtils.getSerializedKeyForKeypath(item, _this._schema.primaryKeyPath)])
                         .then(function (rets) {
                         var rowid = rets[0].a;
                         var inserts = _this._schema.indexes.filter(function (index) { return index.multiEntry; }).map(function (index) {
@@ -321,7 +322,7 @@ var SqlStore = (function () {
                         return SyncTasks.whenAll(inserts).then(function (rets) { return void 0; });
                     }));
                 });
-                return SyncTasks.whenAll(queries).then(function (rets) { return void 0; });
+                return SyncTasks.whenAll(queries_1).then(function (rets) { return void 0; });
             }
         });
     };
@@ -368,7 +369,7 @@ var SqlStore = (function () {
     };
     SqlStore._unicodeFixer = new RegExp('[\u2028\u2029]', 'g');
     return SqlStore;
-})();
+}());
 // DbIndex implementation for SQL-based DbProviders.  Wraps all of the nasty compound key logic and general index traversal logic into
 // the appropriate SQL queries.
 var SqlStoreIndex = (function () {
@@ -424,4 +425,4 @@ var SqlStoreIndex = (function () {
         return this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '), args, reverse, limit, offset);
     };
     return SqlStoreIndex;
-})();
+}());

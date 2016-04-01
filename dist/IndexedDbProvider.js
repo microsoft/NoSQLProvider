@@ -5,6 +5,7 @@
  *
  * NoSqlProvider provider setup for IndexedDB, a web browser storage module.
  */
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
@@ -68,6 +69,7 @@ var IndexedDbProvider = (function (_super) {
             }
         }
         var dbOpen = this._dbFactory.open(dbName, schema.version);
+        var migrationPutters = [];
         dbOpen.onupgradeneeded = function (event) {
             var db = dbOpen.result;
             var target = (event.currentTarget || event.target);
@@ -127,7 +129,6 @@ var IndexedDbProvider = (function (_super) {
                     });
                 }
                 // Check any indexes in the schema that need to be created
-                var migrationPutters = [];
                 _.each(storeSchema.indexes, function (indexSchema) {
                     if (!_.contains(store.indexNames, indexSchema.name)) {
                         var keyPath = indexSchema.keyPath;
@@ -138,13 +139,13 @@ var IndexedDbProvider = (function (_super) {
                                 }
                                 else {
                                     // Create an object store for the index
-                                    var indexStore = db.createObjectStore(storeSchema.name + '_' + indexSchema.name, { keyPath: 'key' });
-                                    indexStore.createIndex('key', 'key');
-                                    indexStore.createIndex('refkey', 'refkey');
+                                    var indexStore_1 = db.createObjectStore(storeSchema.name + '_' + indexSchema.name, { keyPath: 'key' });
+                                    indexStore_1.createIndex('key', 'key');
+                                    indexStore_1.createIndex('refkey', 'refkey');
                                     if (migrateData) {
                                         // Walk every element in the store and re-put it to fill out the new index.
                                         var cursorReq = store.openCursor();
-                                        var thisIndexPutters = [];
+                                        var thisIndexPutters_1 = [];
                                         migrationPutters.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, function (cursor) {
                                             var item = cursor.value;
                                             // Get each value of the multientry and put it into the index store
@@ -158,9 +159,9 @@ var IndexedDbProvider = (function (_super) {
                                                     key: val,
                                                     refkey: refKey
                                                 };
-                                                thisIndexPutters.push(IndexedDbProvider.WrapRequest(indexStore.put(indexObj)));
+                                                thisIndexPutters_1.push(IndexedDbProvider.WrapRequest(indexStore_1.put(indexObj)));
                                             });
-                                        }).then(function () { return SyncTasks.whenAll(thisIndexPutters).then(function () { return void 0; }); }));
+                                        }).then(function () { return SyncTasks.whenAll(thisIndexPutters_1).then(function () { return void 0; }); }));
                                     }
                                 }
                             }
@@ -188,7 +189,9 @@ var IndexedDbProvider = (function (_super) {
         };
         var promise = IndexedDbProvider.WrapRequest(dbOpen);
         return promise.then(function (db) {
-            _this._db = db;
+            return SyncTasks.whenAll(migrationPutters).then(function () {
+                _this._db = db;
+            });
         });
     };
     IndexedDbProvider.prototype.close = function () {
@@ -218,7 +221,7 @@ var IndexedDbProvider = (function (_super) {
         return SyncTasks.Resolved(ourTrans);
     };
     return IndexedDbProvider;
-})(NoSqlProvider.DbProvider);
+}(NoSqlProvider.DbProvider));
 exports.IndexedDbProvider = IndexedDbProvider;
 // DbTransaction implementation for the IndexedDB DbProvider.
 var IndexedDbTransaction = (function () {
@@ -248,7 +251,7 @@ var IndexedDbTransaction = (function () {
         return new IndexedDbStore(store, indexStores, storeSchema, this._fakeComplicatedKeys);
     };
     return IndexedDbTransaction;
-})();
+}());
 // DbStore implementation for the IndexedDB DbProvider.  Again, fairly closely maps to the standard IndexedDB spec, aside from
 // a bunch of hacks to support compound keypaths on IE.
 var IndexedDbStore = (function () {
@@ -285,39 +288,39 @@ var IndexedDbStore = (function () {
                 }
                 _.each(_this._schema.indexes, function (index) {
                     if (index.multiEntry) {
-                        var indexStore = _.find(_this._indexStores, function (store) { return store.name === _this._schema.name + '_' + index.name; });
+                        var indexStore_2 = _.find(_this._indexStores, function (store) { return store.name === _this._schema.name + '_' + index.name; });
                         // Get each value of the multientry and put it into the index store
                         var valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, index.keyPath);
                         // It might be an array of multiple entries, so just always go with array-based logic
                         var valsArray = NoSqlProviderUtils.arrayify(valsRaw);
-                        var keys = valsArray;
+                        var keys_1 = valsArray;
                         // We're using normal indexeddb tables to store the multientry indexes, so we only need to use the key
                         // serialization if the multientry keys ALSO are compound.
                         if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
-                            keys = keys.map(function (val) {
+                            keys_1 = keys_1.map(function (val) {
                                 return NoSqlProviderUtils.serializeKeyToString(val, index.keyPath);
                             });
                         }
                         // We need to reference the PK of the actual row we're using here, so calculate the actual PK -- if it's 
                         // compound, we're already faking complicated keys, so we know to serialize it to a string.  If not, use the
                         // raw value.
-                        var refKey = NoSqlProviderUtils.getKeyForKeypath(item, _this._schema.primaryKeyPath);
+                        var refKey_1 = NoSqlProviderUtils.getKeyForKeypath(item, _this._schema.primaryKeyPath);
                         if (_.isArray(_this._schema.primaryKeyPath)) {
-                            refKey = NoSqlProviderUtils.serializeKeyToString(refKey, _this._schema.primaryKeyPath);
+                            refKey_1 = NoSqlProviderUtils.serializeKeyToString(refKey_1, _this._schema.primaryKeyPath);
                         }
                         // First clear out the old values from the index store for the refkey
-                        var cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey));
+                        var cursorReq = indexStore_2.index('refkey').openCursor(IDBKeyRange.only(refKey_1));
                         promises.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, function (cursor) {
                             cursor['delete']();
                         })
                             .then(function () {
                             // After nuking the existing entries, add the new ones
-                            var iputters = keys.map(function (key) {
+                            var iputters = keys_1.map(function (key) {
                                 var indexObj = {
                                     key: key,
-                                    refkey: refKey
+                                    refkey: refKey_1
                                 };
-                                return IndexedDbProvider.WrapRequest(indexStore.put(indexObj));
+                                return IndexedDbProvider.WrapRequest(indexStore_2.put(indexObj));
                             });
                             return SyncTasks.whenAll(iputters);
                         }).then(function (rets) { return void 0; }));
@@ -394,7 +397,7 @@ var IndexedDbStore = (function () {
         return SyncTasks.whenAll(promises).then(function (rets) { return void 0; });
     };
     return IndexedDbStore;
-})();
+}());
 // DbIndex implementation for the IndexedDB DbProvider.  Fairly closely maps to the standard IndexedDB spec, aside from
 // a bunch of hacks to support compound keypaths on IE and some helpers to make the caller not have to walk the awkward cursor
 // result APIs to get their result list.  Also added ability to use an "index" for opening the primary key on a store.
@@ -478,4 +481,4 @@ var IndexedDbIndex = (function () {
         return deferred.promise();
     };
     return IndexedDbIndex;
-})();
+}());

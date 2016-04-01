@@ -6,6 +6,7 @@
  * NoSqlProvider provider setup for NodeJs to use an in-memory sqlite3-based provider.
  * Largely only used for unit tests.
  */
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
@@ -49,7 +50,7 @@ var NodeSqlite3MemoryDbProvider = (function (_super) {
         return new NodeSqlite3Transaction(this._db, this._schema, this._verbose);
     };
     return NodeSqlite3MemoryDbProvider;
-})(SqlProviderBase.SqlProviderBase);
+}(SqlProviderBase.SqlProviderBase));
 exports.NodeSqlite3MemoryDbProvider = NodeSqlite3MemoryDbProvider;
 var NodeSqlite3Transaction = (function (_super) {
     __extends(NodeSqlite3Transaction, _super);
@@ -100,4 +101,4 @@ var NodeSqlite3Transaction = (function (_super) {
         return deferred.promise();
     };
     return NodeSqlite3Transaction;
-})(SqlProviderBase.SqlTransaction);
+}(SqlProviderBase.SqlTransaction));

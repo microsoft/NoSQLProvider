@@ -5,6 +5,7 @@
  *
  * NoSqlProvider provider setup for a non-persisted in-memory database backing provider.
  */
+"use strict";
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
@@ -40,7 +41,7 @@ var InMemoryProvider = (function (_super) {
         return this._stores[name];
     };
     return InMemoryProvider;
-})(NoSqlProvider.DbProvider);
+}(NoSqlProvider.DbProvider));
 exports.InMemoryProvider = InMemoryProvider;
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
 var InMemoryTransaction = (function () {
@@ -51,7 +52,7 @@ var InMemoryTransaction = (function () {
         return this._prov.getStore(storeName);
     };
     return InMemoryTransaction;
-})();
+}());
 var InMemoryStore = (function () {
     function InMemoryStore(schema) {
         this._data = {};
@@ -100,7 +101,7 @@ var InMemoryStore = (function () {
         return this._data;
     };
     return InMemoryStore;
-})();
+}());
 // Note: Currently maintains nothing interesting -- rebuilds the results every time from scratch.  Scales like crap.
 var InMemoryIndex = (function () {
     function InMemoryIndex(store, keyPath, multiEntry, pk) {
@@ -162,4 +163,4 @@ var InMemoryIndex = (function () {
         return SyncTasks.Resolved(_.flatten(results));
     };
     return InMemoryIndex;
-})();
+}());
