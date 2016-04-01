@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+        "declaration": false,
+        "noResolve": false,
+        "module": "commonjs",
+        "target": "es5"
+    },
+    
+    "filesGlob": [
+        "src/**/*{ts,tsx}",
+        "src/typings/**/*.d.ts"
+    ],
+    
+    "compilerOptions": {
+        "outDir": "dist/"
+    },
+    
+    "exclude": [
+        "dist",
+        "node_modules"
+    ]
+}

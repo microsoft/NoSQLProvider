@@ -2,20 +2,21 @@
 import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
-import sqlite3 = require('sqlite3');
-import indexeddbjs = require('indexeddb-js');
-
 import NoSqlProvider = require('../NoSqlProvider');
 import NoSqlProviderUtils = require('../NoSqlProviderUtils');
-import IndexedDbProvider = require('../IndexedDbProvider');
-import InMemoryProvider = require('../InMemoryProvider');
+
+// Don't trap exceptions so we immediately see them with a stack trace
+SyncTasks.config.catchExceptions = false;
 
 function openProvider(providerName: string, schema: NoSqlProvider.DbSchema) {
     let provider: NoSqlProvider.DbProvider = null;
     if (providerName === 'sqlite3test') {
+        var sqlite3 = require('sqlite3');
         provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider(sqlite3);
     } else if (providerName === 'indexeddbtest') {
+        var sqlite3 = require('sqlite3');
         const engine = new sqlite3.Database(':memory:');
+        var indexeddbjs = require('indexeddb-js');
         const scope = indexeddbjs.makeScope('sqlite3', engine);
         global['IDBKeyRange'] = scope.IDBKeyRange;
 
@@ -23,12 +24,16 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema) {
         provider = new NoSqlProvider.IndexedDbProvider(idbFactory, false);
     } else if (providerName === 'memory') {
         provider = new NoSqlProvider.InMemoryProvider();
+    } else if (providerName === 'indexeddb') {
+        provider = new NoSqlProvider.IndexedDbProvider();
+    } else if (providerName === 'websql') {
+        provider = new NoSqlProvider.WebSqlProvider();
     }
     return NoSqlProvider.openListOfProviders([provider], 'test', schema, true);
 }
 
 describe('NoSqlProvider', function () {
-    let provsToTest = ['sqlite3test', 'indexeddbtest', 'memory'];
+    let provsToTest = typeof window === 'undefined' ? ['sqlite3test', 'indexeddbtest', 'memory'] : ['indexeddb', 'websql'];
 
     it('Number/value/type sorting', () => {
         const pairsToTest = [
@@ -184,7 +189,11 @@ describe('NoSqlProvider', function () {
                                     [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                 });
 
-                            return SyncTasks.whenAll([tt1, tt2, tt3]);
+                            return SyncTasks.whenAll([tt1, tt2, tt3]).then(() => {
+                                return prov.close(); 
+                            });
+                        } else {
+                            return prov.close();
                         }
                     });
                 });
@@ -207,6 +216,8 @@ describe('NoSqlProvider', function () {
                             return prov.getAll<any>('test').then(ret2 => {
                                 assert.equal(ret2.length, 1);
                                 assert.equal(ret2[0].val, 'b');
+                                
+                                return prov.close();
                             });
                         });
                     });
@@ -358,7 +369,9 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret.length, 2);
                             ret.forEach(r => { assert.equal(r.val, 'b'); });
                         });
-                        return SyncTasks.whenAll([g1, g2, g2b, g2c, g3, g4]);
+                        return SyncTasks.whenAll([g1, g2, g2b, g2c, g3, g4]).then(() => {
+                            return prov.close();
+                        });
                     });
                 });
             });

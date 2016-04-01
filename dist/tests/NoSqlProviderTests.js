@@ -1,17 +1,21 @@
+"use strict";
 var assert = require('assert');
 var _ = require('lodash');
 var SyncTasks = require('synctasks');
-var sqlite3 = require('sqlite3');
-var indexeddbjs = require('indexeddb-js');
 var NoSqlProvider = require('../NoSqlProvider');
 var NoSqlProviderUtils = require('../NoSqlProviderUtils');
+// Don't trap exceptions so we immediately see them with a stack trace
+SyncTasks.config.catchExceptions = false;
 function openProvider(providerName, schema) {
     var provider = null;
     if (providerName === 'sqlite3test') {
+        var sqlite3 = require('sqlite3');
         provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider(sqlite3);
     }
     else if (providerName === 'indexeddbtest') {
+        var sqlite3 = require('sqlite3');
         var engine = new sqlite3.Database(':memory:');
+        var indexeddbjs = require('indexeddb-js');
         var scope = indexeddbjs.makeScope('sqlite3', engine);
         global['IDBKeyRange'] = scope.IDBKeyRange;
         var idbFactory = scope.indexedDB;
@@ -20,10 +24,16 @@ function openProvider(providerName, schema) {
     else if (providerName === 'memory') {
         provider = new NoSqlProvider.InMemoryProvider();
     }
+    else if (providerName === 'indexeddb') {
+        provider = new NoSqlProvider.IndexedDbProvider();
+    }
+    else if (providerName === 'websql') {
+        provider = new NoSqlProvider.WebSqlProvider();
+    }
     return NoSqlProvider.openListOfProviders([provider], 'test', schema, true);
 }
 describe('NoSqlProvider', function () {
-    var provsToTest = ['sqlite3test', 'indexeddbtest', 'memory'];
+    var provsToTest = typeof window === 'undefined' ? ['sqlite3test', 'indexeddbtest', 'memory'] : ['indexeddb' /*, 'websql'*/];
     it('Number/value/type sorting', function () {
         var pairsToTest = [
             [0, 1],
@@ -157,7 +167,12 @@ describe('NoSqlProvider', function () {
                                 assert.equal(ret.length, 1, 'getRange2-+');
                                 [3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                             });
-                            return SyncTasks.whenAll([tt1, tt2, tt3]);
+                            return SyncTasks.whenAll([tt1, tt2, tt3]).then(function () {
+                                return prov.close();
+                            });
+                        }
+                        else {
+                            return prov.close();
                         }
                     });
                 });
@@ -178,6 +193,7 @@ describe('NoSqlProvider', function () {
                             return prov.getAll('test').then(function (ret2) {
                                 assert.equal(ret2.length, 1);
                                 assert.equal(ret2[0].val, 'b');
+                                return prov.close();
                             });
                         });
                     });
@@ -322,7 +338,9 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret.length, 2);
                             ret.forEach(function (r) { assert.equal(r.val, 'b'); });
                         });
-                        return SyncTasks.whenAll([g1, g2, g2b, g2c, g3, g4]);
+                        return SyncTasks.whenAll([g1, g2, g2b, g2c, g3, g4]).then(function () {
+                            return prov.close();
+                        });
                     });
                 });
             });
