@@ -34,19 +34,25 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
         let oldVersion = Number(this._db.version);
         if (oldVersion !== this._schema.version) {
             // Needs a schema upgrade/change
+            if (!wipeIfExists && this._schema.version < oldVersion) {
+                console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema.version + '). Wiping!');
+                // Note: the reported DB version won't change back to the older number until after you do a put command onto the DB.
+                wipeIfExists = true;
+            }
+
             this._db.changeVersion(this._db.version, this._schema.version.toString(), (t) => {
                 let trans = new SqlProviderBase.SqliteSqlTransaction(t, this._schema, this._verbose);
 
                 this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => { deferred.resolve(); }, () => { deferred.reject(); });
-            }, (/*err*/) => {
-                deferred.reject();
+            }, (err) => {
+                deferred.reject(err);
             });
         } else if (wipeIfExists) {
             // No version change, but wipe anyway
             this.openTransaction(null, true).then(trans => {
                 this._upgradeDb(trans, oldVersion, true).then(() => { deferred.resolve(); }, () => { deferred.reject(); });
-            }, () => {
-                deferred.reject();
+            }, (err) => {
+                deferred.reject(err);
             });
         } else {
             deferred.resolve();

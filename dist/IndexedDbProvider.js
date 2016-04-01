@@ -80,6 +80,12 @@ var IndexedDbProvider = (function (_super) {
                     db.deleteObjectStore(name);
                 });
             }
+            // Delete dead stores
+            _.each(db.objectStoreNames, function (storeName) {
+                if (!_.any(schema.stores, function (store) { return store.name === storeName; })) {
+                    db.deleteObjectStore(storeName);
+                }
+            });
             // Create all stores
             _.each(schema.stores, function (storeSchema) {
                 var store = null;
@@ -192,6 +198,14 @@ var IndexedDbProvider = (function (_super) {
             return SyncTasks.whenAll(migrationPutters).then(function () {
                 _this._db = db;
             });
+        }, function (err) {
+            if (err && err.type === 'error' && err.target && err.target.error && err.target.error.name === 'VersionError') {
+                if (!wipeIfExists) {
+                    console.log('Database version too new, Wiping: ' + err.target.error.message);
+                    return _this.open(dbName, schema, true, verbose);
+                }
+            }
+            return SyncTasks.Rejected(err);
         });
     };
     IndexedDbProvider.prototype.close = function () {
@@ -216,9 +230,14 @@ var IndexedDbProvider = (function (_super) {
                 }
             });
         }
-        var trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
-        var ourTrans = new IndexedDbTransaction(trans, this._schema, intStoreNames, this._fakeComplicatedKeys);
-        return SyncTasks.Resolved(ourTrans);
+        try {
+            var trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
+            var ourTrans = new IndexedDbTransaction(trans, this._schema, intStoreNames, this._fakeComplicatedKeys);
+            return SyncTasks.Resolved(ourTrans);
+        }
+        catch (e) {
+            return SyncTasks.Rejected(e);
+        }
     };
     return IndexedDbProvider;
 }(NoSqlProvider.DbProvider));

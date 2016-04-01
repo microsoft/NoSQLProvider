@@ -21,8 +21,11 @@ var DbProvider = (function () {
     DbProvider.prototype.clearAllData = function () {
         var storeNames = this._schema.stores.map(function (store) { return store.name; });
         return this.openTransaction(storeNames, true).then(function (trans) {
-            var clearers = storeNames.map(function (name) {
-                var store = trans.getStore(name);
+            var clearers = storeNames.map(function (storeName) {
+                var store = trans.getStore(storeName);
+                if (!store) {
+                    return SyncTasks.Rejected('Store "' + storeName + '" not found');
+                }
                 return store.clearAllData();
             });
             return SyncTasks.whenAll(clearers).then(function (rets) { return void 0; });
@@ -32,45 +35,75 @@ var DbProvider = (function () {
     DbProvider.prototype.get = function (storeName, key) {
         return this.openTransaction(storeName, false).then(function (trans) {
             var store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
             return store.get(key);
         });
     };
     DbProvider.prototype.getMultiple = function (storeName, keyOrKeys) {
         return this.openTransaction(storeName, false).then(function (trans) {
             var store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
             return store.getMultiple(keyOrKeys);
         });
     };
     DbProvider.prototype.put = function (storeName, itemOrItems) {
         return this.openTransaction(storeName, true).then(function (trans) {
             var store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
             return store.put(itemOrItems);
         });
     };
     DbProvider.prototype.remove = function (storeName, keyOrKeys) {
         return this.openTransaction(storeName, true).then(function (trans) {
             var store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
             return store.remove(keyOrKeys);
         });
     };
     DbProvider.prototype.getAll = function (storeName, indexName, reverse, limit, offset) {
         return this.openTransaction(storeName, false).then(function (trans) {
             var store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
             var index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected('Index "' + indexName + '" not found');
+            }
             return index.getAll(reverse, limit, offset);
         });
     };
     DbProvider.prototype.getOnly = function (storeName, indexName, key, reverse, limit, offset) {
         return this.openTransaction(storeName, false).then(function (trans) {
             var store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
             var index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected('Index "' + indexName + '" not found');
+            }
             return index.getOnly(key, reverse, limit, offset);
         });
     };
     DbProvider.prototype.getRange = function (storeName, indexName, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset) {
         return this.openTransaction(storeName, false).then(function (trans) {
             var store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
             var index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected('Index "' + indexName + '" not found');
+            }
             return index.getRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset);
         });
     };
@@ -84,15 +117,17 @@ function openListOfProviders(providersToTry, dbName, schema, wipeIfExists, verbo
     if (verbose === void 0) { verbose = false; }
     var task = SyncTasks.Defer();
     var providerIndex = 0;
+    var errorList = [];
     var tryNext = function () {
         if (providerIndex >= providersToTry.length) {
-            task.reject();
+            task.reject(errorList.length <= 1 ? errorList[0] : errorList);
             return;
         }
         var provider = providersToTry[providerIndex];
         provider.open(dbName, schema, wipeIfExists, verbose).then(function () {
             task.resolve(provider);
-        }, function () {
+        }, function (err) {
+            errorList.push(err);
             providerIndex++;
             tryNext();
         });

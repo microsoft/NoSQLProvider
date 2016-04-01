@@ -94,6 +94,13 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                 });
             }
 
+            // Delete dead stores
+            _.each(db.objectStoreNames, storeName => {
+                if (!_.any(schema.stores, store => store.name === storeName)) {
+                    db.deleteObjectStore(storeName);
+                }
+            });
+
             // Create all stores
             _.each(schema.stores, storeSchema => {
                 let store: IDBObjectStore = null;
@@ -209,6 +216,15 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             return SyncTasks.whenAll(migrationPutters).then(() => {
                 this._db = db;
             });
+        }, err => {
+            if (err && err.type === 'error' && err.target && err.target.error && err.target.error.name === 'VersionError') {
+                if (!wipeIfExists) {
+                    console.log('Database version too new, Wiping: ' + err.target.error.message);
+
+                    return this.open(dbName, schema, true, verbose);
+                }
+            }
+            return SyncTasks.Rejected<void>(err);
         });
     }
 
@@ -236,9 +252,13 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             });
         }
 
-        let trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
-        var ourTrans = new IndexedDbTransaction(trans, this._schema, intStoreNames, this._fakeComplicatedKeys);
-        return SyncTasks.Resolved<NoSqlProvider.DbTransaction>(ourTrans);
+        try {
+            let trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
+            var ourTrans = new IndexedDbTransaction(trans, this._schema, intStoreNames, this._fakeComplicatedKeys);
+            return SyncTasks.Resolved<NoSqlProvider.DbTransaction>(ourTrans);
+        } catch (e) {
+            return SyncTasks.Rejected(e);
+        }
     }
 }
 

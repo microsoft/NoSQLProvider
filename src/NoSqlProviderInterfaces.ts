@@ -84,8 +84,11 @@ export abstract class DbProvider {
         var storeNames = this._schema.stores.map(store => store.name);
 
         return this.openTransaction(storeNames, true).then(trans => {
-            var clearers = storeNames.map(name => {
-                var store = trans.getStore(name);
+            const clearers = storeNames.map(storeName => {
+                const store = trans.getStore(storeName);
+                if (!store) {
+                    return SyncTasks.Rejected<void>('Store "' + storeName + '" not found');
+                }
                 return store.clearAllData();
             });
             return SyncTasks.whenAll(clearers).then(rets => void 0);
@@ -95,36 +98,54 @@ export abstract class DbProvider {
     // Shortcut functions
     get<T>(storeName: string, key: any|any[]): SyncTasks.Promise<T> {
         return this.openTransaction(storeName, false).then(trans => {
-            var store = trans.getStore(storeName);
+            const store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected<T>('Store "' + storeName + '" not found');
+            }
             return store.get<T>(key);
         });
     }
 
     getMultiple<T>(storeName: string, keyOrKeys: any|any[]): SyncTasks.Promise<T[]> {
         return this.openTransaction(storeName, false).then(trans => {
-            var store = trans.getStore(storeName);
+            const store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected<T[]>('Store "' + storeName + '" not found');
+            }
             return store.getMultiple<T>(keyOrKeys);
         });
     }
 
     put(storeName: string, itemOrItems: any|any[]): SyncTasks.Promise<void> {
         return this.openTransaction(storeName, true).then(trans => {
-            var store = trans.getStore(storeName);
+            const store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected<void>('Store "' + storeName + '" not found');
+            }
             return store.put(itemOrItems);
         });
     }
 
     remove(storeName: string, keyOrKeys: any|any[]): SyncTasks.Promise<void> {
         return this.openTransaction(storeName, true).then(trans => {
-            var store = trans.getStore(storeName);
+            const store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected<void>('Store "' + storeName + '" not found');
+            }
             return store.remove(keyOrKeys);
         });
     }
 
     getAll<T>(storeName: string, indexName?: string, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
         return this.openTransaction(storeName, false).then(trans => {
-            var store = trans.getStore(storeName);
-            var index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            const store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected<T[]>('Store "' + storeName + '" not found');
+            }
+            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected<T[]>('Index "' + indexName + '" not found');
+            }
             return index.getAll<T>(reverse, limit, offset);
         });
     }
@@ -132,8 +153,14 @@ export abstract class DbProvider {
     getOnly<T>(storeName: string, indexName: string, key: any|any[], reverse?: boolean, limit?: number, offset?: number)
             : SyncTasks.Promise<T[]> {
         return this.openTransaction(storeName, false).then(trans => {
-            var store = trans.getStore(storeName);
-            var index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            const store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected<T[]>('Store "' + storeName + '" not found');
+            }
+            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected<T[]>('Index "' + indexName + '" not found');
+            }
             return index.getOnly<T>(key, reverse, limit, offset);
         });
     }
@@ -143,7 +170,13 @@ export abstract class DbProvider {
             : SyncTasks.Promise<T[]> {
         return this.openTransaction(storeName, false).then(trans => {
             var store = trans.getStore(storeName);
-            var index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!store) {
+                return SyncTasks.Rejected<T[]>('Store "' + storeName + '" not found');
+            }
+            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected<T[]>('Index "' + indexName + '" not found');
+            }
             return index.getRange<T>(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset);
         });
     }
@@ -155,17 +188,19 @@ export function openListOfProviders(providersToTry: DbProvider[], dbName: string
         verbose: boolean = false): SyncTasks.Promise<DbProvider> {
     const task = SyncTasks.Defer<DbProvider>();
     let providerIndex = 0;
+    let errorList: any[] = [];
 
     var tryNext = () => {
         if (providerIndex >= providersToTry.length) {
-            task.reject();
+            task.reject(errorList.length <= 1 ? errorList[0] : errorList);
             return;
         }
 
         var provider = providersToTry[providerIndex];
         provider.open(dbName, schema, wipeIfExists, verbose).then(() => {
             task.resolve(provider);
-        }, () => {
+        }, (err) => {
+            errorList.push(err);
             providerIndex++;
             tryNext();
         });

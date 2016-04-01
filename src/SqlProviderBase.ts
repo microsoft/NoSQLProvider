@@ -38,12 +38,15 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     }
 
     protected _ourVersionChecker(wipeIfExists: boolean): SyncTasks.Promise<void> {
-        let oldVersion = 0;
         return this._getDbVersion()
-            .then(version => { oldVersion = version; })
-            .then(() => {
+            .then(oldVersion => {
                 if (oldVersion !== this._schema.version) {
                     // Needs a schema upgrade/change
+                    if (!wipeIfExists && this._schema.version < oldVersion) {
+                        console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema.version + '). Wiping!');
+                        wipeIfExists = true;
+                    }
+
                     return this._changeDbVersion(oldVersion, this._schema.version).then(trans => {
                         return this._upgradeDb(trans, oldVersion, wipeIfExists);
                     });

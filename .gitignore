@@ -4,3 +4,4 @@
 /src/obj
 *.user
 /src/typings
+/NoSQLProviderTestsPack.js

@@ -35,19 +35,24 @@ var WebSqlProvider = (function (_super) {
         var oldVersion = Number(this._db.version);
         if (oldVersion !== this._schema.version) {
             // Needs a schema upgrade/change
+            if (!wipeIfExists && this._schema.version < oldVersion) {
+                console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema.version + '). Wiping!');
+                // Note: the reported DB version won't change back to the older number until after you do a put command onto the DB.
+                wipeIfExists = true;
+            }
             this._db.changeVersion(this._db.version, this._schema.version.toString(), function (t) {
                 var trans = new SqlProviderBase.SqliteSqlTransaction(t, _this._schema, _this._verbose);
                 _this._upgradeDb(trans, oldVersion, wipeIfExists).then(function () { deferred.resolve(); }, function () { deferred.reject(); });
-            }, function () {
-                deferred.reject();
+            }, function (err) {
+                deferred.reject(err);
             });
         }
         else if (wipeIfExists) {
             // No version change, but wipe anyway
             this.openTransaction(null, true).then(function (trans) {
                 _this._upgradeDb(trans, oldVersion, true).then(function () { deferred.resolve(); }, function () { deferred.reject(); });
-            }, function () {
-                deferred.reject();
+            }, function (err) {
+                deferred.reject(err);
             });
         }
         else {
