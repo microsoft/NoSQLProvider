@@ -1,6 +1,6 @@
 {
     "name": "nosqlprovider",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "A cross-browser/platform indexeddb-like client library",
     "author": "David de Regt <David.de.Regt@microsoft.com>",
     "scripts": {
@@ -8,7 +8,7 @@
         "webtest": "webpack",
         "build": "tsc"
     },
-    "main": "dist/nosqlprovider.js",
+    "main": "dist/NoSqlProvider.js",
     "dependencies": {
         "lodash": "^3.10.0",
         "synctasks": "^0.1.2"
@@ -26,9 +26,9 @@
     "bugs": {
         "url": "https://github.com/deregtd/NoSQLProvider/issues"
     },
-    "typings": "dist/nosqlprovider.d.ts",
+    "typings": "dist/NoSqlProvider.d.ts",
     "typescript": {
-        "definition": "dist/nosqlprovider.d.ts"
+        "definition": "dist/NoSqlProvider.d.ts"
     },
     "keywords": [
         "nosql",
