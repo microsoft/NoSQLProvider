@@ -10,7 +10,7 @@ import _ = require('lodash');
 
 import SyncTasks = require('synctasks');
 
-import NoSqlProvider = require('./NoSqlProviderInterfaces');
+import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {

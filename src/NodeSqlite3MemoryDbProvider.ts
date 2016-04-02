@@ -9,7 +9,7 @@
 
 import SyncTasks = require('synctasks');
 
-import NoSqlProvider = require('./NoSqlProviderInterfaces');
+import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 import sqlite3 = require('sqlite3');
 

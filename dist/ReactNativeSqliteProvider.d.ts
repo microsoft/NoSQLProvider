@@ -6,7 +6,7 @@
  * NoSqlProvider provider setup for react-native-sqlite, a React Native plugin that wraps sqlite.
  */
 import SyncTasks = require('synctasks');
-import NoSqlProvider = require('./NoSqlProviderInterfaces');
+import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 export declare class ReactNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
     private _reactNativeSqlite;

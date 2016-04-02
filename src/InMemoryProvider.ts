@@ -9,7 +9,7 @@
 import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
-import NoSqlProvider = require('./NoSqlProviderInterfaces');
+import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 // Very simple in-memory dbprovider for handling IE inprivate windows (and unit tests, maybe?)

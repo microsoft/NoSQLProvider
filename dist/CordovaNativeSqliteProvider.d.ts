@@ -6,7 +6,7 @@
  * NoSqlProvider provider setup for cordova-native-sqlite, a cordova plugin backed by sqlite3.
  */
 import SyncTasks = require('synctasks');
-import NoSqlProvider = require('./NoSqlProviderInterfaces');
+import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 export declare class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
     private _plugin;

@@ -1,9 +1,13 @@
 /**
- * NoSqlProviderInterfaces.ts
+ * NoSqlProvider.ts
  * Author: David de Regt
  * Copyright: Microsoft 2016
  *
- * Basic interfaces and openListOfProviders function to export for module usage.
+ * Low-level wrapper to expose a nosql-like database which can be backed by
+ * numerous different backend store types, invisible to the consumer.  The
+ * usage semantics are very similar to IndexedDB.  This file contains most
+ * of the helper interfaces, while the specific database providers should
+ * be required piecemeal.
  */
 "use strict";
 var SyncTasks = require('synctasks');

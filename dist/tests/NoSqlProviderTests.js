@@ -3,25 +3,29 @@ var assert = require('assert');
 var _ = require('lodash');
 var SyncTasks = require('synctasks');
 var NoSqlProvider = require('../NoSqlProvider');
+var InMemoryProvider_1 = require('../InMemoryProvider');
+var IndexedDbProvider_1 = require('../IndexedDbProvider');
+var WebSqlProvider_1 = require('../WebSqlProvider');
 var NoSqlProviderUtils = require('../NoSqlProviderUtils');
 // Don't trap exceptions so we immediately see them with a stack trace
 SyncTasks.config.catchExceptions = false;
 function openProvider(providerName, schema, wipeFirst) {
     var provider = null;
     if (providerName === 'sqlite3memory') {
-        provider = new NoSqlProvider.NodeSqlite3MemoryDbProvider();
+        var NSPNodeSqlite3MemoryDbProvider = require('../NodeSqlite3MemoryDbProvider');
+        provider = new NSPNodeSqlite3MemoryDbProvider.NodeSqlite3MemoryDbProvider();
     }
     else if (providerName === 'memory') {
-        provider = new NoSqlProvider.InMemoryProvider();
+        provider = new InMemoryProvider_1.InMemoryProvider();
     }
     else if (providerName === 'indexeddb') {
-        provider = new NoSqlProvider.IndexedDbProvider();
+        provider = new IndexedDbProvider_1.IndexedDbProvider();
     }
     else if (providerName === 'indexeddbfakekeys') {
-        provider = new NoSqlProvider.IndexedDbProvider(void 0, false);
+        provider = new IndexedDbProvider_1.IndexedDbProvider(void 0, false);
     }
     else if (providerName === 'websql') {
-        provider = new NoSqlProvider.WebSqlProvider();
+        provider = new WebSqlProvider_1.WebSqlProvider();
     }
     return NoSqlProvider.openListOfProviders([provider], 'test', schema, wipeFirst);
 }

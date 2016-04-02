@@ -8,7 +8,7 @@
 
 import SyncTasks = require('synctasks');
 
-import NoSqlProvider = require('./NoSqlProviderInterfaces');
+import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 
 // The DbProvider implementation for Native Sqlite on React Native

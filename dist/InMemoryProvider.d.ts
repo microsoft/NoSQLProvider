@@ -1,5 +1,5 @@
 import SyncTasks = require('synctasks');
-import NoSqlProvider = require('./NoSqlProviderInterfaces');
+import NoSqlProvider = require('./NoSqlProvider');
 export declare class InMemoryProvider extends NoSqlProvider.DbProvider {
     private _stores;
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void>;

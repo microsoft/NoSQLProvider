@@ -10,7 +10,7 @@
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
-    <TypeScriptToolsVersion>1.6</TypeScriptToolsVersion>
+    <TypeScriptToolsVersion>1.8</TypeScriptToolsVersion>
     <UseIISExpress>true</UseIISExpress>
     <IISExpressSSLPort />
     <IISExpressAnonymousAuthentication />
@@ -27,7 +27,6 @@
     <TypeScriptCompile Include="IndexedDbProvider.ts" />
     <TypeScriptCompile Include="InMemoryProvider.ts" />
     <TypeScriptCompile Include="NodeSqlite3MemoryDbProvider.ts" />
-    <TypeScriptCompile Include="NoSqlProviderInterfaces.ts" />
     <TypeScriptCompile Include="NoSqlProvider.ts" />
     <TypeScriptCompile Include="NoSqlProviderUtils.ts" />
     <TypeScriptCompile Include="ReactNativeSqliteProvider.ts" />

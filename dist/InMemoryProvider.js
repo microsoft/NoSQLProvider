@@ -13,7 +13,7 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var _ = require('lodash');
 var SyncTasks = require('synctasks');
-var NoSqlProvider = require('./NoSqlProviderInterfaces');
+var NoSqlProvider = require('./NoSqlProvider');
 var NoSqlProviderUtils = require('./NoSqlProviderUtils');
 // Very simple in-memory dbprovider for handling IE inprivate windows (and unit tests, maybe?)
 var InMemoryProvider = (function (_super) {

@@ -13,7 +13,7 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var _ = require('lodash');
 var SyncTasks = require('synctasks');
-var NoSqlProvider = require('./NoSqlProviderInterfaces');
+var NoSqlProvider = require('./NoSqlProvider');
 var NoSqlProviderUtils = require('./NoSqlProviderUtils');
 // The DbProvider implementation for IndexedDB.  This one is fairly straightforward since the library's access patterns pretty
 // closely mirror IndexedDB's.  We mostly do a lot of wrapping of the APIs into JQuery promises and have some fancy footwork to
