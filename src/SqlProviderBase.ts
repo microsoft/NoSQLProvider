@@ -322,6 +322,10 @@ class SqlStore implements NoSqlProvider.DbStore {
     getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
         let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
 
+        if (joinedKeys.length === 0) {
+            return SyncTasks.Resolved<T[]>([]);
+        }
+
         var qmarks: string[] = Array(joinedKeys.length);
         for (let i = 0; i < joinedKeys.length; i++) {
             qmarks[i] = '?';
@@ -337,6 +341,10 @@ class SqlStore implements NoSqlProvider.DbStore {
         // TODO dadere (#333864): Change to a multi-insert single query, but make sure to take the multiEntry madness into account
 
         let items = NoSqlProviderUtils.arrayify(itemOrItems);
+
+        if (items.length === 0) {
+            return SyncTasks.Resolved<void>();
+        }
 
         var fields: string[] = ['nsp_pk', 'nsp_data'];
         var qmarks: string[] = ['?', '?'];

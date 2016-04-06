@@ -220,6 +220,26 @@ describe('NoSqlProvider', function () {
                     });
                 });
 
+                it('Empty gets/puts', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', []).then(() => {
+                            return prov.getMultiple<any>('test', []).then(ret => {
+                                assert(!!ret);
+                                assert.equal(ret.length, 0);
+                                return prov.close();
+                            });
+                        });
+                    });
+                });
+
                 it('Primary Key Basic KeyPath', () => {
                     return openProvider(provName, {
                         version: 1,

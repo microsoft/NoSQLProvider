@@ -284,6 +284,9 @@ var SqlStore = (function () {
     };
     SqlStore.prototype.getMultiple = function (keyOrKeys) {
         var joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
+        if (joinedKeys.length === 0) {
+            return SyncTasks.Resolved([]);
+        }
         var qmarks = Array(joinedKeys.length);
         for (var i = 0; i < joinedKeys.length; i++) {
             qmarks[i] = '?';
@@ -295,6 +298,9 @@ var SqlStore = (function () {
         // TODO dadere (#333864): Change to a multi-insert single query, but make sure to take the multiEntry madness into account
         var _this = this;
         var items = NoSqlProviderUtils.arrayify(itemOrItems);
+        if (items.length === 0) {
+            return SyncTasks.Resolved();
+        }
         var fields = ['nsp_pk', 'nsp_data'];
         var qmarks = ['?', '?'];
         var qmarksValues = [];

@@ -192,6 +192,25 @@ describe('NoSqlProvider', function () {
                         });
                     });
                 });
+                it('Empty gets/puts', function () {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(function (prov) {
+                        return prov.put('test', []).then(function () {
+                            return prov.getMultiple('test', []).then(function (ret) {
+                                assert(!!ret);
+                                assert.equal(ret.length, 0);
+                                return prov.close();
+                            });
+                        });
+                    });
+                });
                 it('Primary Key Basic KeyPath', function () {
                     return openProvider(provName, {
                         version: 1,
