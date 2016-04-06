@@ -203,10 +203,46 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(function (prov) {
                         return prov.put('test', []).then(function () {
-                            return prov.getMultiple('test', []).then(function (ret) {
-                                assert(!!ret);
-                                assert.equal(ret.length, 0);
-                                return prov.close();
+                            return prov.getAll('test').then(function (rets) {
+                                assert(!!rets);
+                                assert.equal(rets.length, 0);
+                                return prov.getMultiple('test', []).then(function (rets) {
+                                    assert(!!rets);
+                                    assert.equal(rets.length, 0);
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+                });
+                it('Removing items', function () {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(function (prov) {
+                        return prov.put('test', [1, 2, 3, 4, 5].map(function (i) { return { id: 'a' + i }; })).then(function () {
+                            return prov.getAll('test').then(function (rets) {
+                                assert(!!rets);
+                                assert.equal(rets.length, 5);
+                                return prov.remove('test', 'a1').then(function () {
+                                    return prov.getAll('test').then(function (rets) {
+                                        assert(!!rets);
+                                        assert.equal(rets.length, 4);
+                                        return prov.remove('test', ['a3', 'a4', 'a2']).then(function () {
+                                            return prov.getAll('test').then(function (rets) {
+                                                assert(!!rets);
+                                                assert.equal(rets.length, 1);
+                                                assert.equal(rets[0].id, 'a5');
+                                                return prov.close();
+                                            });
+                                        });
+                                    });
+                                });
                             });
                         });
                     });
