@@ -75,7 +75,7 @@ class ReactNativeSqliteTransaction extends SqlProviderBase.SqlTransaction {
     private _db: ReactNativeSqliteDatabase;
 
     constructor(db: ReactNativeSqliteDatabase, schema: NoSqlProvider.DbSchema, verbose: boolean) {
-        super(schema, verbose);
+        super(schema, verbose, 999);
 
         // TODO dadere (#333862): Make this an actual transaction
         this._db = db;

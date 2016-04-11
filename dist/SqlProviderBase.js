@@ -193,10 +193,14 @@ exports.SqlProviderBase = SqlProviderBase;
 // The DbTransaction implementation for the WebSQL DbProvider.  All WebSQL accesses go through the transaction
 // object, so this class actually has several helpers for executing SQL queries, getting results from them, etc.
 var SqlTransaction = (function () {
-    function SqlTransaction(schema, verbose) {
-        this._schema = schema;
-        this._verbose = verbose;
+    function SqlTransaction(_schema, _verbose, _maxVariables) {
+        this._schema = _schema;
+        this._verbose = _verbose;
+        this._maxVariables = _maxVariables;
     }
+    SqlTransaction.prototype.getMaxVariables = function () {
+        return this._maxVariables;
+    };
     SqlTransaction.prototype.nonQuery = function (sql, parameters) {
         return this.runQuery(sql, parameters).then(_.noop);
     };
@@ -230,9 +234,9 @@ exports.SqlTransaction = SqlTransaction;
 // Conveniently, this works for both WebSql and cordova's Sqlite plugin.
 var SqliteSqlTransaction = (function (_super) {
     __extends(SqliteSqlTransaction, _super);
-    function SqliteSqlTransaction(trans, schema, verbose) {
-        _super.call(this, schema, verbose);
-        this._trans = trans;
+    function SqliteSqlTransaction(_trans, schema, verbose, maxVariables) {
+        _super.call(this, schema, verbose, maxVariables);
+        this._trans = _trans;
     }
     SqliteSqlTransaction.prototype.runQuery = function (sql, parameters) {
         var deferred = SyncTasks.Defer();
@@ -246,6 +250,10 @@ var SqliteSqlTransaction = (function (_super) {
             }
             deferred.resolve(rows);
         }, function (t, err) {
+            if (!err) {
+                // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error, slightly breaking the interface.
+                err = t;
+            }
             console.log('Query Error: SQL: ' + sql + ', Error: ' + err.message);
             deferred.reject(err);
         });
@@ -303,7 +311,6 @@ var SqlStore = (function () {
         }
         var fields = ['nsp_pk', 'nsp_data'];
         var qmarks = ['?', '?'];
-        var qmarksValues = [];
         var args = [];
         _.each(this._schema.indexes, function (index) {
             if (!index.multiEntry) {
@@ -313,7 +320,6 @@ var SqlStore = (function () {
         });
         var qmarkString = qmarks.join(',');
         _.each(items, function (item) {
-            qmarksValues.push(qmarkString);
             var serializedData = JSON.stringify(item);
             // For now, until an issue with cordova-ios is fixed (https://issues.apache.org/jira/browse/CB-9435), have to replace
             // \u2028 and 2029 with blanks because otherwise the command boundary with cordova-ios silently eats any strings with them.
@@ -327,8 +333,16 @@ var SqlStore = (function () {
                 }
             });
         });
-        return this._trans.nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
-            qmarksValues.join('),(') + ')', args).then(function () {
+        // Need to not use too many variables per insert, so batch the insert if needed.
+        var inserts = [];
+        var itemPageSize = Math.floor(this._trans.getMaxVariables() / fields.length);
+        for (var i = 0; i < items.length; i += itemPageSize) {
+            var thisPageCount = Math.min(itemPageSize, items.length - i);
+            var qmarksValues = _.fill(new Array(thisPageCount), qmarkString);
+            inserts.push(this._trans.nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
+                qmarksValues.join('),(') + ')', args.splice(0, thisPageCount * fields.length)));
+        }
+        return SyncTasks.whenAll(inserts).then(function () {
             if (_.any(_this._schema.indexes, function (index) { return index.multiEntry; })) {
                 var queries_1 = [];
                 _.each(items, function (item) {

@@ -41,7 +41,7 @@ var WebSqlProvider = (function (_super) {
                 wipeIfExists = true;
             }
             this._db.changeVersion(this._db.version, this._schema.version.toString(), function (t) {
-                var trans = new SqlProviderBase.SqliteSqlTransaction(t, _this._schema, _this._verbose);
+                var trans = new SqlProviderBase.SqliteSqlTransaction(t, _this._schema, _this._verbose, 999);
                 _this._upgradeDb(trans, oldVersion, wipeIfExists).then(function () { deferred.resolve(); }, function () { deferred.reject(); });
             }, function (err) {
                 deferred.reject(err);
@@ -68,7 +68,7 @@ var WebSqlProvider = (function (_super) {
         var _this = this;
         var deferred = SyncTasks.Defer();
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db, function (trans) {
-            deferred.resolve(new SqlProviderBase.SqliteSqlTransaction(trans, _this._schema, _this._verbose));
+            deferred.resolve(new SqlProviderBase.SqliteSqlTransaction(trans, _this._schema, _this._verbose, 999));
         }, function (err) {
             deferred.reject(err);
         });

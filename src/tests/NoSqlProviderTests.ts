@@ -27,7 +27,7 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
     } else if (providerName === 'websql') {
         provider = new WebSqlProvider();
     }
-    return NoSqlProvider.openListOfProviders([provider], 'test', schema, wipeFirst);
+    return NoSqlProvider.openListOfProviders([provider], 'test', schema, wipeFirst, true);
 }
 
 describe('NoSqlProvider', function () {

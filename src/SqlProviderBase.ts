@@ -203,17 +203,19 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 // The DbTransaction implementation for the WebSQL DbProvider.  All WebSQL accesses go through the transaction
 // object, so this class actually has several helpers for executing SQL queries, getting results from them, etc.
 export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
-    protected _schema: NoSqlProvider.DbSchema;
-    protected _verbose: boolean;
-
-    constructor(schema: NoSqlProvider.DbSchema, verbose: boolean) {
-        this._schema = schema;
-        this._verbose = verbose;
+    constructor(
+        protected _schema: NoSqlProvider.DbSchema,
+        protected _verbose: boolean,
+        protected _maxVariables: number) {
     }
 
     abstract runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]>;
 
     abstract getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;
+
+    getMaxVariables(): number {
+        return this._maxVariables;
+    }
 
     nonQuery(sql: string, parameters?: any[]): SyncTasks.Promise<void> {
         return this.runQuery(sql, parameters).then<void>(_.noop);
@@ -251,12 +253,9 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
 // Generic base transaction for anything that matches the syntax of a SQLTransaction interface for executing sql commands.
 // Conveniently, this works for both WebSql and cordova's Sqlite plugin.
 export class SqliteSqlTransaction extends SqlTransaction {
-    private _trans: SQLTransaction;
-
-    constructor(trans: SQLTransaction, schema: NoSqlProvider.DbSchema, verbose: boolean) {
-        super(schema, verbose);
-
-        this._trans = trans;
+    constructor(private _trans: SQLTransaction,
+        schema: NoSqlProvider.DbSchema, verbose: boolean, maxVariables: number) {
+        super(schema, verbose, maxVariables);
     }
 
     runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]> {
@@ -273,6 +272,11 @@ export class SqliteSqlTransaction extends SqlTransaction {
             }
             deferred.resolve(rows);
         }, (t, err) => {
+            if (!err) {
+                // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error, slightly breaking the interface.
+                err = t as any;
+            }
+
             console.log('Query Error: SQL: ' + sql + ', Error: ' + err.message);
             deferred.reject(err);
         });
@@ -348,7 +352,6 @@ class SqlStore implements NoSqlProvider.DbStore {
 
         var fields: string[] = ['nsp_pk', 'nsp_data'];
         var qmarks: string[] = ['?', '?'];
-        var qmarksValues: string[] = [];
         var args: any[] = [];
 
         _.each(this._schema.indexes, index => {
@@ -360,7 +363,6 @@ class SqlStore implements NoSqlProvider.DbStore {
 
         const qmarkString = qmarks.join(',');
         _.each(<any[]>items, (item) => {
-            qmarksValues.push(qmarkString);
             let serializedData = JSON.stringify(item);
             // For now, until an issue with cordova-ios is fixed (https://issues.apache.org/jira/browse/CB-9435), have to replace
             // \u2028 and 2029 with blanks because otherwise the command boundary with cordova-ios silently eats any strings with them.
@@ -376,8 +378,17 @@ class SqlStore implements NoSqlProvider.DbStore {
             });
         });
 
-        return this._trans.nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
-            qmarksValues.join('),(') + ')', args).then(() => {
+        // Need to not use too many variables per insert, so batch the insert if needed.
+        let inserts: SyncTasks.Promise<void>[] = [];
+        const itemPageSize = Math.floor(this._trans.getMaxVariables() / fields.length);
+        for (let i = 0; i < items.length; i += itemPageSize) {
+            const thisPageCount = Math.min(itemPageSize, items.length - i);
+            const qmarksValues = _.fill(new Array(thisPageCount), qmarkString);
+            inserts.push(this._trans.nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
+                qmarksValues.join('),(') + ')', args.splice(0, thisPageCount*fields.length)));
+        }
+
+        return SyncTasks.whenAll(inserts).then(() => {
                 if (_.any(this._schema.indexes, index => index.multiEntry)) {
                     let queries: SyncTasks.Promise<void>[] = [];
 

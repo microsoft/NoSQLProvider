@@ -54,7 +54,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
     private _db: sqlite3.Database;
 
     constructor(db: sqlite3.Database, schema: NoSqlProvider.DbSchema, verbose: boolean) {
-        super(schema, verbose);
+        super(schema, verbose, 999);
 
         // TODO dadere (#333862): Make this an actual transaction
         this._db = db;

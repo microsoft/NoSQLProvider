@@ -58,7 +58,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
         const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
 
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db, (trans: SQLTransaction) => {
-            deferred.resolve(new CordovaNativeSqliteTransaction(trans, this._schema, this._verbose));
+            deferred.resolve(new CordovaNativeSqliteTransaction(trans, this._schema, this._verbose, 999));
         }, (err) => {
             deferred.reject(err);
         });

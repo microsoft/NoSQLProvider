@@ -61,7 +61,7 @@ exports.ReactNativeSqliteProvider = ReactNativeSqliteProvider;
 var ReactNativeSqliteTransaction = (function (_super) {
     __extends(ReactNativeSqliteTransaction, _super);
     function ReactNativeSqliteTransaction(db, schema, verbose) {
-        _super.call(this, schema, verbose);
+        _super.call(this, schema, verbose, 999);
         // TODO dadere (#333862): Make this an actual transaction
         this._db = db;
     }

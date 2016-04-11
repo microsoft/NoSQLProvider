@@ -9,9 +9,11 @@ export declare abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 export declare abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
     protected _schema: NoSqlProvider.DbSchema;
     protected _verbose: boolean;
-    constructor(schema: NoSqlProvider.DbSchema, verbose: boolean);
+    protected _maxVariables: number;
+    constructor(_schema: NoSqlProvider.DbSchema, _verbose: boolean, _maxVariables: number);
     abstract runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]>;
     abstract getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;
+    getMaxVariables(): number;
     nonQuery(sql: string, parameters?: any[]): SyncTasks.Promise<void>;
     getResultsFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T[]>;
     getResultFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T>;
@@ -20,7 +22,7 @@ export declare abstract class SqlTransaction implements NoSqlProvider.DbTransact
 }
 export declare class SqliteSqlTransaction extends SqlTransaction {
     private _trans;
-    constructor(trans: SQLTransaction, schema: NoSqlProvider.DbSchema, verbose: boolean);
+    constructor(_trans: SQLTransaction, schema: NoSqlProvider.DbSchema, verbose: boolean, maxVariables: number);
     runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]>;
     getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;
 }

@@ -41,7 +41,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             }
 
             this._db.changeVersion(this._db.version, this._schema.version.toString(), (t) => {
-                let trans = new SqlProviderBase.SqliteSqlTransaction(t, this._schema, this._verbose);
+                let trans = new SqlProviderBase.SqliteSqlTransaction(t, this._schema, this._verbose, 999);
 
                 this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => { deferred.resolve(); }, () => { deferred.reject(); });
             }, (err) => {
@@ -70,7 +70,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
 
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db,
             trans => {
-                deferred.resolve(new SqlProviderBase.SqliteSqlTransaction(trans, this._schema, this._verbose));
+                deferred.resolve(new SqlProviderBase.SqliteSqlTransaction(trans, this._schema, this._verbose, 999));
             }, (err) => {
                 deferred.reject(err);
             });

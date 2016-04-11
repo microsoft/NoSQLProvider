@@ -55,7 +55,7 @@ var CordovaNativeSqliteProvider = (function (_super) {
         var _this = this;
         var deferred = SyncTasks.Defer();
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db, function (trans) {
-            deferred.resolve(new CordovaNativeSqliteTransaction(trans, _this._schema, _this._verbose));
+            deferred.resolve(new CordovaNativeSqliteTransaction(trans, _this._schema, _this._verbose, 999));
         }, function (err) {
             deferred.reject(err);
         });
