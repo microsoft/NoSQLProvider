@@ -31,9 +31,7 @@ var CordovaNativeSqliteProvider = (function (_super) {
         }
         this._db = this._plugin.openDatabase({
             name: dbName + '.db',
-            location: 2,
-            androidDatabaseImplementation: 2,
-            androidLockWorkaround: 1
+            location: 2
         });
         if (!this._db) {
             return SyncTasks.Rejected('Couldn\'t open database: ' + dbName);
