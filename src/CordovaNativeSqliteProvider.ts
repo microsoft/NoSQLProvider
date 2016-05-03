@@ -14,6 +14,35 @@ import SyncTasks = require('synctasks');
 import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 
+export interface SqlitePluginDbOptionalParams {
+    createFromLocation?: number;
+    androidDatabaseImplementation?: number;
+    androidLockWorkaround?: number;
+}
+
+export interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
+    name: string;
+    location: number;
+}
+
+export interface SqliteDatabase {
+    openDBs: string[];
+    addTransaction(transaction: SQLTransaction): void;
+    transaction(transaction: SQLTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
+    readTransaction(transaction: SQLTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
+    startNextTransaction(): void;
+    abortAllPendingTransactions(): void;
+    open(success: Function, error: Function): void;
+    close(success: Function, error: Function): void;
+    executeSql(statement: string, params?: any[], success?: SQLStatementCallback, error?: SQLStatementErrorCallback): void;
+}
+
+export interface SqlitePlugin {
+    openDatabase(dbInfo: SqlitePluginDbParams): SqliteDatabase;
+    deleteDatabase(dbInfo: SqlitePluginDbParams, successCallback?: Function, errorCallback?: Function);
+    sqliteFeatures: { isSQLitePlugin: boolean }
+}
+
 export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
     // You can use the openOptions object to pass extra optional parameters like androidDatabaseImplementation to the open command
     constructor(private _plugin: SqlitePlugin = window.sqlitePlugin, private _openOptions: SqlitePluginDbOptionalParams = {}) {

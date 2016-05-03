@@ -103,34 +103,3 @@ declare module 'indexeddb-js' {
 interface Window {
     sqlitePlugin: SqlitePlugin
 }
-
-interface SqlitePluginDbOptionalParams {
-    createFromLocation?: number;
-    androidDatabaseImplementation?: number;
-    androidLockWorkaround?: number;
-}
-
-interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
-    name: string;
-    location: number;
-}
-
-interface SqliteDatabase {
-    openDBs: string[];
-    addTransaction(transaction: SQLTransaction): void;
-    transaction(transaction: SQLTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
-    readTransaction(transaction: SQLTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
-    startNextTransaction(): void;
-    abortAllPendingTransactions(): void;
-    open(success: Function, error: Function): void;
-    close(success: Function, error: Function): void;
-    executeSql(statement: string, params?: any[], success?: SQLStatementCallback, error?: SQLStatementErrorCallback): void;
-}
-
-interface SqlitePlugin {
-    openDatabase(dbInfo: SqlitePluginDbParams): SqliteDatabase;
-    deleteDatabase(dbInfo: SqlitePluginDbParams, successCallback?: Function, errorCallback?: Function);
-    sqliteFeatures: { isSQLitePlugin: boolean }
-}
-
-
