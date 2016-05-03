@@ -4,6 +4,8 @@
  * Copyright: Microsoft 2015
  *
  * NoSqlProvider provider setup for cordova-native-sqlite, a cordova plugin backed by sqlite3.
+ * Also works for react-native-sqlite-storage, since it's based on the same bindings, just make sure to pass in an instance
+ * of the plugin into the constructor to be used, since window.sqlitePlugin won't exist.
  */
 "use strict";
 var __extends = (this && this.__extends) || function (d, b) {
@@ -11,15 +13,18 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
+var _ = require('lodash');
 var SyncTasks = require('synctasks');
 var SqlProviderBase = require('./SqlProviderBase');
-// The DbProvider implementation for Native Sqlite on cordova
 var CordovaNativeSqliteProvider = (function (_super) {
     __extends(CordovaNativeSqliteProvider, _super);
-    function CordovaNativeSqliteProvider(_plugin) {
+    // You can use the openOptions object to pass extra optional parameters like androidDatabaseImplementation to the open command
+    function CordovaNativeSqliteProvider(_plugin, _openOptions) {
         if (_plugin === void 0) { _plugin = window.sqlitePlugin; }
+        if (_openOptions === void 0) { _openOptions = {}; }
         _super.call(this);
         this._plugin = _plugin;
+        this._openOptions = _openOptions;
     }
     CordovaNativeSqliteProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
         _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
@@ -29,12 +34,10 @@ var CordovaNativeSqliteProvider = (function (_super) {
         if (typeof (navigator) !== 'undefined' && navigator.userAgent && navigator.userAgent.indexOf('Mobile Crosswalk') !== -1) {
             return SyncTasks.Rejected('Android NativeSqlite is broken, skipping');
         }
-        this._db = this._plugin.openDatabase({
+        this._db = this._plugin.openDatabase(_.extend({
             name: dbName + '.db',
-            location: 2,
-            androidDatabaseImplementation: 2,
-            androidLockWorkaround: 1
-        });
+            location: 2
+        }, this._openOptions));
         if (!this._db) {
             return SyncTasks.Rejected('Couldn\'t open database: ' + dbName);
         }

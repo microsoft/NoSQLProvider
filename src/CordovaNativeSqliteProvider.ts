@@ -4,20 +4,24 @@
  * Copyright: Microsoft 2015
  *
  * NoSqlProvider provider setup for cordova-native-sqlite, a cordova plugin backed by sqlite3.
+ * Also works for react-native-sqlite-storage, since it's based on the same bindings, just make sure to pass in an instance
+ * of the plugin into the constructor to be used, since window.sqlitePlugin won't exist.
  */
 
+import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 
-// The DbProvider implementation for Native Sqlite on cordova
 export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
-    constructor(private _plugin: SqlitePlugin = window.sqlitePlugin) {
+    // You can use the openOptions object to pass extra optional parameters like androidDatabaseImplementation to the open command
+    constructor(private _plugin: SqlitePlugin = window.sqlitePlugin, private _openOptions: SqlitePluginDbOptionalParams = {}) {
         super();
     }
 
     private _db: SqliteDatabase;
+
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
@@ -29,12 +33,10 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             return SyncTasks.Rejected<void>('Android NativeSqlite is broken, skipping');
         }
 
-        this._db = this._plugin.openDatabase({
+        this._db = this._plugin.openDatabase(_.extend<SqlitePluginDbParams, SqlitePluginDbParams>({
             name: dbName + '.db',
-            location: 2,
-            androidDatabaseImplementation: 2,
-            androidLockWorkaround: 1
-        });
+            location: 2
+        }, this._openOptions));
 
         if (!this._db) {
             return SyncTasks.Rejected<void>('Couldn\'t open database: ' + dbName);

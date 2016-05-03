@@ -104,12 +104,15 @@ interface Window {
     sqlitePlugin: SqlitePlugin
 }
 
-interface SqlitePluginDbParams {
-    name: string;
-    location: number;
+interface SqlitePluginDbOptionalParams {
     createFromLocation?: number;
     androidDatabaseImplementation?: number;
     androidLockWorkaround?: number;
+}
+
+interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
+    name: string;
+    location: number;
 }
 
 interface SqliteDatabase {
