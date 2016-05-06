@@ -24,7 +24,16 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             return SyncTasks.Rejected<void>('No support for WebSQL in this browser');
         }
 
-        this._db = window.openDatabase(dbName, '', dbName, 5 * 1024 * 1024);
+        try {
+            this._db = window.openDatabase(dbName, '', dbName, 10 * 1024 * 1024);
+        } catch (e) {
+            if (e.code === 18) {
+                // User rejected the quota attempt
+                return SyncTasks.Rejected<void>('User rejected quota allowance');
+            }
+
+            return SyncTasks.Rejected<void>('Unknown Exception opening WebSQL database: ' + e.toString());
+        }
 
         if (!this._db) {
             return SyncTasks.Rejected<void>('Couldn\'t open database: ' + dbName);
