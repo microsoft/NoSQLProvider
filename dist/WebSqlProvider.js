@@ -27,7 +27,16 @@ var WebSqlProvider = (function (_super) {
         if (!window.openDatabase) {
             return SyncTasks.Rejected('No support for WebSQL in this browser');
         }
-        this._db = window.openDatabase(dbName, '', dbName, 5 * 1024 * 1024);
+        try {
+            this._db = window.openDatabase(dbName, '', dbName, 10 * 1024 * 1024);
+        }
+        catch (e) {
+            if (e.code === 18) {
+                // User rejected the quota attempt
+                return SyncTasks.Rejected('User rejected quota allowance');
+            }
+            return SyncTasks.Rejected('Unknown Exception opening WebSQL database: ' + e.toString());
+        }
         if (!this._db) {
             return SyncTasks.Rejected('Couldn\'t open database: ' + dbName);
         }
@@ -67,10 +76,19 @@ var WebSqlProvider = (function (_super) {
     WebSqlProvider.prototype.openTransaction = function (storeNames, writeNeeded) {
         var _this = this;
         var deferred = SyncTasks.Defer();
+        var ourTrans = null;
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db, function (trans) {
-            deferred.resolve(new SqlProviderBase.SqliteSqlTransaction(trans, _this._schema, _this._verbose, 999));
+            ourTrans = new SqlProviderBase.SqliteSqlTransaction(trans, _this._schema, _this._verbose, 999);
+            deferred.resolve(ourTrans);
         }, function (err) {
-            deferred.reject(err);
+            if (ourTrans) {
+                // Got an error from inside the transaction.  Error out all pending queries on the 
+                // transaction since they won't exit out gracefully for whatever reason.
+                ourTrans.failAllPendingQueries(err);
+            }
+            else {
+                deferred.reject(err);
+            }
         });
         return deferred.promise();
     };

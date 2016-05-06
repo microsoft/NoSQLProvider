@@ -237,25 +237,52 @@ var SqliteSqlTransaction = (function (_super) {
     function SqliteSqlTransaction(_trans, schema, verbose, maxVariables) {
         _super.call(this, schema, verbose, maxVariables);
         this._trans = _trans;
+        this._pendingQueries = [];
     }
+    // If an external provider of the transaction determines that the transaction has failed but won't report its failures 
+    // (i.e. in the case of WebSQL), we need a way to kick the hanging queries that they're going to fail since otherwise
+    // they'll never respond.
+    SqliteSqlTransaction.prototype.failAllPendingQueries = function (error) {
+        var list = this._pendingQueries;
+        this._pendingQueries = [];
+        _.each(list, function (query) {
+            query.reject(error);
+        });
+    };
     SqliteSqlTransaction.prototype.runQuery = function (sql, parameters) {
+        var _this = this;
         var deferred = SyncTasks.Defer();
+        this._pendingQueries.push(deferred);
         if (this._verbose) {
             console.log('Query: ' + sql);
         }
         this._trans.executeSql(sql, parameters, function (t, rs) {
-            var rows = [];
-            for (var i = 0; i < rs.rows.length; i++) {
-                rows.push(rs.rows.item(i));
+            var index = _.indexOf(_this._pendingQueries, deferred);
+            if (index !== -1) {
+                var rows = [];
+                for (var i = 0; i < rs.rows.length; i++) {
+                    rows.push(rs.rows.item(i));
+                }
+                _this._pendingQueries.splice(index, 1);
+                deferred.resolve(rows);
             }
-            deferred.resolve(rows);
+            else {
+                console.error('SQL statement resolved twice (success this time): ' + sql);
+            }
         }, function (t, err) {
             if (!err) {
                 // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error, slightly breaking the interface.
                 err = t;
             }
             console.log('Query Error: SQL: ' + sql + ', Error: ' + err.message);
-            deferred.reject(err);
+            var index = _.indexOf(_this._pendingQueries, deferred);
+            if (index !== -1) {
+                _this._pendingQueries.splice(index, 1);
+                deferred.reject(err);
+            }
+            else {
+                console.error('SQL statement resolved twice (this time with failure)');
+            }
         });
         return deferred.promise();
     };
