@@ -253,24 +253,44 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
 // Generic base transaction for anything that matches the syntax of a SQLTransaction interface for executing sql commands.
 // Conveniently, this works for both WebSql and cordova's Sqlite plugin.
 export class SqliteSqlTransaction extends SqlTransaction {
+    private _pendingQueries: SyncTasks.Deferred<any>[] = [];
+    
     constructor(private _trans: SQLTransaction,
         schema: NoSqlProvider.DbSchema, verbose: boolean, maxVariables: number) {
         super(schema, verbose, maxVariables);
     }
+    
+    // If an external provider of the transaction determines that the transaction has failed but won't report its failures 
+    // (i.e. in the case of WebSQL), we need a way to kick the hanging queries that they're going to fail since otherwise
+    // they'll never respond.
+    failAllPendingQueries(error: any) {
+        const list = this._pendingQueries;
+        this._pendingQueries = [];
+        _.each(list, query => {
+            query.reject(error);
+        });
+    }
 
     runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]> {
         const deferred = SyncTasks.Defer<any[]>();
+        this._pendingQueries.push(deferred);
 
         if (this._verbose) {
             console.log('Query: ' + sql);
         }
 
         this._trans.executeSql(sql, parameters, (t, rs) => {
-            var rows = [];
-            for (var i = 0; i < rs.rows.length; i++) {
-                rows.push(rs.rows.item(i));
+            const index = _.indexOf(this._pendingQueries, deferred);
+            if (index !== -1) {
+                var rows = [];
+                for (var i = 0; i < rs.rows.length; i++) {
+                    rows.push(rs.rows.item(i));
+                }
+                this._pendingQueries.splice(index, 1);
+                deferred.resolve(rows);
+            } else {
+                console.error('SQL statement resolved twice (success this time): ' + sql);
             }
-            deferred.resolve(rows);
         }, (t, err) => {
             if (!err) {
                 // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error, slightly breaking the interface.
@@ -278,7 +298,14 @@ export class SqliteSqlTransaction extends SqlTransaction {
             }
 
             console.log('Query Error: SQL: ' + sql + ', Error: ' + err.message);
-            deferred.reject(err);
+
+            const index = _.indexOf(this._pendingQueries, deferred);
+            if (index !== -1) {
+                this._pendingQueries.splice(index, 1);
+                deferred.reject(err);
+            } else {
+                console.error('SQL statement resolved twice (this time with failure)');
+            }
         });
 
         return deferred.promise();

@@ -101,5 +101,5 @@ declare module 'indexeddb-js' {
  */
 
 interface Window {
-    sqlitePlugin: SqlitePlugin
+    sqlitePlugin: any;
 }

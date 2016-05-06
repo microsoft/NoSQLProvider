@@ -68,11 +68,19 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
         const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
 
+        let ourTrans: SqlProviderBase.SqliteSqlTransaction = null;
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db,
             trans => {
-                deferred.resolve(new SqlProviderBase.SqliteSqlTransaction(trans, this._schema, this._verbose, 999));
+                ourTrans = new SqlProviderBase.SqliteSqlTransaction(trans, this._schema, this._verbose, 999);
+                deferred.resolve(ourTrans);
             }, (err) => {
-                deferred.reject(err);
+                if (ourTrans) {
+                    // Got an error from inside the transaction.  Error out all pending queries on the 
+                    // transaction since they won't exit out gracefully for whatever reason.
+                    ourTrans.failAllPendingQueries(err);
+                } else {
+                    deferred.reject(err);
+                }
             });
 
         return deferred.promise();
