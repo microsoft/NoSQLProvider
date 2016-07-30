@@ -114,7 +114,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     tableNames = _.filter(tableNames, name => _.contains(tableNamesNeeded, name));
                 }
 
-                return SyncTasks.whenAll(dropQueries).then(() => {
+                return SyncTasks.all(dropQueries).then(() => {
                     var tableQueries = [];
 
                     // Go over each store and see what needs changing
@@ -139,7 +139,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 }
                             });
 
-                            return SyncTasks.whenAll(indexQueries);
+                            return SyncTasks.all(indexQueries);
                         };
 
                         var tableMaker = () => {
@@ -164,7 +164,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             // so just make a copy and fully migrate the data over.
 
                             // Nuke old indexes on the original table (since they don't change names and we don't need them anymore)
-                            let nukeIndexesAndRename = SyncTasks.whenAll(indexNames[storeSchema.name].map(indexName =>
+                            let nukeIndexesAndRename = SyncTasks.all(indexNames[storeSchema.name].map(indexName =>
                                 trans.runQuery('DROP INDEX ' + indexName)
                             )).then(() => {
                                 // Then rename the table to a temp_[name] table so we can migrate the data out of it
@@ -193,7 +193,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         }
                     });
 
-                    return SyncTasks.whenAll(tableQueries);
+                    return SyncTasks.all(tableQueries);
                 });
             })
             .then(() => void 0);
@@ -415,7 +415,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                 qmarksValues.join('),(') + ')', args.splice(0, thisPageCount*fields.length)));
         }
 
-        return SyncTasks.whenAll(inserts).then(() => {
+        return SyncTasks.all(inserts).then(() => {
                 if (_.any(this._schema.indexes, index => index.multiEntry)) {
                     let queries: SyncTasks.Promise<void>[] = [];
 
@@ -444,11 +444,11 @@ class SqlStore implements NoSqlProvider.DbStore {
                                                 ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
                                         });
                                 });
-                                return SyncTasks.whenAll(inserts).then(rets => void 0);
+                                return SyncTasks.all(inserts).then(rets => void 0);
                             }));
                     });
 
-                    return SyncTasks.whenAll(queries).then(rets => void 0);
+                    return SyncTasks.all(queries).then(rets => void 0);
                 }
             });
     }
@@ -469,14 +469,14 @@ class SqlStore implements NoSqlProvider.DbStore {
                         this._trans.nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
                             ' WHERE nsp_refrowid = ?', [rets[0].a]));
                     queries.push(this._trans.nonQuery('DELETE FROM ' + this._schema.name + ' WHERE rowid = ?', [rets[0].a]));
-                    return SyncTasks.whenAll(queries);
+                    return SyncTasks.all(queries).then(_.noop);
                 });
             }
 
             return this._trans.nonQuery('DELETE FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
         });
 
-        return SyncTasks.whenAll(queries).then(rets => void 0);
+        return SyncTasks.all(queries).then(rets => void 0);
     }
 
     openIndex(indexName: string): NoSqlProvider.DbIndex {
@@ -498,7 +498,7 @@ class SqlStore implements NoSqlProvider.DbStore {
 
         queries.push(this._trans.nonQuery('DELETE FROM ' + this._schema.name));
 
-        return SyncTasks.whenAll(queries).then(rets => void 0);
+        return SyncTasks.all(queries).then(rets => void 0);
     }
 }
 

@@ -95,7 +95,7 @@ export abstract class DbProvider {
                 }
                 return store.clearAllData();
             });
-            return SyncTasks.whenAll(clearers).then(rets => void 0);
+            return SyncTasks.all(clearers).then(rets => void 0);
         });
     }
 

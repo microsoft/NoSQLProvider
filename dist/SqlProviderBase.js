@@ -114,7 +114,7 @@ var SqlProviderBase = (function (_super) {
                     .map(function (name) { return trans.runQuery('DROP TABLE ' + name); });
                 tableNames = _.filter(tableNames, function (name) { return _.contains(tableNamesNeeded_1, name); });
             }
-            return SyncTasks.whenAll(dropQueries).then(function () {
+            return SyncTasks.all(dropQueries).then(function () {
                 var tableQueries = [];
                 // Go over each store and see what needs changing
                 _this._schema.stores.forEach(function (storeSchema) {
@@ -139,7 +139,7 @@ var SqlProviderBase = (function (_super) {
                                     '_' + index.name + ' ON ' + storeSchema.name + ' (nsp_i_' + index.name + ')');
                             }
                         });
-                        return SyncTasks.whenAll(indexQueries);
+                        return SyncTasks.all(indexQueries);
                     };
                     var tableMaker = function () {
                         // Create the table
@@ -156,7 +156,7 @@ var SqlProviderBase = (function (_super) {
                         // If the table exists, we can't read its schema due to websql security rules,
                         // so just make a copy and fully migrate the data over.
                         // Nuke old indexes on the original table (since they don't change names and we don't need them anymore)
-                        var nukeIndexesAndRename = SyncTasks.whenAll(indexNames[storeSchema.name].map(function (indexName) {
+                        var nukeIndexesAndRename = SyncTasks.all(indexNames[storeSchema.name].map(function (indexName) {
                             return trans.runQuery('DROP INDEX ' + indexName);
                         })).then(function () {
                             // Then rename the table to a temp_[name] table so we can migrate the data out of it
@@ -182,7 +182,7 @@ var SqlProviderBase = (function (_super) {
                         tableQueries.push(tableMaker());
                     }
                 });
-                return SyncTasks.whenAll(tableQueries);
+                return SyncTasks.all(tableQueries);
             });
         })
             .then(function () { return void 0; });
@@ -369,7 +369,7 @@ var SqlStore = (function () {
             inserts.push(this._trans.nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
                 qmarksValues.join('),(') + ')', args.splice(0, thisPageCount * fields.length)));
         }
-        return SyncTasks.whenAll(inserts).then(function () {
+        return SyncTasks.all(inserts).then(function () {
             if (_.any(_this._schema.indexes, function (index) { return index.multiEntry; })) {
                 var queries_1 = [];
                 _.each(items, function (item) {
@@ -394,10 +394,10 @@ var SqlStore = (function () {
                                     ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
                             });
                         });
-                        return SyncTasks.whenAll(inserts).then(function (rets) { return void 0; });
+                        return SyncTasks.all(inserts).then(function (rets) { return void 0; });
                     }));
                 });
-                return SyncTasks.whenAll(queries_1).then(function (rets) { return void 0; });
+                return SyncTasks.all(queries_1).then(function (rets) { return void 0; });
             }
         });
     };
@@ -417,12 +417,12 @@ var SqlStore = (function () {
                             ' WHERE nsp_refrowid = ?', [rets[0].a]);
                     });
                     queries.push(_this._trans.nonQuery('DELETE FROM ' + _this._schema.name + ' WHERE rowid = ?', [rets[0].a]));
-                    return SyncTasks.whenAll(queries);
+                    return SyncTasks.all(queries).then(_.noop);
                 });
             }
             return _this._trans.nonQuery('DELETE FROM ' + _this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
         });
-        return SyncTasks.whenAll(queries).then(function (rets) { return void 0; });
+        return SyncTasks.all(queries).then(function (rets) { return void 0; });
     };
     SqlStore.prototype.openIndex = function (indexName) {
         var indexSchema = _.find(this._schema.indexes, function (index) { return index.name === indexName; });
@@ -440,7 +440,7 @@ var SqlStore = (function () {
             return _this._trans.nonQuery('DELETE FROM ' + _this._schema.name + '_' + index.name);
         });
         queries.push(this._trans.nonQuery('DELETE FROM ' + this._schema.name));
-        return SyncTasks.whenAll(queries).then(function (rets) { return void 0; });
+        return SyncTasks.all(queries).then(function (rets) { return void 0; });
     };
     SqlStore._unicodeFixer = new RegExp('[\u2028\u2029]', 'g');
     return SqlStore;

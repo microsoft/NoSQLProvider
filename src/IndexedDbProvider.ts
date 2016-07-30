@@ -189,7 +189,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                                                 };
                                                 thisIndexPutters.push(IndexedDbProvider.WrapRequest<void>(indexStore.put(indexObj)));
                                             });
-                                        }).then(() => SyncTasks.whenAll(thisIndexPutters).then(() => void 0)));
+                                        }).then(() => SyncTasks.all(thisIndexPutters).then(() => void 0)));
                                     }
                                 }
                             } else if (NoSqlProviderUtils.isCompoundKeyPath(keyPath)) {
@@ -216,7 +216,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         var promise = IndexedDbProvider.WrapRequest<IDBDatabase>(dbOpen);
 
         return promise.then(db => {
-            return SyncTasks.whenAll(migrationPutters).then(() => {
+            return SyncTasks.all(migrationPutters).then(() => {
                 this._db = db;
             });
         }, err => {
@@ -335,7 +335,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         }
 
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
-        return SyncTasks.whenAll(keys.map(key => IndexedDbProvider.WrapRequest<T>(this._store.get(key))));
+        return SyncTasks.all(keys.map(key => IndexedDbProvider.WrapRequest<T>(this._store.get(key))));
     }
 
     put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
@@ -389,7 +389,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                                     };
                                     return IndexedDbProvider.WrapRequest<void>(indexStore.put(indexObj));
                                 });
-                                return SyncTasks.whenAll(iputters);
+                                return SyncTasks.all(iputters);
                             }).then(rets => void 0));
                     } else if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
                         item['nsp_i_' + index.name] = NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath);
@@ -400,7 +400,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             promises.push(IndexedDbProvider.WrapRequest<void>(this._store.put(item)));
         });
 
-        return SyncTasks.whenAll(promises).then(rets => void 0);
+        return SyncTasks.all(promises).then(rets => void 0);
     }
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
@@ -410,7 +410,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             keys = keys.map(key => NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath));
         }
 
-        return SyncTasks.whenAll(keys.map(key => {
+        return SyncTasks.all(keys.map(key => {
             if (this._fakeComplicatedKeys && _.any(this._schema.indexes, index => index.multiEntry)) {
                 // If we're faking keys and there's any multientry indexes, we have to do the way more complicated version...
                 return IndexedDbProvider.WrapRequest<any>(this._store.get(key)).then(item => {
@@ -429,7 +429,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                         });
                         // Also remember to nuke the item from the actual store
                         promises.push(IndexedDbProvider.WrapRequest<void>(this._store['delete'](key)));
-                        return SyncTasks.whenAll(promises);
+                        return SyncTasks.all(promises).then(_.noop);
                     }
                 });
             }
@@ -471,7 +471,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 
         let promises = storesToClear.map(store => IndexedDbProvider.WrapRequest(store.clear()));
 
-        return SyncTasks.whenAll(promises).then(rets => void 0);
+        return SyncTasks.all(promises).then(rets => void 0);
     }
 }
 
@@ -498,7 +498,7 @@ class IndexedDbIndex implements NoSqlProvider.DbIndex {
             return IndexedDbIndex.getFromCursorRequest<{ key: string, refkey: any }>(req, limit, offset).then(rets => {
                 // Now get the original items using the refkeys from the index store, which are PKs on the main store
                 var getters = rets.map(ret => IndexedDbProvider.WrapRequest<T>(this._fakedOriginalStore.get(ret.refkey)));
-                return SyncTasks.whenAll(getters);
+                return SyncTasks.all(getters);
             });
         } else {
             return IndexedDbIndex.getFromCursorRequest<T>(req, limit, offset);

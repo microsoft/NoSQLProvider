@@ -1,6 +1,6 @@
 {
     "name": "nosqlprovider",
-    "version": "0.2.7",
+    "version": "0.2.8",
     "description": "A cross-browser/platform indexeddb-like client library",
     "author": "David de Regt <David.de.Regt@microsoft.com>",
     "scripts": {
@@ -11,9 +11,10 @@
     "main": "dist/NoSqlProvider.js",
     "dependencies": {
         "lodash": "^3.10.0",
-        "synctasks": "^0.2.1"
+        "synctasks": "0.2.3"
     },
     "devDependencies": {
+        "mocha": "^2.3.4",
         "sqlite3": "^3.0.9",
         "ts-loader": "^0.8.1",
         "typescript": "^1.8.9",

@@ -90,7 +90,7 @@ describe('NoSqlProvider', function () {
                         return prov.put('test', obj);
                     });
 
-                    return SyncTasks.whenAll(putters).then(rets => {
+                    return SyncTasks.all(putters).then(rets => {
                         let formIndex = (i: number, i2: number = i): string | string[] => {
                             if (compound) {
                                 return ['indexa' + i, 'indexb' + i2];
@@ -165,7 +165,7 @@ describe('NoSqlProvider', function () {
                             [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
 
-                        return SyncTasks.whenAll([t1, t1b, t1c, t2, t3, t3b, t3b2, t3c, t3d, t3d2, t4, t5, t6]).then(() => {
+                        return SyncTasks.all([t1, t1b, t1c, t2, t3, t3b, t3b2, t3c, t3d, t3d2, t4, t5, t6]).then(() => {
                             if (compound) {
                                 let tt1 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3))
                                     .then(ret => {
@@ -185,7 +185,7 @@ describe('NoSqlProvider', function () {
                                         [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
 
-                                return SyncTasks.whenAll([tt1, tt2, tt3]).then(() => {
+                                return SyncTasks.all([tt1, tt2, tt3]).then(() => {
                                     return prov.close();
                                 });
                             } else {
@@ -420,7 +420,7 @@ describe('NoSqlProvider', function () {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
-                            return SyncTasks.whenAll([g1, g2, g2b, g2c, g3, g4]).then(() => {
+                            return SyncTasks.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
                                 return prov.close();
                             });
                         });
@@ -536,7 +536,7 @@ describe('NoSqlProvider', function () {
                                         assert(!!item);
                                         assert.equal(item.id, 'def');
                                     });
-                                    return SyncTasks.whenAll([p1, p2, p3, p4]).then(() => {
+                                    return SyncTasks.all([p1, p2, p3, p4]).then(() => {
                                         return prov.close();
                                     });
                                 });
@@ -619,7 +619,7 @@ describe('NoSqlProvider', function () {
                                 const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.whenAll([p1, p2, p3]).then(() => {
+                                return SyncTasks.all([p1, p2, p3]).then(() => {
                                     return prov.close();
                                 });
                             });
@@ -706,7 +706,7 @@ describe('NoSqlProvider', function () {
                                 const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.whenAll([p1, p2, p3]).then(() => {
+                                return SyncTasks.all([p1, p2, p3]).then(() => {
                                     return prov.close();
                                 });
                             });

@@ -32,7 +32,7 @@ var DbProvider = (function () {
                 }
                 return store.clearAllData();
             });
-            return SyncTasks.whenAll(clearers).then(function (rets) { return void 0; });
+            return SyncTasks.all(clearers).then(function (rets) { return void 0; });
         });
     };
     // Shortcut functions

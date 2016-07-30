@@ -80,7 +80,7 @@ describe('NoSqlProvider', function () {
                         setter(obj, 'indexa' + v, 'indexb' + v);
                         return prov.put('test', obj);
                     });
-                    return SyncTasks.whenAll(putters).then(function (rets) {
+                    return SyncTasks.all(putters).then(function (rets) {
                         var formIndex = function (i, i2) {
                             if (i2 === void 0) { i2 = i; }
                             if (compound) {
@@ -143,7 +143,7 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret.length, 1, 'getRange--');
                             [3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                         });
-                        return SyncTasks.whenAll([t1, t1b, t1c, t2, t3, t3b, t3b2, t3c, t3d, t3d2, t4, t5, t6]).then(function () {
+                        return SyncTasks.all([t1, t1b, t1c, t2, t3, t3b, t3b2, t3c, t3d, t3d2, t4, t5, t6]).then(function () {
                             if (compound) {
                                 var tt1 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
                                     .then(function (ret) {
@@ -160,7 +160,7 @@ describe('NoSqlProvider', function () {
                                     assert.equal(ret.length, 1, 'getRange2-+');
                                     [3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                                 });
-                                return SyncTasks.whenAll([tt1, tt2, tt3]).then(function () {
+                                return SyncTasks.all([tt1, tt2, tt3]).then(function () {
                                     return prov.close();
                                 });
                             }
@@ -384,7 +384,7 @@ describe('NoSqlProvider', function () {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(function (r) { assert.equal(r.val, 'b'); });
                             });
-                            return SyncTasks.whenAll([g1, g2, g2b, g2c, g3, g4]).then(function () {
+                            return SyncTasks.all([g1, g2, g2b, g2c, g3, g4]).then(function () {
                                 return prov.close();
                             });
                         });
@@ -497,7 +497,7 @@ describe('NoSqlProvider', function () {
                                         assert(!!item);
                                         assert.equal(item.id, 'def');
                                     });
-                                    return SyncTasks.whenAll([p1, p2, p3, p4]).then(function () {
+                                    return SyncTasks.all([p1, p2, p3, p4]).then(function () {
                                         return prov.close();
                                     });
                                 });
@@ -578,7 +578,7 @@ describe('NoSqlProvider', function () {
                                 var p3 = prov.getOnly('test', 'ind1', 'abc').then(function (items) {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.whenAll([p1, p2, p3]).then(function () {
+                                return SyncTasks.all([p1, p2, p3]).then(function () {
                                     return prov.close();
                                 });
                             });
@@ -663,7 +663,7 @@ describe('NoSqlProvider', function () {
                                 var p3 = prov.getOnly('test', 'ind1', 'abc').then(function (items) {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.whenAll([p1, p2, p3]).then(function () {
+                                return SyncTasks.all([p1, p2, p3]).then(function () {
                                     return prov.close();
                                 });
                             });

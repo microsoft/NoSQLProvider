@@ -171,7 +171,7 @@ var IndexedDbProvider = (function (_super) {
                                                 };
                                                 thisIndexPutters_1.push(IndexedDbProvider.WrapRequest(indexStore_1.put(indexObj)));
                                             });
-                                        }).then(function () { return SyncTasks.whenAll(thisIndexPutters_1).then(function () { return void 0; }); }));
+                                        }).then(function () { return SyncTasks.all(thisIndexPutters_1).then(function () { return void 0; }); }));
                                     }
                                 }
                             }
@@ -199,7 +199,7 @@ var IndexedDbProvider = (function (_super) {
         };
         var promise = IndexedDbProvider.WrapRequest(dbOpen);
         return promise.then(function (db) {
-            return SyncTasks.whenAll(migrationPutters).then(function () {
+            return SyncTasks.all(migrationPutters).then(function () {
                 _this._db = db;
             });
         }, function (err) {
@@ -300,7 +300,7 @@ var IndexedDbStore = (function () {
             keys = keys.map(function (key) { return NoSqlProviderUtils.serializeKeyToString(key, _this._schema.primaryKeyPath); });
         }
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
-        return SyncTasks.whenAll(keys.map(function (key) { return IndexedDbProvider.WrapRequest(_this._store.get(key)); }));
+        return SyncTasks.all(keys.map(function (key) { return IndexedDbProvider.WrapRequest(_this._store.get(key)); }));
     };
     IndexedDbStore.prototype.put = function (itemOrItems) {
         var _this = this;
@@ -348,7 +348,7 @@ var IndexedDbStore = (function () {
                                 };
                                 return IndexedDbProvider.WrapRequest(indexStore_2.put(indexObj));
                             });
-                            return SyncTasks.whenAll(iputters);
+                            return SyncTasks.all(iputters);
                         }).then(function (rets) { return void 0; }));
                     }
                     else if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
@@ -358,7 +358,7 @@ var IndexedDbStore = (function () {
             }
             promises.push(IndexedDbProvider.WrapRequest(_this._store.put(item)));
         });
-        return SyncTasks.whenAll(promises).then(function (rets) { return void 0; });
+        return SyncTasks.all(promises).then(function (rets) { return void 0; });
     };
     IndexedDbStore.prototype.remove = function (keyOrKeys) {
         var _this = this;
@@ -366,7 +366,7 @@ var IndexedDbStore = (function () {
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._schema.primaryKeyPath)) {
             keys = keys.map(function (key) { return NoSqlProviderUtils.serializeKeyToString(key, _this._schema.primaryKeyPath); });
         }
-        return SyncTasks.whenAll(keys.map(function (key) {
+        return SyncTasks.all(keys.map(function (key) {
             if (_this._fakeComplicatedKeys && _.any(_this._schema.indexes, function (index) { return index.multiEntry; })) {
                 // If we're faking keys and there's any multientry indexes, we have to do the way more complicated version...
                 return IndexedDbProvider.WrapRequest(_this._store.get(key)).then(function (item) {
@@ -383,7 +383,7 @@ var IndexedDbStore = (function () {
                         });
                         // Also remember to nuke the item from the actual store
                         promises.push(IndexedDbProvider.WrapRequest(_this._store['delete'](key)));
-                        return SyncTasks.whenAll(promises);
+                        return SyncTasks.all(promises).then(_.noop);
                     }
                 });
             }
@@ -420,7 +420,7 @@ var IndexedDbStore = (function () {
             storesToClear = storesToClear.concat(this._indexStores);
         }
         var promises = storesToClear.map(function (store) { return IndexedDbProvider.WrapRequest(store.clear()); });
-        return SyncTasks.whenAll(promises).then(function (rets) { return void 0; });
+        return SyncTasks.all(promises).then(function (rets) { return void 0; });
     };
     return IndexedDbStore;
 }());
@@ -441,7 +441,7 @@ var IndexedDbIndex = (function () {
             return IndexedDbIndex.getFromCursorRequest(req, limit, offset).then(function (rets) {
                 // Now get the original items using the refkeys from the index store, which are PKs on the main store
                 var getters = rets.map(function (ret) { return IndexedDbProvider.WrapRequest(_this._fakedOriginalStore.get(ret.refkey)); });
-                return SyncTasks.whenAll(getters);
+                return SyncTasks.all(getters);
             });
         }
         else {
