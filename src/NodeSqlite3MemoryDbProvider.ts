@@ -99,7 +99,21 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
                 stmt.finalize();
                 return;
             }
-            callback(JSON.parse(row.nsp_data));
+
+            const item = row.nsp_data;
+            let ret: any;
+            try {
+                ret = JSON.parse(item);
+            } catch (e) {
+                deferred.reject('Error parsing database entry in getResultsFromQueryWithCallback: ' + JSON.stringify(item));
+                return;
+            }
+            try {
+                callback(ret);
+            } catch (e) {
+                deferred.reject('Exception in callback in getResultsFromQueryWithCallback: ' + JSON.stringify(e));
+                return;
+            }
         }, (err, count) => {
             if (err) {
                 console.log('Query Error: SQL: ' + sql + ', Error: ' + err.toString());

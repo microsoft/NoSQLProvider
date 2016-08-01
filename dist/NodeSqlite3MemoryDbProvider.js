@@ -91,7 +91,22 @@ var NodeSqlite3Transaction = (function (_super) {
                 stmt.finalize();
                 return;
             }
-            callback(JSON.parse(row.nsp_data));
+            var item = row.nsp_data;
+            var ret;
+            try {
+                ret = JSON.parse(item);
+            }
+            catch (e) {
+                deferred.reject('Error parsing database entry in getResultsFromQueryWithCallback: ' + JSON.stringify(item));
+                return;
+            }
+            try {
+                callback(ret);
+            }
+            catch (e) {
+                deferred.reject('Exception in callback in getResultsFromQueryWithCallback: ' + JSON.stringify(e));
+                return;
+            }
         }, function (err, count) {
             if (err) {
                 console.log('Query Error: SQL: ' + sql + ', Error: ' + err.toString());

@@ -225,7 +225,11 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
         return this.runQuery(sql, parameters).then(rows => {
             var rets: T[] = [];
             for (var i = 0; i < rows.length; i++) {
-                rets.push(JSON.parse(rows[i].nsp_data));
+                try {
+                    rets.push(JSON.parse(rows[i].nsp_data))
+                } catch (e) {
+                    return SyncTasks.Rejected('Error parsing database entry in getResultsFromQuery: ' + JSON.stringify(rows[i].nsp_data));
+                }
             }
             return rets;
         });
@@ -320,7 +324,20 @@ export class SqliteSqlTransaction extends SqlTransaction {
 
         this._trans.executeSql(sql, parameters, (t, rs) => {
             for (var i = 0; i < rs.rows.length; i++) {
-                callback(JSON.parse(rs.rows.item(i).nsp_data));
+                const item = rs.rows.item(i).nsp_data;
+                let ret: any;
+                try {
+                    ret = JSON.parse(item);
+                } catch (e) {
+                    deferred.reject('Error parsing database entry in getResultsFromQueryWithCallback: ' + JSON.stringify(item));
+                    return;
+                }
+                try {
+                    callback(ret);
+                } catch (e) {
+                    deferred.reject('Exception in callback in getResultsFromQueryWithCallback: ' + JSON.stringify(e));
+                    return;
+                }
             }
             deferred.resolve();
         }, (t, err) => {

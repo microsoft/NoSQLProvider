@@ -208,7 +208,12 @@ var SqlTransaction = (function () {
         return this.runQuery(sql, parameters).then(function (rows) {
             var rets = [];
             for (var i = 0; i < rows.length; i++) {
-                rets.push(JSON.parse(rows[i].nsp_data));
+                try {
+                    rets.push(JSON.parse(rows[i].nsp_data));
+                }
+                catch (e) {
+                    return SyncTasks.Rejected('Error parsing database entry in getResultsFromQuery: ' + JSON.stringify(rows[i].nsp_data));
+                }
             }
             return rets;
         });
@@ -293,7 +298,22 @@ var SqliteSqlTransaction = (function (_super) {
         }
         this._trans.executeSql(sql, parameters, function (t, rs) {
             for (var i = 0; i < rs.rows.length; i++) {
-                callback(JSON.parse(rs.rows.item(i).nsp_data));
+                var item = rs.rows.item(i).nsp_data;
+                var ret = void 0;
+                try {
+                    ret = JSON.parse(item);
+                }
+                catch (e) {
+                    deferred.reject('Error parsing database entry in getResultsFromQueryWithCallback: ' + JSON.stringify(item));
+                    return;
+                }
+                try {
+                    callback(ret);
+                }
+                catch (e) {
+                    deferred.reject('Exception in callback in getResultsFromQueryWithCallback: ' + JSON.stringify(e));
+                    return;
+                }
             }
             deferred.resolve();
         }, function (t, err) {
