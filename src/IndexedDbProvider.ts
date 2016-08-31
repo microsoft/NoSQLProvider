@@ -182,7 +182,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                                                 storeSchema.primaryKeyPath);
 
                                             // After nuking the existing entries, add the new ones
-                                            vals.forEach(val => {
+                                            _.each(vals, val => {
                                                 var indexObj = {
                                                     key: val,
                                                     refkey: refKey
@@ -243,19 +243,24 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
         if (this._fakeComplicatedKeys) {
             // Pull the alternate multientry stores into the transaction as well
-            intStoreNames.forEach(storeName => {
+            let missingStores: string[] = [];
+            _.each(intStoreNames, storeName => {
                 let storeSchema = _.find(this._schema.stores, s => s.name === storeName);
                 if (!storeSchema) {
-                    return SyncTasks.Rejected('Can\'t find store: ' + storeName);
+                    missingStores.push(storeName);
+                    return;
                 }
                 if (storeSchema.indexes) {
-                    storeSchema.indexes.forEach(indexSchema => {
+                    _.each(storeSchema.indexes, indexSchema => {
                         if (indexSchema.multiEntry) {
                             intStoreNames.push(storeSchema.name + '_' + indexSchema.name);
                         }
                     });
                 }
             });
+            if (missingStores.length > 0) {
+                return SyncTasks.Rejected('Can\'t find store(s): ' + missingStores.join(','));
+            }
         }
 
         try {
@@ -293,7 +298,7 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
         var indexStores: IDBObjectStore[] = [];
         if (this._fakeComplicatedKeys && storeSchema.indexes) {
             // Pull the alternate multientry stores in as well
-            storeSchema.indexes.forEach(indexSchema => {
+            _.each(storeSchema.indexes, indexSchema => {
                 if (indexSchema.multiEntry) {
                     indexStores.push(this._trans.objectStore(storeSchema.name + '_' + indexSchema.name));
                 }
@@ -331,11 +336,11 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         let keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
 
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._schema.primaryKeyPath)) {
-            keys = keys.map(key => NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath));
+            keys = _.map(keys, key => NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath));
         }
 
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
-        return SyncTasks.all(keys.map(key => IndexedDbProvider.WrapRequest<T>(this._store.get(key))));
+        return SyncTasks.all(_.map(keys, key => IndexedDbProvider.WrapRequest<T>(this._store.get(key))));
     }
 
     put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
@@ -363,8 +368,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                         // We're using normal indexeddb tables to store the multientry indexes, so we only need to use the key
                         // serialization if the multientry keys ALSO are compound.
                         if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
-                            keys = keys.map(val =>
-                                NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
+                            keys = _.map(keys, val => NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
                         }
 
                         // We need to reference the PK of the actual row we're using here, so calculate the actual PK -- if it's 
@@ -382,7 +386,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                         })
                             .then(() => {
                                 // After nuking the existing entries, add the new ones
-                                let iputters = keys.map(key => {
+                                let iputters = _.map(keys, key => {
                                     var indexObj = {
                                         key: key,
                                         refkey: refKey
@@ -397,7 +401,14 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                 });
             }
 
-            promises.push(IndexedDbProvider.WrapRequest<void>(this._store.put(item)));
+            let promise: SyncTasks.Promise<void>;
+            try {
+                promise = IndexedDbProvider.WrapRequest<void>(this._store.put(item)); 
+            } catch (e) {
+                promise = SyncTasks.Rejected<void>(e);
+            }
+
+            promises.push(promise);
         });
 
         return SyncTasks.all(promises).then(rets => void 0);
@@ -407,16 +418,16 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         var keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
 
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._schema.primaryKeyPath)) {
-            keys = keys.map(key => NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath));
+            keys = _.map(keys, key => NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath));
         }
 
-        return SyncTasks.all(keys.map(key => {
+        return SyncTasks.all(_.map(keys, key => {
             if (this._fakeComplicatedKeys && _.any(this._schema.indexes, index => index.multiEntry)) {
                 // If we're faking keys and there's any multientry indexes, we have to do the way more complicated version...
                 return IndexedDbProvider.WrapRequest<any>(this._store.get(key)).then(item => {
                     if (item) {
                         // Go through each multiEntry index and nuke the referenced items from the sub-stores
-                        let promises = this._schema.indexes.filter(index => index.multiEntry).map(index => {
+                        let promises = _.map(_.filter(this._schema.indexes, index => index.multiEntry), index => {
                             let indexStore = _.find(this._indexStores, store => store.name === this._schema.name + '_' + index.name);
 
                             let refKey = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
@@ -469,7 +480,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             storesToClear = storesToClear.concat(this._indexStores);
         }
 
-        let promises = storesToClear.map(store => IndexedDbProvider.WrapRequest(store.clear()));
+        let promises = _.map(storesToClear, store => IndexedDbProvider.WrapRequest(store.clear()));
 
         return SyncTasks.all(promises).then(rets => void 0);
     }
@@ -497,7 +508,7 @@ class IndexedDbIndex implements NoSqlProvider.DbIndex {
             // Get based on the keys from the index store, which have refkeys that point back to the original store
             return IndexedDbIndex.getFromCursorRequest<{ key: string, refkey: any }>(req, limit, offset).then(rets => {
                 // Now get the original items using the refkeys from the index store, which are PKs on the main store
-                var getters = rets.map(ret => IndexedDbProvider.WrapRequest<T>(this._fakedOriginalStore.get(ret.refkey)));
+                var getters = _.map(rets, ret => IndexedDbProvider.WrapRequest<T>(this._fakedOriginalStore.get(ret.refkey)));
                 return SyncTasks.all(getters);
             });
         } else {

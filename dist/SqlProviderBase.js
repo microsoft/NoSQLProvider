@@ -70,7 +70,7 @@ var SqlProviderBase = (function (_super) {
             .then(function (rows) {
             var tableNames = [];
             var indexNames = {};
-            rows.forEach(function (row) {
+            _.each(rows, function (row) {
                 if (row['tbl_name'] === '__WebKitDatabaseInfoTable__' || row['tbl_name'] === 'metadata') {
                     return;
                 }
@@ -107,17 +107,17 @@ var SqlProviderBase = (function (_super) {
                 // Just delete tables we don't care about anymore.  Only care about the raw data in the tables since we're going to
                 // re-insert all data anyways, so clear out any multiEntry index tables.
                 var tableNamesNeeded_1 = [];
-                _this._schema.stores.forEach(function (store) {
+                _.each(_this._schema.stores, function (store) {
                     tableNamesNeeded_1.push(store.name);
                 });
-                dropQueries = _.filter(tableNames, function (name) { return !_.contains(tableNamesNeeded_1, name); })
-                    .map(function (name) { return trans.runQuery('DROP TABLE ' + name); });
+                dropQueries = _.chain(tableNames).filter(function (name) { return !_.contains(tableNamesNeeded_1, name); })
+                    .map(function (name) { return trans.runQuery('DROP TABLE ' + name); }).value();
                 tableNames = _.filter(tableNames, function (name) { return _.contains(tableNamesNeeded_1, name); });
             }
             return SyncTasks.all(dropQueries).then(function () {
                 var tableQueries = [];
                 // Go over each store and see what needs changing
-                _this._schema.stores.forEach(function (storeSchema) {
+                _.each(_this._schema.stores, function (storeSchema) {
                     var indexMaker = function () {
                         var indexQueries = _.map(storeSchema.indexes, function (index) {
                             // Go over each index and see if we need to create an index or a table for a multiEntry index
@@ -146,7 +146,7 @@ var SqlProviderBase = (function (_super) {
                         var fieldList = [];
                         fieldList.push('nsp_pk TEXT PRIMARY KEY');
                         fieldList.push('nsp_data TEXT');
-                        var nonMultiIndexes = (storeSchema.indexes || []).filter(function (index) { return !index.multiEntry; });
+                        var nonMultiIndexes = _.filter(storeSchema.indexes || [], function (index) { return !index.multiEntry; });
                         var indexColumns = _.map(nonMultiIndexes, function (index) { return 'nsp_i_' + index.name + ' TEXT'; });
                         fieldList = fieldList.concat(indexColumns);
                         return trans.runQuery('CREATE TABLE ' + storeSchema.name + ' (' + fieldList.join(', ') + ')')
@@ -156,7 +156,7 @@ var SqlProviderBase = (function (_super) {
                         // If the table exists, we can't read its schema due to websql security rules,
                         // so just make a copy and fully migrate the data over.
                         // Nuke old indexes on the original table (since they don't change names and we don't need them anymore)
-                        var nukeIndexesAndRename = SyncTasks.all(indexNames[storeSchema.name].map(function (indexName) {
+                        var nukeIndexesAndRename = SyncTasks.all(_.map(indexNames[storeSchema.name], function (indexName) {
                             return trans.runQuery('DROP INDEX ' + indexName);
                         })).then(function () {
                             // Then rename the table to a temp_[name] table so we can migrate the data out of it
@@ -396,14 +396,14 @@ var SqlStore = (function () {
                     queries_1.push(_this._trans.runQuery('SELECT rowid a FROM ' + _this._schema.name + ' WHERE nsp_pk = ?', [NoSqlProviderUtils.getSerializedKeyForKeypath(item, _this._schema.primaryKeyPath)])
                         .then(function (rets) {
                         var rowid = rets[0].a;
-                        var inserts = _this._schema.indexes.filter(function (index) { return index.multiEntry; }).map(function (index) {
+                        var inserts = _.chain(_this._schema.indexes).filter(function (index) { return index.multiEntry; }).map(function (index) {
                             // Have to extract the multiple entries into the alternate table...
                             var valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, index.keyPath);
-                            var serializedKeys = NoSqlProviderUtils.arrayify(valsRaw).map(function (val) {
+                            var serializedKeys = _.map(NoSqlProviderUtils.arrayify(valsRaw), function (val) {
                                 return NoSqlProviderUtils.serializeKeyToString(val, index.keyPath);
                             });
                             var valArgs = [], args = [];
-                            serializedKeys.forEach(function (val) {
+                            _.each(serializedKeys, function (val) {
                                 valArgs.push('(?, ?)');
                                 args.push(val);
                                 args.push(rowid);
@@ -413,7 +413,7 @@ var SqlStore = (function () {
                                 _this._trans.nonQuery('INSERT INTO ' + _this._schema.name + '_' + index.name +
                                     ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
                             });
-                        });
+                        }).value();
                         return SyncTasks.all(inserts).then(function (rets) { return void 0; });
                     }));
                 });
@@ -425,17 +425,17 @@ var SqlStore = (function () {
         var _this = this;
         var joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
         // PERF: This is optimizable, but it's of questionable utility
-        var queries = joinedKeys.map(function (joinedKey) {
+        var queries = _.map(joinedKeys, function (joinedKey) {
             if (_.any(_this._schema.indexes, function (index) { return index.multiEntry; })) {
                 // If there's any multientry indexes, we have to do the more complicated version...
                 return _this._trans.runQuery('SELECT rowid a FROM ' + _this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]).then(function (rets) {
                     if (rets.length === 0) {
                         return null;
                     }
-                    var queries = _this._schema.indexes.filter(function (index) { return index.multiEntry; }).map(function (index) {
+                    var queries = _.chain(_this._schema.indexes).filter(function (index) { return index.multiEntry; }).map(function (index) {
                         return _this._trans.nonQuery('DELETE FROM ' + _this._schema.name + '_' + index.name +
                             ' WHERE nsp_refrowid = ?', [rets[0].a]);
-                    });
+                    }).value();
                     queries.push(_this._trans.nonQuery('DELETE FROM ' + _this._schema.name + ' WHERE rowid = ?', [rets[0].a]));
                     return SyncTasks.all(queries).then(_.noop);
                 });
@@ -456,9 +456,9 @@ var SqlStore = (function () {
     };
     SqlStore.prototype.clearAllData = function () {
         var _this = this;
-        var queries = this._schema.indexes.filter(function (index) { return index.multiEntry; }).map(function (index) {
+        var queries = _.chain(this._schema.indexes).filter(function (index) { return index.multiEntry; }).map(function (index) {
             return _this._trans.nonQuery('DELETE FROM ' + _this._schema.name + '_' + index.name);
-        });
+        }).value();
         queries.push(this._trans.nonQuery('DELETE FROM ' + this._schema.name));
         return SyncTasks.all(queries).then(function (rets) { return void 0; });
     };

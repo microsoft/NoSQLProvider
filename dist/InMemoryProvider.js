@@ -25,7 +25,7 @@ var InMemoryProvider = (function (_super) {
     InMemoryProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
         var _this = this;
         _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
-        this._schema.stores.forEach(function (store) {
+        _.each(this._schema.stores, function (store) {
             var nStore = new InMemoryStore(store);
             _this._stores[store.name] = nStore;
         });
@@ -65,11 +65,11 @@ var InMemoryStore = (function () {
     InMemoryStore.prototype.getMultiple = function (keyOrKeys) {
         var _this = this;
         var joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
-        return SyncTasks.Resolved(_.compact(joinedKeys.map(function (key) { return _this._data[key]; })));
+        return SyncTasks.Resolved(_.compact(_.map(joinedKeys, function (key) { return _this._data[key]; })));
     };
     InMemoryStore.prototype.put = function (itemOrItems) {
         var _this = this;
-        NoSqlProviderUtils.arrayify(itemOrItems).forEach(function (item) {
+        _.each(NoSqlProviderUtils.arrayify(itemOrItems), function (item) {
             var pk = NoSqlProviderUtils.getSerializedKeyForKeypath(item, _this._schema.primaryKeyPath);
             _this._data[pk] = item;
         });
@@ -78,7 +78,7 @@ var InMemoryStore = (function () {
     InMemoryStore.prototype.remove = function (keyOrKeys) {
         var _this = this;
         var joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
-        joinedKeys.forEach(function (key) {
+        _.each(joinedKeys, function (key) {
             delete _this._data[key];
         });
         return SyncTasks.Resolved();
@@ -118,11 +118,11 @@ var InMemoryIndex = (function () {
             _.each(data, function (item) {
                 // Each item may be non-unique so store as an array of items for each key
                 var keys = multiEntry ?
-                    NoSqlProviderUtils.arrayify(NoSqlProviderUtils.getValueForSingleKeypath(item, _this._keyPath)).map(function (val) {
+                    _.map(NoSqlProviderUtils.arrayify(NoSqlProviderUtils.getValueForSingleKeypath(item, _this._keyPath)), function (val) {
                         return NoSqlProviderUtils.serializeKeyToString(val, _this._keyPath);
                     }) :
                     [NoSqlProviderUtils.getSerializedKeyForKeypath(item, _this._keyPath)];
-                keys.forEach(function (key) {
+                _.each(keys, function (key) {
                     if (!_this._data[key]) {
                         _this._data[key] = [item];
                     }
@@ -159,7 +159,7 @@ var InMemoryIndex = (function () {
         if (limit) {
             sortedKeys = sortedKeys.slice(0, limit);
         }
-        var results = sortedKeys.map(function (key) { return _this._data[key]; });
+        var results = _.map(sortedKeys, function (key) { return _this._data[key]; });
         return SyncTasks.Resolved(_.flatten(results));
     };
     return InMemoryIndex;

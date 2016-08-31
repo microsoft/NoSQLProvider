@@ -19,7 +19,7 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
-        this._schema.stores.forEach(store => {
+        _.each(this._schema.stores, store => {
             let nStore = new InMemoryStore(store);
             this._stores[store.name] = nStore;
         });
@@ -69,11 +69,11 @@ class InMemoryStore implements NoSqlProvider.DbStore {
 
     getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
         let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
-        return SyncTasks.Resolved(_.compact(joinedKeys.map(key => this._data[key])));
+        return SyncTasks.Resolved(_.compact(_.map(joinedKeys, key => this._data[key])));
     }
 
     put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
-        NoSqlProviderUtils.arrayify(itemOrItems).forEach(item => {
+        _.each(NoSqlProviderUtils.arrayify(itemOrItems), item => {
             let pk = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
             this._data[pk] = item;
         });
@@ -82,7 +82,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
         let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
-        joinedKeys.forEach(key => {
+        _.each(joinedKeys, key => {
             delete this._data[key];
         });
         return SyncTasks.Resolved<void>();
@@ -131,10 +131,10 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
             _.each(data, item => {
                 // Each item may be non-unique so store as an array of items for each key
                 let keys = multiEntry ?
-                    NoSqlProviderUtils.arrayify(NoSqlProviderUtils.getValueForSingleKeypath(item, <string>this._keyPath)).map(val =>
+                    _.map(NoSqlProviderUtils.arrayify(NoSqlProviderUtils.getValueForSingleKeypath(item, <string>this._keyPath)), val =>
                         NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath)) :
                     [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._keyPath)];
-                keys.forEach(key => {
+                _.each(keys, key => {
                     if (!this._data[key]) {
                         this._data[key] = [item];
                     } else {
@@ -179,7 +179,7 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
             sortedKeys = sortedKeys.slice(0, limit);
         }
 
-        let results = sortedKeys.map(key => this._data[key]);
+        let results = _.map(sortedKeys, key => this._data[key]);
         return SyncTasks.Resolved(_.flatten(results));
     }
 }

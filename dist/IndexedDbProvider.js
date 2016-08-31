@@ -164,7 +164,7 @@ var IndexedDbProvider = (function (_super) {
                                             var vals = NoSqlProviderUtils.arrayify(valsRaw);
                                             var refKey = NoSqlProviderUtils.getSerializedKeyForKeypath(item, storeSchema.primaryKeyPath);
                                             // After nuking the existing entries, add the new ones
-                                            vals.forEach(function (val) {
+                                            _.each(vals, function (val) {
                                                 var indexObj = {
                                                     key: val,
                                                     refkey: refKey
@@ -223,19 +223,24 @@ var IndexedDbProvider = (function (_super) {
         var intStoreNames = NoSqlProviderUtils.arrayify(_.clone(storeNames));
         if (this._fakeComplicatedKeys) {
             // Pull the alternate multientry stores into the transaction as well
-            intStoreNames.forEach(function (storeName) {
+            var missingStores_1 = [];
+            _.each(intStoreNames, function (storeName) {
                 var storeSchema = _.find(_this._schema.stores, function (s) { return s.name === storeName; });
                 if (!storeSchema) {
-                    return SyncTasks.Rejected('Can\'t find store: ' + storeName);
+                    missingStores_1.push(storeName);
+                    return;
                 }
                 if (storeSchema.indexes) {
-                    storeSchema.indexes.forEach(function (indexSchema) {
+                    _.each(storeSchema.indexes, function (indexSchema) {
                         if (indexSchema.multiEntry) {
                             intStoreNames.push(storeSchema.name + '_' + indexSchema.name);
                         }
                     });
                 }
             });
+            if (missingStores_1.length > 0) {
+                return SyncTasks.Rejected('Can\'t find store(s): ' + missingStores_1.join(','));
+            }
         }
         try {
             var trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
@@ -268,7 +273,7 @@ var IndexedDbTransaction = (function () {
         var indexStores = [];
         if (this._fakeComplicatedKeys && storeSchema.indexes) {
             // Pull the alternate multientry stores in as well
-            storeSchema.indexes.forEach(function (indexSchema) {
+            _.each(storeSchema.indexes, function (indexSchema) {
                 if (indexSchema.multiEntry) {
                     indexStores.push(_this._trans.objectStore(storeSchema.name + '_' + indexSchema.name));
                 }
@@ -297,10 +302,10 @@ var IndexedDbStore = (function () {
         var _this = this;
         var keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._schema.primaryKeyPath)) {
-            keys = keys.map(function (key) { return NoSqlProviderUtils.serializeKeyToString(key, _this._schema.primaryKeyPath); });
+            keys = _.map(keys, function (key) { return NoSqlProviderUtils.serializeKeyToString(key, _this._schema.primaryKeyPath); });
         }
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
-        return SyncTasks.all(keys.map(function (key) { return IndexedDbProvider.WrapRequest(_this._store.get(key)); }));
+        return SyncTasks.all(_.map(keys, function (key) { return IndexedDbProvider.WrapRequest(_this._store.get(key)); }));
     };
     IndexedDbStore.prototype.put = function (itemOrItems) {
         var _this = this;
@@ -323,9 +328,7 @@ var IndexedDbStore = (function () {
                         // We're using normal indexeddb tables to store the multientry indexes, so we only need to use the key
                         // serialization if the multientry keys ALSO are compound.
                         if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
-                            keys_1 = keys_1.map(function (val) {
-                                return NoSqlProviderUtils.serializeKeyToString(val, index.keyPath);
-                            });
+                            keys_1 = _.map(keys_1, function (val) { return NoSqlProviderUtils.serializeKeyToString(val, index.keyPath); });
                         }
                         // We need to reference the PK of the actual row we're using here, so calculate the actual PK -- if it's 
                         // compound, we're already faking complicated keys, so we know to serialize it to a string.  If not, use the
@@ -341,7 +344,7 @@ var IndexedDbStore = (function () {
                         })
                             .then(function () {
                             // After nuking the existing entries, add the new ones
-                            var iputters = keys_1.map(function (key) {
+                            var iputters = _.map(keys_1, function (key) {
                                 var indexObj = {
                                     key: key,
                                     refkey: refKey_1
@@ -356,7 +359,14 @@ var IndexedDbStore = (function () {
                     }
                 });
             }
-            promises.push(IndexedDbProvider.WrapRequest(_this._store.put(item)));
+            var promise;
+            try {
+                promise = IndexedDbProvider.WrapRequest(_this._store.put(item));
+            }
+            catch (e) {
+                promise = SyncTasks.Rejected(e);
+            }
+            promises.push(promise);
         });
         return SyncTasks.all(promises).then(function (rets) { return void 0; });
     };
@@ -364,15 +374,15 @@ var IndexedDbStore = (function () {
         var _this = this;
         var keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._schema.primaryKeyPath)) {
-            keys = keys.map(function (key) { return NoSqlProviderUtils.serializeKeyToString(key, _this._schema.primaryKeyPath); });
+            keys = _.map(keys, function (key) { return NoSqlProviderUtils.serializeKeyToString(key, _this._schema.primaryKeyPath); });
         }
-        return SyncTasks.all(keys.map(function (key) {
+        return SyncTasks.all(_.map(keys, function (key) {
             if (_this._fakeComplicatedKeys && _.any(_this._schema.indexes, function (index) { return index.multiEntry; })) {
                 // If we're faking keys and there's any multientry indexes, we have to do the way more complicated version...
                 return IndexedDbProvider.WrapRequest(_this._store.get(key)).then(function (item) {
                     if (item) {
                         // Go through each multiEntry index and nuke the referenced items from the sub-stores
-                        var promises = _this._schema.indexes.filter(function (index) { return index.multiEntry; }).map(function (index) {
+                        var promises = _.map(_.filter(_this._schema.indexes, function (index) { return index.multiEntry; }), function (index) {
                             var indexStore = _.find(_this._indexStores, function (store) { return store.name === _this._schema.name + '_' + index.name; });
                             var refKey = NoSqlProviderUtils.getSerializedKeyForKeypath(item, _this._schema.primaryKeyPath);
                             // First clear out the old values from the index store for the refkey
@@ -419,7 +429,7 @@ var IndexedDbStore = (function () {
         if (this._indexStores) {
             storesToClear = storesToClear.concat(this._indexStores);
         }
-        var promises = storesToClear.map(function (store) { return IndexedDbProvider.WrapRequest(store.clear()); });
+        var promises = _.map(storesToClear, function (store) { return IndexedDbProvider.WrapRequest(store.clear()); });
         return SyncTasks.all(promises).then(function (rets) { return void 0; });
     };
     return IndexedDbStore;
@@ -440,7 +450,7 @@ var IndexedDbIndex = (function () {
             // Get based on the keys from the index store, which have refkeys that point back to the original store
             return IndexedDbIndex.getFromCursorRequest(req, limit, offset).then(function (rets) {
                 // Now get the original items using the refkeys from the index store, which are PKs on the main store
-                var getters = rets.map(function (ret) { return IndexedDbProvider.WrapRequest(_this._fakedOriginalStore.get(ret.refkey)); });
+                var getters = _.map(rets, function (ret) { return IndexedDbProvider.WrapRequest(_this._fakedOriginalStore.get(ret.refkey)); });
                 return SyncTasks.all(getters);
             });
         }

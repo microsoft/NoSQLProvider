@@ -277,6 +277,28 @@ describe('NoSqlProvider', function () {
                     });
                 });
 
+                it('Invalid Key Type', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        const oldCatchMode = SyncTasks.config.catchExceptions;
+                        SyncTasks.config.catchExceptions = true;
+                        return prov.put('test', { id: { x: 'a' }, val: 'b' }).then(() => {
+                            assert(false, 'Shouldn\'t get here');
+                        }, (err) => {
+                            // Woot, failed like it's supposed to
+                            SyncTasks.config.catchExceptions = oldCatchMode;
+                            return prov.close();
+                        });
+                    });
+                });
+
                 it('Primary Key Basic KeyPath', () => {
                     return openProvider(provName, {
                         version: 1,

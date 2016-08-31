@@ -30,7 +30,7 @@ function getSerializedKeyForKeypath(obj, keyPathRaw) {
 exports.getSerializedKeyForKeypath = getSerializedKeyForKeypath;
 function getKeyForKeypath(obj, keyPathRaw) {
     var keyPathArray = arrayify(keyPathRaw);
-    var values = keyPathArray.map(function (kp) { return getValueForSingleKeypath(obj, kp); });
+    var values = _.map(keyPathArray, function (kp) { return getValueForSingleKeypath(obj, kp); });
     if (_.any(values, function (val) { return _.isNull(val) || _.isUndefined(val); })) {
         // If any components of the key are null, then the result is null
         return null;
@@ -113,7 +113,7 @@ exports.serializeNumberToOrderableString = serializeNumberToOrderableString;
 function serializeKeyToString(key, keyPath) {
     if (isCompoundKeyPath(keyPath)) {
         if (isArray(key)) {
-            return key.map(function (k) { return serializeValueToOrderableString(k); }).join(keypathJoinerString);
+            return _.map(key, function (k) { return serializeValueToOrderableString(k); }).join(keypathJoinerString);
         }
         else {
             throw 'Compound keypath requires compound key';
@@ -130,7 +130,7 @@ function serializeKeyToString(key, keyPath) {
 }
 exports.serializeKeyToString = serializeKeyToString;
 function formListOfSerializedKeys(keyOrKeys, keyPath) {
-    return formListOfKeys(keyOrKeys, keyPath).map(function (key) { return serializeKeyToString(key, keyPath); });
+    return _.map(formListOfKeys(keyOrKeys, keyPath), function (key) { return serializeKeyToString(key, keyPath); });
 }
 exports.formListOfSerializedKeys = formListOfSerializedKeys;
 function isIE() {

@@ -66,7 +66,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                 let tableNames: string[] = [];
                 let indexNames: { [table: string]: string[] } = {};
                 
-                rows.forEach(row => {
+                _.each(rows, row => {
                     if (row['tbl_name'] === '__WebKitDatabaseInfoTable__' || row['tbl_name'] === 'metadata') {
                         return;
                     }
@@ -105,11 +105,11 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     // Just delete tables we don't care about anymore.  Only care about the raw data in the tables since we're going to
                     // re-insert all data anyways, so clear out any multiEntry index tables.
                     let tableNamesNeeded: string[] = [];
-                    this._schema.stores.forEach(store => {
+                    _.each(this._schema.stores, store => {
                         tableNamesNeeded.push(store.name);
                     });
-                    dropQueries = _.filter(tableNames, name => !_.contains(tableNamesNeeded, name))
-                        .map(name => trans.runQuery('DROP TABLE ' + name));
+                    dropQueries = _.chain(tableNames).filter(name => !_.contains(tableNamesNeeded, name))
+                        .map(name => trans.runQuery('DROP TABLE ' + name)).value();
 
                     tableNames = _.filter(tableNames, name => _.contains(tableNamesNeeded, name));
                 }
@@ -118,7 +118,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     var tableQueries = [];
 
                     // Go over each store and see what needs changing
-                    this._schema.stores.forEach(storeSchema => {
+                    _.each(this._schema.stores, storeSchema => {
                         var indexMaker = () => {
                             var indexQueries = _.map(storeSchema.indexes, index => {
                                 // Go over each index and see if we need to create an index or a table for a multiEntry index
@@ -151,7 +151,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                             fieldList.push('nsp_data TEXT');
 
-                            var nonMultiIndexes = (storeSchema.indexes || []).filter(index => !index.multiEntry);
+                            var nonMultiIndexes = _.filter(storeSchema.indexes || [], index => !index.multiEntry);
                             var indexColumns = _.map(nonMultiIndexes, index => 'nsp_i_' + index.name + ' TEXT');
                             fieldList = fieldList.concat(indexColumns);
 
@@ -164,7 +164,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             // so just make a copy and fully migrate the data over.
 
                             // Nuke old indexes on the original table (since they don't change names and we don't need them anymore)
-                            let nukeIndexesAndRename = SyncTasks.all(indexNames[storeSchema.name].map(indexName =>
+                            let nukeIndexesAndRename = SyncTasks.all(_.map(indexNames[storeSchema.name], indexName =>
                                 trans.runQuery('DROP INDEX ' + indexName)
                             )).then(() => {
                                 // Then rename the table to a temp_[name] table so we can migrate the data out of it
@@ -442,15 +442,15 @@ class SqlStore implements NoSqlProvider.DbStore {
                             .then(rets => {
                                 let rowid = rets[0].a;
 
-                                let inserts = this._schema.indexes.filter(index => index.multiEntry).map(index => {
+                                let inserts = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index => {
                                     // Have to extract the multiple entries into the alternate table...
 
                                     const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
-                                    const serializedKeys = NoSqlProviderUtils.arrayify(valsRaw).map(val =>
+                                    const serializedKeys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
                                         NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
 
                                     let valArgs = [], args = [];
-                                    serializedKeys.forEach(val => {
+                                    _.each(serializedKeys, val => {
                                         valArgs.push('(?, ?)');
                                         args.push(val);
                                         args.push(rowid);
@@ -460,7 +460,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                                             this._trans.nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
                                                 ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
                                         });
-                                });
+                                }).value();
                                 return SyncTasks.all(inserts).then(rets => void 0);
                             }));
                     });
@@ -474,7 +474,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
 
         // PERF: This is optimizable, but it's of questionable utility
-        var queries = joinedKeys.map(joinedKey => {
+        var queries = _.map(joinedKeys, joinedKey => {
             if (_.any(this._schema.indexes, index => index.multiEntry)) {
                 // If there's any multientry indexes, we have to do the more complicated version...
                 return this._trans.runQuery('SELECT rowid a FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]).then(rets => {
@@ -482,9 +482,9 @@ class SqlStore implements NoSqlProvider.DbStore {
                         return null;
                     }
 
-                    var queries = this._schema.indexes.filter(index => index.multiEntry).map(index =>
+                    var queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
                         this._trans.nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
-                            ' WHERE nsp_refrowid = ?', [rets[0].a]));
+                            ' WHERE nsp_refrowid = ?', [rets[0].a])).value();
                     queries.push(this._trans.nonQuery('DELETE FROM ' + this._schema.name + ' WHERE rowid = ?', [rets[0].a]));
                     return SyncTasks.all(queries).then(_.noop);
                 });
@@ -510,8 +510,8 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     clearAllData(): SyncTasks.Promise<void> {
-        var queries = this._schema.indexes.filter(index => index.multiEntry).map(index =>
-            this._trans.nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name));
+        var queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
+            this._trans.nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name)).value();
 
         queries.push(this._trans.nonQuery('DELETE FROM ' + this._schema.name));
 

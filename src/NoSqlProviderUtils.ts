@@ -34,7 +34,7 @@ export function getSerializedKeyForKeypath(obj: any, keyPathRaw: string | string
 export function getKeyForKeypath(obj: any, keyPathRaw: string | string[]): any {
     const keyPathArray = arrayify(keyPathRaw);
 
-    const values = keyPathArray.map(kp => getValueForSingleKeypath(obj, kp));
+    const values = _.map(keyPathArray, kp => getValueForSingleKeypath(obj, kp));
     if (_.any(values, val => _.isNull(val) || _.isUndefined(val))) {
         // If any components of the key are null, then the result is null
         return null;
@@ -128,7 +128,7 @@ export function serializeNumberToOrderableString(n: number) {
 export function serializeKeyToString(key: any | any[], keyPath: string | string[]): string {
     if (isCompoundKeyPath(keyPath)) {
         if (isArray(key)) {
-            return key.map(k => serializeValueToOrderableString(k)).join(keypathJoinerString);
+            return _.map(key, k => serializeValueToOrderableString(k)).join(keypathJoinerString);
         } else {
             throw 'Compound keypath requires compound key';
         }
@@ -142,7 +142,7 @@ export function serializeKeyToString(key: any | any[], keyPath: string | string[
 }
 
 export function formListOfSerializedKeys(keyOrKeys: any | any[], keyPath: string | string[]): string[] {
-    return formListOfKeys(keyOrKeys, keyPath).map(key => serializeKeyToString(key, keyPath));
+    return _.map(formListOfKeys(keyOrKeys, keyPath), key => serializeKeyToString(key, keyPath));
 }
 
 export function isIE() {
