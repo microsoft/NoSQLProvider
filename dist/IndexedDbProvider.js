@@ -100,6 +100,7 @@ var IndexedDbProvider = (function (_super) {
                         // Going to have to hack the compound primary key index into a column, so here it is.
                         primaryKeyPath = 'nsp_pk';
                     }
+                    // Any is to fix a lib.d.ts issue in TS 2.0.3 - it doesn't realize that keypaths can be compound for some reason...
                     store = db.createObjectStore(storeSchema.name, { keyPath: primaryKeyPath });
                 }
                 else {

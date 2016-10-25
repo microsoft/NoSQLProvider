@@ -115,7 +115,8 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                         primaryKeyPath = 'nsp_pk';
                     }
 
-                    store = db.createObjectStore(storeSchema.name, { keyPath: primaryKeyPath });
+                    // Any is to fix a lib.d.ts issue in TS 2.0.3 - it doesn't realize that keypaths can be compound for some reason...
+                    store = db.createObjectStore(storeSchema.name, { keyPath: primaryKeyPath } as any);
                 } else {
                     store = target.transaction.objectStore(storeSchema.name);
                     migrateData = true;
