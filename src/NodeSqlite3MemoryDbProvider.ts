@@ -7,11 +7,11 @@
  * Largely only used for unit tests.
  */
 
+import sqlite3 = require('sqlite3');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
-import sqlite3 = require('sqlite3');
 
 export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase {
     private _db: sqlite3.Database;

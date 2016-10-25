@@ -22,7 +22,9 @@ export declare abstract class SqlTransaction implements NoSqlProvider.DbTransact
 }
 export declare class SqliteSqlTransaction extends SqlTransaction {
     private _trans;
+    private _pendingQueries;
     constructor(_trans: SQLTransaction, schema: NoSqlProvider.DbSchema, verbose: boolean, maxVariables: number);
+    failAllPendingQueries(error: any): void;
     runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]>;
     getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;
 }

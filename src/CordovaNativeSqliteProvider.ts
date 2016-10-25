@@ -18,6 +18,8 @@ export interface SqlitePluginDbOptionalParams {
     createFromLocation?: number;
     androidDatabaseImplementation?: number;
     androidLockWorkaround?: number;
+    // Database encryption pass phrase
+    key?: string;
 }
 
 export interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
@@ -38,7 +40,7 @@ export interface SqliteDatabase {
 }
 
 export interface SqlitePlugin {
-    openDatabase(dbInfo: SqlitePluginDbParams): SqliteDatabase;
+    openDatabase(dbInfo: SqlitePluginDbParams, success?: Function, error?: Function): SqliteDatabase;
     deleteDatabase(dbInfo: SqlitePluginDbParams, successCallback?: Function, errorCallback?: Function);
     sqliteFeatures: { isSQLitePlugin: boolean }
 }
@@ -62,16 +64,23 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             return SyncTasks.Rejected<void>('Android NativeSqlite is broken, skipping');
         }
 
-        this._db = this._plugin.openDatabase(_.extend<SqlitePluginDbParams, SqlitePluginDbParams>({
+        const dbParams = _.extend<SqlitePluginDbParams, SqlitePluginDbParams>({
             name: dbName + '.db',
             location: 2
-        }, this._openOptions));
+        }, this._openOptions);
 
-        if (!this._db) {
-            return SyncTasks.Rejected<void>('Couldn\'t open database: ' + dbName);
-        }
+        const task = SyncTasks.Defer<void>();
+        this._db = this._plugin.openDatabase(dbParams, () => {
+            task.resolve();
+        }, () => {
+            task.reject('Couldn\'t open database: ' + dbName);
+        });
 
-        return this._ourVersionChecker(wipeIfExists);
+        return task.promise().then(() => {
+            return this._ourVersionChecker(wipeIfExists);
+        }).fail(() => {
+            return SyncTasks.Rejected<void>('Version check failure. Couldn\'t open database: ' + dbName);
+        });
     }
 
     close(): SyncTasks.Promise<void> {

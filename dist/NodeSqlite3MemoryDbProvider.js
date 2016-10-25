@@ -12,9 +12,9 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
+var sqlite3 = require('sqlite3');
 var SyncTasks = require('synctasks');
 var SqlProviderBase = require('./SqlProviderBase');
-var sqlite3 = require('sqlite3');
 var NodeSqlite3MemoryDbProvider = (function (_super) {
     __extends(NodeSqlite3MemoryDbProvider, _super);
     function NodeSqlite3MemoryDbProvider() {
