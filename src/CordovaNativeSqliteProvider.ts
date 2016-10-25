@@ -18,7 +18,8 @@ export interface SqlitePluginDbOptionalParams {
     createFromLocation?: number;
     androidDatabaseImplementation?: number;
     androidLockWorkaround?: number;
-    encriptionPassword?: string;
+    // Database encryption pass phrase
+    key?: string;
 }
 
 export interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
@@ -68,16 +69,22 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             location: 2
         }, this._openOptions);
 
-        this._db = this._plugin.openDatabase(dbParams);
+        const task = SyncTasks.Defer<void>();
+        this._db = this._plugin.openDatabase(dbParams, () => {
+            console.log('database ', dbName, ' opened successfuly');
+            task.resolve();
+        }, () => {
+            console.log('database ', dbName, ' open failed');
+            task.reject();
+        });
 
-        if (!this._db) {
-            if (wipeConfig === NoSqlProvider.AutoWipeConfig.IfOpenFailed) {
-                this._plugin.deleteDatabase(dbParams);
-            }
+        return task.promise().then(() => {
+            console.log('promise then');
+            return this._ourVersionChecker(wipeConfig);
+        }).fail(() => {
+            console.log('promise fail');
             return SyncTasks.Rejected<void>('Couldn\'t open database: ' + dbName);
-        }
-
-        return this._ourVersionChecker(wipeConfig);
+        });
     }
 
     close(): SyncTasks.Promise<void> {

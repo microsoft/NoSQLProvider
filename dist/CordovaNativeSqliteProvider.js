@@ -15,7 +15,6 @@ var __extends = (this && this.__extends) || function (d, b) {
 };
 var _ = require('lodash');
 var SyncTasks = require('synctasks');
-var NoSqlProvider = require('./NoSqlProvider');
 var SqlProviderBase = require('./SqlProviderBase');
 var CordovaNativeSqliteProvider = (function (_super) {
     __extends(CordovaNativeSqliteProvider, _super);
@@ -28,6 +27,7 @@ var CordovaNativeSqliteProvider = (function (_super) {
         this._openOptions = _openOptions;
     }
     CordovaNativeSqliteProvider.prototype.open = function (dbName, schema, wipeConfig, verbose) {
+        var _this = this;
         _super.prototype.open.call(this, dbName, schema, wipeConfig, verbose);
         if (!this._plugin || !this._plugin.openDatabase) {
             return SyncTasks.Rejected('No support for native sqlite in this browser');
@@ -39,14 +39,21 @@ var CordovaNativeSqliteProvider = (function (_super) {
             name: dbName + '.db',
             location: 2
         }, this._openOptions);
-        this._db = this._plugin.openDatabase(dbParams);
-        if (!this._db) {
-            if (wipeConfig === NoSqlProvider.AutoWipeConfig.IfOpenFailed) {
-                this._plugin.deleteDatabase(dbParams);
-            }
+        var task = SyncTasks.Defer();
+        this._db = this._plugin.openDatabase(dbParams, function () {
+            console.log('database ', dbName, ' opened successfuly');
+            task.resolve();
+        }, function () {
+            console.log('database ', dbName, ' open failed');
+            task.reject();
+        });
+        return task.promise().then(function () {
+            console.log('promise then');
+            return _this._ourVersionChecker(wipeConfig);
+        }).fail(function () {
+            console.log('promise fail');
             return SyncTasks.Rejected('Couldn\'t open database: ' + dbName);
-        }
-        return this._ourVersionChecker(wipeConfig);
+        });
     };
     CordovaNativeSqliteProvider.prototype.close = function () {
         var _this = this;

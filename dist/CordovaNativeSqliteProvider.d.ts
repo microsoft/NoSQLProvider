@@ -5,7 +5,7 @@ export interface SqlitePluginDbOptionalParams {
     createFromLocation?: number;
     androidDatabaseImplementation?: number;
     androidLockWorkaround?: number;
-    encriptionPassword?: string;
+    key?: string;
 }
 export interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
     name: string;
@@ -23,7 +23,7 @@ export interface SqliteDatabase {
     executeSql(statement: string, params?: any[], success?: SQLStatementCallback, error?: SQLStatementErrorCallback): void;
 }
 export interface SqlitePlugin {
-    openDatabase(dbInfo: SqlitePluginDbParams): SqliteDatabase;
+    openDatabase(dbInfo: SqlitePluginDbParams, success?: Function, error?: Function): SqliteDatabase;
     deleteDatabase(dbInfo: SqlitePluginDbParams, successCallback?: Function, errorCallback?: Function): any;
     sqliteFeatures: {
         isSQLitePlugin: boolean;
