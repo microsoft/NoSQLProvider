@@ -22,9 +22,9 @@ var InMemoryProvider = (function (_super) {
         _super.apply(this, arguments);
         this._stores = {};
     }
-    InMemoryProvider.prototype.open = function (dbName, schema, wipeConfig, verbose) {
+    InMemoryProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
         var _this = this;
-        _super.prototype.open.call(this, dbName, schema, wipeConfig, verbose);
+        _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
         _.each(this._schema.stores, function (store) {
             var nStore = new InMemoryStore(store);
             _this._stores[store.name] = nStore;

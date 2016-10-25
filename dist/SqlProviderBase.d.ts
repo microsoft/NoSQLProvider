@@ -3,7 +3,7 @@ import NoSqlProvider = require('./NoSqlProvider');
 export declare abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     protected _getDbVersion(): SyncTasks.Promise<number>;
     protected _changeDbVersion(oldVersion: number, newVersion: number): SyncTasks.Promise<SqlTransaction>;
-    protected _ourVersionChecker(wipeConfig: NoSqlProvider.AutoWipeConfig): SyncTasks.Promise<void>;
+    protected _ourVersionChecker(wipeIfExists: boolean): SyncTasks.Promise<void>;
     protected _upgradeDb(trans: SqlTransaction, oldVersion: number, wipeAnyway: boolean): SyncTasks.Promise<void>;
 }
 export declare abstract class SqlTransaction implements NoSqlProvider.DbTransaction {

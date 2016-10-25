@@ -26,9 +26,9 @@ var CordovaNativeSqliteProvider = (function (_super) {
         this._plugin = _plugin;
         this._openOptions = _openOptions;
     }
-    CordovaNativeSqliteProvider.prototype.open = function (dbName, schema, wipeConfig, verbose) {
+    CordovaNativeSqliteProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
         var _this = this;
-        _super.prototype.open.call(this, dbName, schema, wipeConfig, verbose);
+        _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
         if (!this._plugin || !this._plugin.openDatabase) {
             return SyncTasks.Rejected('No support for native sqlite in this browser');
         }
@@ -49,7 +49,7 @@ var CordovaNativeSqliteProvider = (function (_super) {
         });
         return task.promise().then(function () {
             console.log('promise then');
-            return _this._ourVersionChecker(wipeConfig);
+            return _this._ourVersionChecker(wipeIfExists);
         }).fail(function () {
             console.log('promise fail');
             return SyncTasks.Rejected('Couldn\'t open database: ' + dbName);

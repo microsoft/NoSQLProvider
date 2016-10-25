@@ -37,21 +37,20 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
         });
     }
 
-    protected _ourVersionChecker(wipeConfig: NoSqlProvider.AutoWipeConfig): SyncTasks.Promise<void> {
+    protected _ourVersionChecker(wipeIfExists: boolean): SyncTasks.Promise<void> {
         return this._getDbVersion()
             .then(oldVersion => {
-                let wipe = NoSqlProvider.AutoWipeConfig.IfExist === wipeConfig;;
                 if (oldVersion !== this._schema.version) {
                     // Needs a schema upgrade/change
-                    if (!wipe && this._schema.version < oldVersion) {
+                    if (!wipeIfExists && this._schema.version < oldVersion) {
                         console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema.version + '). Wiping!');
-                        wipe = true;
+                        wipeIfExists = true;
                     }
 
                     return this._changeDbVersion(oldVersion, this._schema.version).then(trans => {
-                        return this._upgradeDb(trans, oldVersion, wipe);
+                        return this._upgradeDb(trans, oldVersion, wipeIfExists);
                     });
-                } else if (wipe) {
+                } else if (wipeIfExists) {
                     // No version change, but wipe anyway
                     return this.openTransaction(null, true).then((trans: SqlTransaction) => {
                         return this._upgradeDb(trans, oldVersion, true);

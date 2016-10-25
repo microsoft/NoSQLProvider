@@ -17,8 +17,8 @@ import SqlProviderBase = require('./SqlProviderBase');
 export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
     private _db: Database;
 
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeConfig: NoSqlProvider.AutoWipeConfig, verbose: boolean): SyncTasks.Promise<void> {
-        super.open(dbName, schema, wipeConfig, verbose);
+    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
+        super.open(dbName, schema, wipeIfExists, verbose);
 
         if (!window.openDatabase) {
             return SyncTasks.Rejected<void>('No support for WebSQL in this browser');
@@ -41,23 +41,22 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
 
         const deferred = SyncTasks.Defer<void>();
         let oldVersion = Number(this._db.version);
-        let wipe = wipeConfig === NoSqlProvider.AutoWipeConfig.IfExist;
         if (oldVersion !== this._schema.version) {
             // Needs a schema upgrade/change
-            if (!wipe && this._schema.version < oldVersion) {
+            if (!wipeIfExists && this._schema.version < oldVersion) {
                 console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema.version + '). Wiping!');
                 // Note: the reported DB version won't change back to the older number until after you do a put command onto the DB.
-                wipe = true;
+                wipeIfExists = true;
             }
 
             this._db.changeVersion(this._db.version, this._schema.version.toString(), (t) => {
                 let trans = new SqlProviderBase.SqliteSqlTransaction(t, this._schema, this._verbose, 999);
 
-                this._upgradeDb(trans, oldVersion, wipe).then(() => { deferred.resolve(); }, () => { deferred.reject(); });
+                this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => { deferred.resolve(); }, () => { deferred.reject(); });
             }, (err) => {
                 deferred.reject(err);
             });
-        } else if (wipe) {
+        } else if (wipeIfExists) {
             // No version change, but wipe anyway
             this.openTransaction(null, true).then(trans => {
                 this._upgradeDb(trans, oldVersion, true).then(() => { deferred.resolve(); }, () => { deferred.reject(); });

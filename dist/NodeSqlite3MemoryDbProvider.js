@@ -20,13 +20,13 @@ var NodeSqlite3MemoryDbProvider = (function (_super) {
     function NodeSqlite3MemoryDbProvider() {
         _super.apply(this, arguments);
     }
-    NodeSqlite3MemoryDbProvider.prototype.open = function (dbName, schema, wipeConfig, verbose) {
-        _super.prototype.open.call(this, dbName, schema, wipeConfig, verbose);
+    NodeSqlite3MemoryDbProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
+        _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
         if (verbose) {
             sqlite3.verbose();
         }
         this._db = new sqlite3.Database(':memory:');
-        return this._ourVersionChecker(wipeConfig);
+        return this._ourVersionChecker(wipeIfExists);
     };
     NodeSqlite3MemoryDbProvider.prototype.openTransaction = function (storeNames, writeNeeded) {
         return SyncTasks.Resolved(this._getTransaction());

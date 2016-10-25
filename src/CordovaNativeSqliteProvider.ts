@@ -53,8 +53,8 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
 
     private _db: SqliteDatabase;
 
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeConfig: NoSqlProvider.AutoWipeConfig, verbose: boolean): SyncTasks.Promise<void> {
-        super.open(dbName, schema, wipeConfig, verbose);
+    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
+        super.open(dbName, schema, wipeIfExists, verbose);
 
         if (!this._plugin || !this._plugin.openDatabase) {
             return SyncTasks.Rejected<void>('No support for native sqlite in this browser');
@@ -80,7 +80,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
 
         return task.promise().then(() => {
             console.log('promise then');
-            return this._ourVersionChecker(wipeConfig);
+            return this._ourVersionChecker(wipeIfExists);
         }).fail(() => {
             console.log('promise fail');
             return SyncTasks.Rejected<void>('Couldn\'t open database: ' + dbName);

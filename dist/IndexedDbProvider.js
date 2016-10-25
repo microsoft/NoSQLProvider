@@ -50,10 +50,10 @@ var IndexedDbProvider = (function (_super) {
         };
         return task.promise();
     };
-    IndexedDbProvider.prototype.open = function (dbName, schema, wipeConfig, verbose) {
+    IndexedDbProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
         var _this = this;
         // Note: DbProvider returns null instead of a promise that needs waiting for.
-        _super.prototype.open.call(this, dbName, schema, wipeConfig, verbose);
+        _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
         if (!this._dbFactory) {
             // Couldn't even find a supported indexeddb object on the browser...
             return SyncTasks.Rejected('No support for IndexedDB in this browser');
@@ -65,7 +65,7 @@ var IndexedDbProvider = (function (_super) {
             // Android crosswalk indexeddb is slow, don't use it
             return SyncTasks.Rejected('Safari doesn\'t properly implement IndexedDB');
         }
-        if (wipeConfig === NoSqlProvider.AutoWipeConfig.IfExist) {
+        if (wipeIfExists) {
             try {
                 this._dbFactory.deleteDatabase(dbName);
             }
@@ -205,9 +205,9 @@ var IndexedDbProvider = (function (_super) {
             });
         }, function (err) {
             if (err && err.type === 'error' && err.target && err.target.error && err.target.error.name === 'VersionError') {
-                if (wipeConfig !== NoSqlProvider.AutoWipeConfig.IfExist) {
+                if (!wipeIfExists) {
                     console.log('Database version too new, Wiping: ' + (err.target.error.message || err.target.error.name));
-                    return _this.open(dbName, schema, NoSqlProvider.AutoWipeConfig.IfExist, verbose);
+                    return _this.open(dbName, schema, true, verbose);
                 }
             }
             return SyncTasks.Rejected(err);

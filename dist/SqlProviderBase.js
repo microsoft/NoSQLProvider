@@ -41,23 +41,21 @@ var SqlProviderBase = (function (_super) {
             });
         });
     };
-    SqlProviderBase.prototype._ourVersionChecker = function (wipeConfig) {
+    SqlProviderBase.prototype._ourVersionChecker = function (wipeIfExists) {
         var _this = this;
         return this._getDbVersion()
             .then(function (oldVersion) {
-            var wipe = NoSqlProvider.AutoWipeConfig.IfExist === wipeConfig;
-            ;
             if (oldVersion !== _this._schema.version) {
                 // Needs a schema upgrade/change
-                if (!wipe && _this._schema.version < oldVersion) {
+                if (!wipeIfExists && _this._schema.version < oldVersion) {
                     console.log('Database version too new (' + oldVersion + ') for schema version (' + _this._schema.version + '). Wiping!');
-                    wipe = true;
+                    wipeIfExists = true;
                 }
                 return _this._changeDbVersion(oldVersion, _this._schema.version).then(function (trans) {
-                    return _this._upgradeDb(trans, oldVersion, wipe);
+                    return _this._upgradeDb(trans, oldVersion, wipeIfExists);
                 });
             }
-            else if (wipe) {
+            else if (wipeIfExists) {
                 // No version change, but wipe anyway
                 return _this.openTransaction(null, true).then(function (trans) {
                     return _this._upgradeDb(trans, oldVersion, true);

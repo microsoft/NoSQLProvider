@@ -10,11 +10,6 @@
  * be required piecemeal.
  */
 import SyncTasks = require('synctasks');
-export declare enum AutoWipeConfig {
-    Never = 0,
-    IfExist = 1,
-    IfOpenFailed = 2,
-}
 export interface IndexSchema {
     name: string;
     keyPath: string | string[];
@@ -51,7 +46,7 @@ export interface DbTransaction {
 export declare abstract class DbProvider {
     protected _schema: DbSchema;
     protected _verbose: boolean;
-    open(dbName: string, schema: DbSchema, wipeConfig: AutoWipeConfig, verbose: boolean): SyncTasks.Promise<void>;
+    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void>;
     abstract close(): SyncTasks.Promise<void>;
     abstract openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<DbTransaction>;
     clearAllData(): SyncTasks.Promise<void>;
@@ -63,4 +58,4 @@ export declare abstract class DbProvider {
     getOnly<T>(storeName: string, indexName: string, key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
     getRange<T>(storeName: string, indexName: string, keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
 }
-export declare function openListOfProviders(providersToTry: DbProvider[], dbName: string, schema: DbSchema, wipeConfig?: AutoWipeConfig, verbose?: boolean): SyncTasks.Promise<DbProvider>;
+export declare function openListOfProviders(providersToTry: DbProvider[], dbName: string, schema: DbSchema, wipeIfExists?: boolean, verbose?: boolean): SyncTasks.Promise<DbProvider>;

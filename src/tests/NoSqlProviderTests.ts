@@ -1,4 +1,4 @@
-﻿import assert = require('assert');
+import assert = require('assert');
 import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
@@ -13,10 +13,7 @@ import NoSqlProviderUtils = require('../NoSqlProviderUtils');
 // Don't trap exceptions so we immediately see them with a stack trace
 SyncTasks.config.catchExceptions = false;
 
-const IfExist = NoSqlProvider.AutoWipeConfig.IfExist;
-const Never = NoSqlProvider.AutoWipeConfig.Never;
-
-function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipeConfig: NoSqlProvider.AutoWipeConfig) {
+function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipeFirst: boolean) {
     let provider: NoSqlProvider.DbProvider = null;
     if (providerName === 'sqlite3memory') {
         var NSPNodeSqlite3MemoryDbProvider = require('../NodeSqlite3MemoryDbProvider');
@@ -30,7 +27,7 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
     } else if (providerName === 'websql') {
         provider = new WebSqlProvider();
     }
-    return NoSqlProvider.openListOfProviders([provider], 'test', schema, wipeConfig, false);
+    return NoSqlProvider.openListOfProviders([provider], 'test', schema, wipeFirst, false);
 }
 
 describe('NoSqlProvider', function () {
@@ -207,7 +204,7 @@ describe('NoSqlProvider', function () {
                                 primaryKeyPath: 'id'
                             }
                         ]
-                    }, IfExist).then(prov => {
+                    }, true).then(prov => {
                         return prov.put('test', { id: 'a', val: 'b' }).then(() => {
                             return prov.get<any>('test', 'a').then(ret => {
                                 assert.equal(ret.val, 'b');
@@ -232,7 +229,7 @@ describe('NoSqlProvider', function () {
                                 primaryKeyPath: 'id'
                             }
                         ]
-                    }, IfExist).then(prov => {
+                    }, true).then(prov => {
                         return prov.put('test', []).then(() => {
                             return prov.getAll('test').then(rets => {
                                 assert(!!rets);
@@ -256,7 +253,7 @@ describe('NoSqlProvider', function () {
                                 primaryKeyPath: 'id'
                             }
                         ]
-                    }, IfExist).then(prov => {
+                    }, true).then(prov => {
                         return prov.put('test', [1, 2, 3, 4, 5].map(i => { return { id: 'a' + i }; })).then(() => {
                             return prov.getAll('test').then(rets => {
                                 assert(!!rets);
@@ -289,7 +286,7 @@ describe('NoSqlProvider', function () {
                                 primaryKeyPath: 'id'
                             }
                         ]
-                    }, IfExist).then(prov => {
+                    }, true).then(prov => {
                         const oldCatchMode = SyncTasks.config.catchExceptions;
                         SyncTasks.config.catchExceptions = true;
                         return prov.put('test', { id: { x: 'a' }, val: 'b' }).then(() => {
@@ -311,7 +308,7 @@ describe('NoSqlProvider', function () {
                                 primaryKeyPath: 'id'
                             }
                         ]
-                    }, IfExist).then(prov => {
+                    }, true).then(prov => {
                         return tester(prov, null, false, (obj, v) => { obj.id = v; });
                     });
                 });
@@ -331,7 +328,7 @@ describe('NoSqlProvider', function () {
                                 ]
                             }
                         ]
-                    }, IfExist).then(prov => {
+                    }, true).then(prov => {
                         return tester(prov, 'index', false, (obj, v) => { obj.a = v; });
                     });
                 });
@@ -345,7 +342,7 @@ describe('NoSqlProvider', function () {
                                 primaryKeyPath: 'a.b'
                             }
                         ]
-                    }, IfExist).then(prov => {
+                    }, true).then(prov => {
                         return tester(prov, null, false, (obj, v) => { obj.a = { b: v }; });
                     });
                 });
@@ -365,7 +362,7 @@ describe('NoSqlProvider', function () {
                                 ]
                             }
                         ]
-                    }, IfExist).then(prov => {
+                    }, true).then(prov => {
                         return tester(prov, 'index', false, (obj, v) => { obj.a = { b: v }; });
                     });
                 });
@@ -379,7 +376,7 @@ describe('NoSqlProvider', function () {
                                 primaryKeyPath: ['a', 'b']
                             }
                         ]
-                    }, IfExist).then(prov => {
+                    }, true).then(prov => {
                         return tester(prov, null, true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
                     });
                 });
@@ -399,7 +396,7 @@ describe('NoSqlProvider', function () {
                                 ]
                             }
                         ]
-                    }, IfExist).then(prov => {
+                    }, true).then(prov => {
                         return tester(prov, 'index', true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
                     });
                 });
@@ -420,7 +417,7 @@ describe('NoSqlProvider', function () {
                                 ]
                             }
                         ]
-                    }, IfExist).then(prov => {
+                    }, true).then(prov => {
                         return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } }).then(() => {
                             var g1 = prov.get<any>('test', 'a').then(ret => {
                                 assert.equal(ret.val, 'b');
@@ -464,7 +461,7 @@ describe('NoSqlProvider', function () {
                                     primaryKeyPath: 'id'
                                 }
                             ]
-                        }, IfExist).then(prov => {
+                        }, true).then(prov => {
                             return prov.close();
                         }).then(() => {
                             return openProvider(provName, {
@@ -475,7 +472,7 @@ describe('NoSqlProvider', function () {
                                         primaryKeyPath: 'id'
                                     }
                                 ]
-                            }, Never).then(prov => {
+                            }, false).then(prov => {
                                 return prov.get('test', 'abc').then(item => {
                                     return prov.close().then(() => {
                                         return SyncTasks.Rejected<void>('Shouldn\'t have worked');
@@ -497,7 +494,7 @@ describe('NoSqlProvider', function () {
                                     primaryKeyPath: 'id'
                                 }
                             ]
-                        }, IfExist).then(prov => {
+                        }, true).then(prov => {
                             return prov.put('test', { id: 'abc' }).then(() => {
                                 return prov.close();
                             });
@@ -510,7 +507,7 @@ describe('NoSqlProvider', function () {
                                         primaryKeyPath: 'id'
                                     }
                                 ]
-                            }, Never).then(prov => {
+                            }, false).then(prov => {
                                 return prov.get('test', 'abc').then(item => {
                                     assert(!!item);
                                     return prov.close();
@@ -528,7 +525,7 @@ describe('NoSqlProvider', function () {
                                     primaryKeyPath: 'id'
                                 }
                             ]
-                        }, IfExist).then(prov => {
+                        }, true).then(prov => {
                             return prov.put('test', { id: 'abc' }).then(() => {
                                 return prov.close();
                             });
@@ -545,7 +542,7 @@ describe('NoSqlProvider', function () {
                                         primaryKeyPath: 'ttt'
                                     }
                                 ]
-                            }, Never).then(prov => {
+                            }, false).then(prov => {
                                 return prov.put('test2', { id: 'def', ttt: 'ghi' }).then(() => {
                                     const p1 = prov.get<any>('test', 'abc').then(item => {
                                         assert(!!item);
@@ -578,7 +575,7 @@ describe('NoSqlProvider', function () {
                                     primaryKeyPath: 'id'
                                 }
                             ]
-                        }, IfExist).then(prov => {
+                        }, true).then(prov => {
                             return prov.put('test', { id: 'abc' }).then(() => {
                                 return prov.close();
                             });
@@ -591,7 +588,7 @@ describe('NoSqlProvider', function () {
                                         primaryKeyPath: 'id'
                                     }
                                 ]
-                            }, Never).then(prov => {
+                            }, false).then(prov => {
                                 return prov.get('test', 'abc').then(item => {
                                     return prov.close().then(() => {
                                         return SyncTasks.Rejected<void>('Shouldn\'t have worked');
@@ -613,7 +610,7 @@ describe('NoSqlProvider', function () {
                                     primaryKeyPath: 'id'
                                 }
                             ]
-                        }, IfExist).then(prov => {
+                        }, true).then(prov => {
                             return prov.put('test', { id: 'abc', tt: 'a' }).then(() => {
                                 return prov.close();
                             });
@@ -630,7 +627,7 @@ describe('NoSqlProvider', function () {
                                         }]
                                     }
                                 ]
-                            }, Never).then(prov => {
+                            }, false).then(prov => {
                                 const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
@@ -664,7 +661,7 @@ describe('NoSqlProvider', function () {
                                     }]
                                 }
                             ]
-                        }, IfExist).then(prov => {
+                        }, true).then(prov => {
                             return prov.put('test', { id: 'abc', tt: 'a' }).then(() => {
                                 return prov.close();
                             });
@@ -677,7 +674,7 @@ describe('NoSqlProvider', function () {
                                         primaryKeyPath: 'id'
                                     }
                                 ]
-                            }, Never).then(prov => {
+                            }, false).then(prov => {
                                 return prov.getOnly<any>('test', 'ind1', 'a').then(items => {
                                     return prov.close().then(() => {
                                         return SyncTasks.Rejected<void>('Shouldn\'t have worked');
@@ -703,7 +700,7 @@ describe('NoSqlProvider', function () {
                                     }]
                                 }
                             ]
-                        }, IfExist).then(prov => {
+                        }, true).then(prov => {
                             return prov.put('test', { id: 'abc', tt: 'a', ttb: 'b' }).then(() => {
                                 return prov.close();
                             });
@@ -720,7 +717,7 @@ describe('NoSqlProvider', function () {
                                         }]
                                     }
                                 ]
-                            }, Never).then(prov => {
+                            }, false).then(prov => {
                                 const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
                                     assert.equal(items.length, 0);
                                 });

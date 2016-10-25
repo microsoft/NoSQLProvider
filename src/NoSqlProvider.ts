@@ -12,12 +12,6 @@
 
 import SyncTasks = require('synctasks');
 
-export enum AutoWipeConfig {
-    Never,
-    IfExist,
-    IfOpenFailed
-}
-
 // Schema type describing an index for a store.  Multientry indexes aren't supported yet, but compound/composite keypaths are.
 export interface IndexSchema {
     name: string;
@@ -76,7 +70,7 @@ export abstract class DbProvider {
     protected _schema: DbSchema;
     protected _verbose: boolean;
 
-    open(dbName: string, schema: DbSchema, wipeConfig: AutoWipeConfig, verbose: boolean): SyncTasks.Promise<void> {
+    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         // virtual call
         this._schema = schema;
         this._verbose = verbose;
@@ -194,7 +188,7 @@ export abstract class DbProvider {
 
 // Runs down the given providers in order and tries to instantiate them.  If they're not supported, it will continue until it finds one
 // that does work, or it will reject the promise if it runs out of providers and none work.
-export function openListOfProviders(providersToTry: DbProvider[], dbName: string, schema: DbSchema, wipeConfig: AutoWipeConfig = AutoWipeConfig.Never,
+export function openListOfProviders(providersToTry: DbProvider[], dbName: string, schema: DbSchema, wipeIfExists: boolean = false,
         verbose: boolean = false): SyncTasks.Promise<DbProvider> {
     const task = SyncTasks.Defer<DbProvider>();
     let providerIndex = 0;
@@ -207,7 +201,7 @@ export function openListOfProviders(providersToTry: DbProvider[], dbName: string
         }
 
         var provider = providersToTry[providerIndex];
-        provider.open(dbName, schema, wipeConfig, verbose).then(() => {
+        provider.open(dbName, schema, wipeIfExists, verbose).then(() => {
             task.resolve(provider);
         }, (err) => {
             errorList.push(err);

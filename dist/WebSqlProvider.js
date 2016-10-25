@@ -12,7 +12,6 @@ var __extends = (this && this.__extends) || function (d, b) {
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var SyncTasks = require('synctasks');
-var NoSqlProvider = require('./NoSqlProvider');
 var SqlProviderBase = require('./SqlProviderBase');
 // The DbProvider implementation for WebSQL.  This provider does a bunch of awkward stuff to pretend that a relational SQL store
 // is actually a NoSQL store.  We store the raw object as a JSON.encoded string in the nsp_data column, and have an nsp_pk column
@@ -22,9 +21,9 @@ var WebSqlProvider = (function (_super) {
     function WebSqlProvider() {
         _super.apply(this, arguments);
     }
-    WebSqlProvider.prototype.open = function (dbName, schema, wipeConfig, verbose) {
+    WebSqlProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
         var _this = this;
-        _super.prototype.open.call(this, dbName, schema, wipeConfig, verbose);
+        _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
         if (!window.openDatabase) {
             return SyncTasks.Rejected('No support for WebSQL in this browser');
         }
@@ -43,22 +42,21 @@ var WebSqlProvider = (function (_super) {
         }
         var deferred = SyncTasks.Defer();
         var oldVersion = Number(this._db.version);
-        var wipe = wipeConfig === NoSqlProvider.AutoWipeConfig.IfExist;
         if (oldVersion !== this._schema.version) {
             // Needs a schema upgrade/change
-            if (!wipe && this._schema.version < oldVersion) {
+            if (!wipeIfExists && this._schema.version < oldVersion) {
                 console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema.version + '). Wiping!');
                 // Note: the reported DB version won't change back to the older number until after you do a put command onto the DB.
-                wipe = true;
+                wipeIfExists = true;
             }
             this._db.changeVersion(this._db.version, this._schema.version.toString(), function (t) {
                 var trans = new SqlProviderBase.SqliteSqlTransaction(t, _this._schema, _this._verbose, 999);
-                _this._upgradeDb(trans, oldVersion, wipe).then(function () { deferred.resolve(); }, function () { deferred.reject(); });
+                _this._upgradeDb(trans, oldVersion, wipeIfExists).then(function () { deferred.resolve(); }, function () { deferred.reject(); });
             }, function (err) {
                 deferred.reject(err);
             });
         }
-        else if (wipe) {
+        else if (wipeIfExists) {
             // No version change, but wipe anyway
             this.openTransaction(null, true).then(function (trans) {
                 _this._upgradeDb(trans, oldVersion, true).then(function () { deferred.resolve(); }, function () { deferred.reject(); });

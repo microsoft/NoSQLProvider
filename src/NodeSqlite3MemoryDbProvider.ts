@@ -16,8 +16,8 @@ import SqlProviderBase = require('./SqlProviderBase');
 export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase {
     private _db: sqlite3.Database;
 
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeConfig: NoSqlProvider.AutoWipeConfig, verbose: boolean): SyncTasks.Promise<void> {
-        super.open(dbName, schema, wipeConfig, verbose);
+    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
+        super.open(dbName, schema, wipeIfExists, verbose);
 
         if (verbose) {
             sqlite3.verbose();
@@ -25,7 +25,7 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
 
         this._db = new sqlite3.Database(':memory:');
 
-        return this._ourVersionChecker(wipeConfig);
+        return this._ourVersionChecker(wipeIfExists);
     }
 
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
