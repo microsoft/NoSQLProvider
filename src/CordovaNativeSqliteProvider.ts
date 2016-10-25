@@ -73,14 +73,13 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
         this._db = this._plugin.openDatabase(dbParams, () => {
             task.resolve();
         }, () => {
-            console.log('database ', dbName, ' open failed');
-            task.reject();
+            task.reject('Couldn\'t open database: ' + dbName);
         });
 
         return task.promise().then(() => {
             return this._ourVersionChecker(wipeIfExists);
         }).fail(() => {
-            return SyncTasks.Rejected<void>('Couldn\'t open database: ' + dbName);
+            return SyncTasks.Rejected<void>('Version check failure. Couldn\'t open database: ' + dbName);
         });
     }
 
