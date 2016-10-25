@@ -8,7 +8,7 @@
     
     "filesGlob": [
         "src/**/*{ts,tsx}",
-        "src/typings/**/*.d.ts"
+        "typings/**/*.d.ts"
     ],
     
     "compilerOptions": {

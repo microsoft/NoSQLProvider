@@ -6,7 +6,8 @@
     "scripts": {
         "test": "mocha dist/tests/NoSqlProviderTests.js",
         "webtest": "webpack",
-        "build": "tsc"
+        "build": "tsc",
+        "postinstall": "typings install"
     },
     "main": "dist/NoSqlProvider.js",
     "dependencies": {
@@ -18,7 +19,8 @@
         "sqlite3": "^3.0.9",
         "ts-loader": "^0.8.1",
         "typescript": "^1.8.9",
-        "webpack": "^1.12.14"
+        "webpack": "^1.12.14",
+        "typings": "^1.4.0"
     },
     "repository": {
         "type": "git",
