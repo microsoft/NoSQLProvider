@@ -27,6 +27,7 @@ var CordovaNativeSqliteProvider = (function (_super) {
         this._openOptions = _openOptions;
     }
     CordovaNativeSqliteProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
+        var _this = this;
         _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
         if (!this._plugin || !this._plugin.openDatabase) {
             return SyncTasks.Rejected('No support for native sqlite in this browser');
@@ -34,14 +35,25 @@ var CordovaNativeSqliteProvider = (function (_super) {
         if (typeof (navigator) !== 'undefined' && navigator.userAgent && navigator.userAgent.indexOf('Mobile Crosswalk') !== -1) {
             return SyncTasks.Rejected('Android NativeSqlite is broken, skipping');
         }
-        this._db = this._plugin.openDatabase(_.extend({
+        var dbParams = _.extend({
             name: dbName + '.db',
             location: 2
-        }, this._openOptions));
-        if (!this._db) {
+        }, this._openOptions);
+        var task = SyncTasks.Defer();
+        this._db = this._plugin.openDatabase(dbParams, function () {
+            console.log('database ', dbName, ' opened successfuly');
+            task.resolve();
+        }, function () {
+            console.log('database ', dbName, ' open failed');
+            task.reject();
+        });
+        return task.promise().then(function () {
+            console.log('promise then');
+            return _this._ourVersionChecker(wipeIfExists);
+        }).fail(function () {
+            console.log('promise fail');
             return SyncTasks.Rejected('Couldn\'t open database: ' + dbName);
-        }
-        return this._ourVersionChecker(wipeIfExists);
+        });
     };
     CordovaNativeSqliteProvider.prototype.close = function () {
         var _this = this;

@@ -1,4 +1,4 @@
-﻿import assert = require('assert');
+import assert = require('assert');
 import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
