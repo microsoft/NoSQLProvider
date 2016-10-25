@@ -5,6 +5,7 @@ export interface SqlitePluginDbOptionalParams {
     createFromLocation?: number;
     androidDatabaseImplementation?: number;
     androidLockWorkaround?: number;
+    encriptionPassword?: string;
 }
 export interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
     name: string;
@@ -33,7 +34,7 @@ export declare class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProv
     private _openOptions;
     constructor(_plugin?: SqlitePlugin, _openOptions?: SqlitePluginDbOptionalParams);
     private _db;
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void>;
+    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeConfig: NoSqlProvider.AutoWipeConfig, verbose: boolean): SyncTasks.Promise<void>;
     close(): SyncTasks.Promise<void>;
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction>;
 }

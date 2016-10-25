@@ -3,7 +3,7 @@ import NoSqlProvider = require('./NoSqlProvider');
 export declare abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     protected _getDbVersion(): SyncTasks.Promise<number>;
     protected _changeDbVersion(oldVersion: number, newVersion: number): SyncTasks.Promise<SqlTransaction>;
-    protected _ourVersionChecker(wipeIfExists: boolean): SyncTasks.Promise<void>;
+    protected _ourVersionChecker(wipeConfig: NoSqlProvider.AutoWipeConfig): SyncTasks.Promise<void>;
     protected _upgradeDb(trans: SqlTransaction, oldVersion: number, wipeAnyway: boolean): SyncTasks.Promise<void>;
 }
 export declare abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
@@ -22,7 +22,9 @@ export declare abstract class SqlTransaction implements NoSqlProvider.DbTransact
 }
 export declare class SqliteSqlTransaction extends SqlTransaction {
     private _trans;
+    private _pendingQueries;
     constructor(_trans: SQLTransaction, schema: NoSqlProvider.DbSchema, verbose: boolean, maxVariables: number);
+    failAllPendingQueries(error: any): void;
     runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]>;
     getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;
 }

@@ -7,7 +7,7 @@ export declare class IndexedDbProvider extends NoSqlProvider.DbProvider {
     private _fakeComplicatedKeys;
     constructor(explicitDbFactory?: IDBFactory, explicitDbFactorySupportsCompoundKeys?: boolean);
     static WrapRequest<T>(req: IDBRequest): SyncTasks.Promise<T>;
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void>;
+    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeConfig: NoSqlProvider.AutoWipeConfig, verbose: boolean): SyncTasks.Promise<void>;
     close(): SyncTasks.Promise<void>;
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction>;
 }
