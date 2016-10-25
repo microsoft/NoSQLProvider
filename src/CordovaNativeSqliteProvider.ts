@@ -39,7 +39,7 @@ export interface SqliteDatabase {
 }
 
 export interface SqlitePlugin {
-    openDatabase(dbInfo: SqlitePluginDbParams): SqliteDatabase;
+    openDatabase(dbInfo: SqlitePluginDbParams, success?: Function, error?: Function): SqliteDatabase;
     deleteDatabase(dbInfo: SqlitePluginDbParams, successCallback?: Function, errorCallback?: Function);
     sqliteFeatures: { isSQLitePlugin: boolean }
 }
