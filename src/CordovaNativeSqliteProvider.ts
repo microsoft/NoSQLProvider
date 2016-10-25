@@ -71,7 +71,6 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
 
         const task = SyncTasks.Defer<void>();
         this._db = this._plugin.openDatabase(dbParams, () => {
-            console.log('database ', dbName, ' opened successfuly');
             task.resolve();
         }, () => {
             console.log('database ', dbName, ' open failed');
@@ -79,10 +78,8 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
         });
 
         return task.promise().then(() => {
-            console.log('promise then');
             return this._ourVersionChecker(wipeIfExists);
         }).fail(() => {
-            console.log('promise fail');
             return SyncTasks.Rejected<void>('Couldn\'t open database: ' + dbName);
         });
     }

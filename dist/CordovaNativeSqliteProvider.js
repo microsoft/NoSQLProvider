@@ -41,17 +41,14 @@ var CordovaNativeSqliteProvider = (function (_super) {
         }, this._openOptions);
         var task = SyncTasks.Defer();
         this._db = this._plugin.openDatabase(dbParams, function () {
-            console.log('database ', dbName, ' opened successfuly');
             task.resolve();
         }, function () {
             console.log('database ', dbName, ' open failed');
             task.reject();
         });
         return task.promise().then(function () {
-            console.log('promise then');
             return _this._ourVersionChecker(wipeIfExists);
         }).fail(function () {
-            console.log('promise fail');
             return SyncTasks.Rejected('Couldn\'t open database: ' + dbName);
         });
     };
