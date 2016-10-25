@@ -12,7 +12,8 @@
     ],
     
     "compilerOptions": {
-        "outDir": "dist/"
+        "outDir": "dist/",
+        "declaration": true
     },
     
     "exclude": [

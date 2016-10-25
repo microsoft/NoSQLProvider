@@ -1,11 +1,3 @@
-/**
- * NodeSqlite3MemoryDbProvider.ts
- * Author: David de Regt
- * Copyright: Microsoft 2015
- *
- * NoSqlProvider provider setup for NodeJs to use an in-memory sqlite3-based provider.
- * Largely only used for unit tests.
- */
 import SyncTasks = require('synctasks');
 import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
