@@ -16,8 +16,8 @@ import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 export class InMemoryProvider extends NoSqlProvider.DbProvider {
     private _stores: { [storeName: string]: InMemoryStore } = {};
 
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
-        super.open(dbName, schema, wipeIfExists, verbose);
+    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeConfig: NoSqlProvider.AutoWipeConfig, verbose: boolean): SyncTasks.Promise<void> {
+        super.open(dbName, schema, wipeConfig, verbose);
 
         _.each(this._schema.stores, store => {
             let nStore = new InMemoryStore(store);

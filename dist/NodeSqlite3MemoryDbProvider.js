@@ -12,21 +12,21 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
+var sqlite3 = require('sqlite3');
 var SyncTasks = require('synctasks');
 var SqlProviderBase = require('./SqlProviderBase');
-var sqlite3 = require('sqlite3');
 var NodeSqlite3MemoryDbProvider = (function (_super) {
     __extends(NodeSqlite3MemoryDbProvider, _super);
     function NodeSqlite3MemoryDbProvider() {
         _super.apply(this, arguments);
     }
-    NodeSqlite3MemoryDbProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
-        _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
+    NodeSqlite3MemoryDbProvider.prototype.open = function (dbName, schema, wipeConfig, verbose) {
+        _super.prototype.open.call(this, dbName, schema, wipeConfig, verbose);
         if (verbose) {
             sqlite3.verbose();
         }
         this._db = new sqlite3.Database(':memory:');
-        return this._ourVersionChecker(wipeIfExists);
+        return this._ourVersionChecker(wipeConfig);
     };
     NodeSqlite3MemoryDbProvider.prototype.openTransaction = function (storeNames, writeNeeded) {
         return SyncTasks.Resolved(this._getTransaction());

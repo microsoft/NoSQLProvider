@@ -18,6 +18,7 @@ export interface SqlitePluginDbOptionalParams {
     createFromLocation?: number;
     androidDatabaseImplementation?: number;
     androidLockWorkaround?: number;
+    encriptionPassword?: string;
 }
 
 export interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
@@ -51,8 +52,8 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
 
     private _db: SqliteDatabase;
 
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
-        super.open(dbName, schema, wipeIfExists, verbose);
+    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeConfig: NoSqlProvider.AutoWipeConfig, verbose: boolean): SyncTasks.Promise<void> {
+        super.open(dbName, schema, wipeConfig, verbose);
 
         if (!this._plugin || !this._plugin.openDatabase) {
             return SyncTasks.Rejected<void>('No support for native sqlite in this browser');
@@ -62,16 +63,21 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             return SyncTasks.Rejected<void>('Android NativeSqlite is broken, skipping');
         }
 
-        this._db = this._plugin.openDatabase(_.extend<SqlitePluginDbParams, SqlitePluginDbParams>({
+        const dbParams = _.extend<SqlitePluginDbParams, SqlitePluginDbParams>({
             name: dbName + '.db',
             location: 2
-        }, this._openOptions));
+        }, this._openOptions);
+
+        this._db = this._plugin.openDatabase(dbParams);
 
         if (!this._db) {
+            if (wipeConfig === NoSqlProvider.AutoWipeConfig.IfOpenFailed) {
+                this._plugin.deleteDatabase(dbParams);
+            }
             return SyncTasks.Rejected<void>('Couldn\'t open database: ' + dbName);
         }
 
-        return this._ourVersionChecker(wipeIfExists);
+        return this._ourVersionChecker(wipeConfig);
     }
 
     close(): SyncTasks.Promise<void> {

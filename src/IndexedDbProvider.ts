@@ -56,9 +56,9 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         return task.promise();
     }
 
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
+    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeConfig: NoSqlProvider.AutoWipeConfig, verbose: boolean): SyncTasks.Promise<void> {
         // Note: DbProvider returns null instead of a promise that needs waiting for.
-        super.open(dbName, schema, wipeIfExists, verbose);
+        super.open(dbName, schema, wipeConfig, verbose);
 
         if (!this._dbFactory) {
             // Couldn't even find a supported indexeddb object on the browser...
@@ -73,7 +73,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             return SyncTasks.Rejected<void>('Safari doesn\'t properly implement IndexedDB');
         }
 
-        if (wipeIfExists) {
+        if (wipeConfig === NoSqlProvider.AutoWipeConfig.IfExist) {
             try {
                 this._dbFactory.deleteDatabase(dbName);
             } catch (e) {
@@ -222,10 +222,10 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             });
         }, err => {
             if (err && err.type === 'error' && err.target && err.target.error && err.target.error.name === 'VersionError') {
-                if (!wipeIfExists) {
+                if (wipeConfig !== NoSqlProvider.AutoWipeConfig.IfExist) {
                     console.log('Database version too new, Wiping: ' + (err.target.error.message || err.target.error.name));
 
-                    return this.open(dbName, schema, true, verbose);
+                    return this.open(dbName, schema, NoSqlProvider.AutoWipeConfig.IfExist, verbose);
                 }
             }
             return SyncTasks.Rejected<void>(err);

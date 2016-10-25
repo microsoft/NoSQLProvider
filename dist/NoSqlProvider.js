@@ -11,12 +11,18 @@
  */
 "use strict";
 var SyncTasks = require('synctasks');
+(function (AutoWipeConfig) {
+    AutoWipeConfig[AutoWipeConfig["Never"] = 0] = "Never";
+    AutoWipeConfig[AutoWipeConfig["IfExist"] = 1] = "IfExist";
+    AutoWipeConfig[AutoWipeConfig["IfOpenFailed"] = 2] = "IfOpenFailed";
+})(exports.AutoWipeConfig || (exports.AutoWipeConfig = {}));
+var AutoWipeConfig = exports.AutoWipeConfig;
 // Abstract base type for a database provider.  Has accessors for opening transactions and one-off accesor helpers.
 // Note: this is a different concept than a DbStore or DbIndex, although it provides a similar (or identical) interface.
 var DbProvider = (function () {
     function DbProvider() {
     }
-    DbProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
+    DbProvider.prototype.open = function (dbName, schema, wipeConfig, verbose) {
         // virtual call
         this._schema = schema;
         this._verbose = verbose;
@@ -116,8 +122,8 @@ var DbProvider = (function () {
 exports.DbProvider = DbProvider;
 // Runs down the given providers in order and tries to instantiate them.  If they're not supported, it will continue until it finds one
 // that does work, or it will reject the promise if it runs out of providers and none work.
-function openListOfProviders(providersToTry, dbName, schema, wipeIfExists, verbose) {
-    if (wipeIfExists === void 0) { wipeIfExists = false; }
+function openListOfProviders(providersToTry, dbName, schema, wipeConfig, verbose) {
+    if (wipeConfig === void 0) { wipeConfig = AutoWipeConfig.Never; }
     if (verbose === void 0) { verbose = false; }
     var task = SyncTasks.Defer();
     var providerIndex = 0;
@@ -128,7 +134,7 @@ function openListOfProviders(providersToTry, dbName, schema, wipeIfExists, verbo
             return;
         }
         var provider = providersToTry[providerIndex];
-        provider.open(dbName, schema, wipeIfExists, verbose).then(function () {
+        provider.open(dbName, schema, wipeConfig, verbose).then(function () {
             task.resolve(provider);
         }, function (err) {
             errorList.push(err);

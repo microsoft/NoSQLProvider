@@ -7,17 +7,17 @@
  * Largely only used for unit tests.
  */
 
+import sqlite3 = require('sqlite3');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
-import sqlite3 = require('sqlite3');
 
 export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase {
     private _db: sqlite3.Database;
 
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
-        super.open(dbName, schema, wipeIfExists, verbose);
+    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeConfig: NoSqlProvider.AutoWipeConfig, verbose: boolean): SyncTasks.Promise<void> {
+        super.open(dbName, schema, wipeConfig, verbose);
 
         if (verbose) {
             sqlite3.verbose();
@@ -25,7 +25,7 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
 
         this._db = new sqlite3.Database(':memory:');
 
-        return this._ourVersionChecker(wipeIfExists);
+        return this._ourVersionChecker(wipeConfig);
     }
 
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
