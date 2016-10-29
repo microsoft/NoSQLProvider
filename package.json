@@ -7,7 +7,8 @@
         "postinstall": "cd src && tsd install",
         "test": "mocha dist/tests/NoSqlProviderTests.js",
         "webtest": "webpack",
-        "build": "tsc"
+        "build": "tsc",
+        "postinstall": "typings install"
     },
     "main": "dist/NoSqlProvider.js",
     "dependencies": {
@@ -20,7 +21,8 @@
         "ts-loader": "^0.8.1",
         "tsd": "^0.6.5",
         "typescript": "^1.8.9",
-        "webpack": "^1.12.14"
+        "webpack": "^1.12.14",
+        "typings": "^1.4.0"
     },
     "repository": {
         "type": "git",

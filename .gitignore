@@ -3,6 +3,6 @@
 /src/bin
 /src/obj
 *.user
-/src/typings
+typings
 /NoSQLProviderTestsPack.js
 /.vscode
