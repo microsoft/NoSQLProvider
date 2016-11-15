@@ -110,9 +110,9 @@ var SqlProviderBase = (function (_super) {
                 _.each(_this._schema.stores, function (store) {
                     tableNamesNeeded_1.push(store.name);
                 });
-                dropQueries = _.chain(tableNames).filter(function (name) { return !_.contains(tableNamesNeeded_1, name); })
+                dropQueries = _.chain(tableNames).filter(function (name) { return !_.includes(tableNamesNeeded_1, name); })
                     .map(function (name) { return trans.runQuery('DROP TABLE ' + name); }).value();
-                tableNames = _.filter(tableNames, function (name) { return _.contains(tableNamesNeeded_1, name); });
+                tableNames = _.filter(tableNames, function (name) { return _.includes(tableNamesNeeded_1, name); });
             }
             return SyncTasks.all(dropQueries).then(function () {
                 var tableQueries = [];
@@ -152,7 +152,7 @@ var SqlProviderBase = (function (_super) {
                         return trans.runQuery('CREATE TABLE ' + storeSchema.name + ' (' + fieldList.join(', ') + ')')
                             .then(indexMaker);
                     };
-                    if (_.contains(tableNames, storeSchema.name)) {
+                    if (_.includes(tableNames, storeSchema.name)) {
                         // If the table exists, we can't read its schema due to websql security rules,
                         // so just make a copy and fully migrate the data over.
                         // Nuke old indexes on the original table (since they don't change names and we don't need them anymore)
@@ -390,7 +390,7 @@ var SqlStore = (function () {
                 qmarksValues.join('),(') + ')', args.splice(0, thisPageCount * fields.length)));
         }
         return SyncTasks.all(inserts).then(function () {
-            if (_.any(_this._schema.indexes, function (index) { return index.multiEntry; })) {
+            if (_.some(_this._schema.indexes, function (index) { return index.multiEntry; })) {
                 var queries_1 = [];
                 _.each(items, function (item) {
                     queries_1.push(_this._trans.runQuery('SELECT rowid a FROM ' + _this._schema.name + ' WHERE nsp_pk = ?', [NoSqlProviderUtils.getSerializedKeyForKeypath(item, _this._schema.primaryKeyPath)])
@@ -426,7 +426,7 @@ var SqlStore = (function () {
         var joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
         // PERF: This is optimizable, but it's of questionable utility
         var queries = _.map(joinedKeys, function (joinedKey) {
-            if (_.any(_this._schema.indexes, function (index) { return index.multiEntry; })) {
+            if (_.some(_this._schema.indexes, function (index) { return index.multiEntry; })) {
                 // If there's any multientry indexes, we have to do the more complicated version...
                 return _this._trans.runQuery('SELECT rowid a FROM ' + _this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]).then(function (rets) {
                     if (rets.length === 0) {

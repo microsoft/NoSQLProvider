@@ -86,7 +86,7 @@ var IndexedDbProvider = (function (_super) {
             }
             // Delete dead stores
             _.each(db.objectStoreNames, function (storeName) {
-                if (!_.any(schema.stores, function (store) { return store.name === storeName; })) {
+                if (!_.some(schema.stores, function (store) { return store.name === storeName; })) {
                     db.deleteObjectStore(storeName);
                 }
             });
@@ -94,7 +94,7 @@ var IndexedDbProvider = (function (_super) {
             _.each(schema.stores, function (storeSchema) {
                 var store = null;
                 var migrateData = false;
-                if (!_.contains(db.objectStoreNames, storeSchema.name)) {
+                if (!_.includes(db.objectStoreNames, storeSchema.name)) {
                     var primaryKeyPath = storeSchema.primaryKeyPath;
                     if (_this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(primaryKeyPath)) {
                         // Going to have to hack the compound primary key index into a column, so here it is.
@@ -141,7 +141,7 @@ var IndexedDbProvider = (function (_super) {
                 }
                 // Check any indexes in the schema that need to be created
                 _.each(storeSchema.indexes, function (indexSchema) {
-                    if (!_.contains(store.indexNames, indexSchema.name)) {
+                    if (!_.includes(store.indexNames, indexSchema.name)) {
                         var keyPath = indexSchema.keyPath;
                         if (_this._fakeComplicatedKeys) {
                             if (indexSchema.multiEntry) {
@@ -378,7 +378,7 @@ var IndexedDbStore = (function () {
             keys = _.map(keys, function (key) { return NoSqlProviderUtils.serializeKeyToString(key, _this._schema.primaryKeyPath); });
         }
         return SyncTasks.all(_.map(keys, function (key) {
-            if (_this._fakeComplicatedKeys && _.any(_this._schema.indexes, function (index) { return index.multiEntry; })) {
+            if (_this._fakeComplicatedKeys && _.some(_this._schema.indexes, function (index) { return index.multiEntry; })) {
                 // If we're faking keys and there's any multientry indexes, we have to do the way more complicated version...
                 return IndexedDbProvider.WrapRequest(_this._store.get(key)).then(function (item) {
                     if (item) {

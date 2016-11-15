@@ -108,10 +108,10 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     _.each(this._schema.stores, store => {
                         tableNamesNeeded.push(store.name);
                     });
-                    dropQueries = _.chain(tableNames).filter(name => !_.contains(tableNamesNeeded, name))
+                    dropQueries = _.chain(tableNames).filter(name => !_.includes(tableNamesNeeded, name))
                         .map(name => trans.runQuery('DROP TABLE ' + name)).value();
 
-                    tableNames = _.filter(tableNames, name => _.contains(tableNamesNeeded, name));
+                    tableNames = _.filter(tableNames, name => _.includes(tableNamesNeeded, name));
                 }
 
                 return SyncTasks.all(dropQueries).then(() => {
@@ -159,7 +159,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 .then(indexMaker);
                         };
 
-                        if (_.contains(tableNames, storeSchema.name)) {
+                        if (_.includes(tableNames, storeSchema.name)) {
                             // If the table exists, we can't read its schema due to websql security rules,
                             // so just make a copy and fully migrate the data over.
 
@@ -433,7 +433,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         }
 
         return SyncTasks.all(inserts).then(() => {
-                if (_.any(this._schema.indexes, index => index.multiEntry)) {
+                if (_.some(this._schema.indexes, index => index.multiEntry)) {
                     let queries: SyncTasks.Promise<void>[] = [];
 
                     _.each(items, item => {
@@ -475,7 +475,7 @@ class SqlStore implements NoSqlProvider.DbStore {
 
         // PERF: This is optimizable, but it's of questionable utility
         var queries = _.map(joinedKeys, joinedKey => {
-            if (_.any(this._schema.indexes, index => index.multiEntry)) {
+            if (_.some(this._schema.indexes, index => index.multiEntry)) {
                 // If there's any multientry indexes, we have to do the more complicated version...
                 return this._trans.runQuery('SELECT rowid a FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]).then(rets => {
                     if (rets.length === 0) {

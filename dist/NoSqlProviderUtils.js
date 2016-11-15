@@ -31,7 +31,7 @@ exports.getSerializedKeyForKeypath = getSerializedKeyForKeypath;
 function getKeyForKeypath(obj, keyPathRaw) {
     var keyPathArray = arrayify(keyPathRaw);
     var values = _.map(keyPathArray, function (kp) { return getValueForSingleKeypath(obj, kp); });
-    if (_.any(values, function (val) { return _.isNull(val) || _.isUndefined(val); })) {
+    if (_.some(values, function (val) { return _.isNull(val) || _.isUndefined(val); })) {
         // If any components of the key are null, then the result is null
         return null;
     }

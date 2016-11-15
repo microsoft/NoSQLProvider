@@ -35,7 +35,7 @@ export function getKeyForKeypath(obj: any, keyPathRaw: string | string[]): any {
     const keyPathArray = arrayify(keyPathRaw);
 
     const values = _.map(keyPathArray, kp => getValueForSingleKeypath(obj, kp));
-    if (_.any(values, val => _.isNull(val) || _.isUndefined(val))) {
+    if (_.some(values, val => _.isNull(val) || _.isUndefined(val))) {
         // If any components of the key are null, then the result is null
         return null;
     }

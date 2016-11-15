@@ -99,7 +99,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
             // Delete dead stores
             _.each(db.objectStoreNames, storeName => {
-                if (!_.any(schema.stores, store => store.name === storeName)) {
+                if (!_.some(schema.stores, store => store.name === storeName)) {
                     db.deleteObjectStore(storeName);
                 }
             });
@@ -108,7 +108,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             _.each(schema.stores, storeSchema => {
                 let store: IDBObjectStore = null;
                 let migrateData = false;
-                if (!_.contains(db.objectStoreNames, storeSchema.name)) {
+                if (!_.includes(db.objectStoreNames, storeSchema.name)) {
                     var primaryKeyPath = storeSchema.primaryKeyPath;
                     if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(primaryKeyPath)) {
                         // Going to have to hack the compound primary key index into a column, so here it is.
@@ -155,7 +155,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
                 // Check any indexes in the schema that need to be created
                 _.each(storeSchema.indexes, indexSchema => {
-                    if (!_.contains(store.indexNames, indexSchema.name)) {
+                    if (!_.includes(store.indexNames, indexSchema.name)) {
                         var keyPath = indexSchema.keyPath;
                         if (this._fakeComplicatedKeys) {
                             if (indexSchema.multiEntry) {
@@ -423,7 +423,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         }
 
         return SyncTasks.all(_.map(keys, key => {
-            if (this._fakeComplicatedKeys && _.any(this._schema.indexes, index => index.multiEntry)) {
+            if (this._fakeComplicatedKeys && _.some(this._schema.indexes, index => index.multiEntry)) {
                 // If we're faking keys and there's any multientry indexes, we have to do the way more complicated version...
                 return IndexedDbProvider.WrapRequest<any>(this._store.get(key)).then(item => {
                     if (item) {
