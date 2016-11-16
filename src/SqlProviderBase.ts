@@ -574,8 +574,14 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
 
     getRange<T>(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
         reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        var checks = [];
-        var args = [];
+        const { checks, args } = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '), args, reverse, limit,
+            offset);
+    }
+
+    private _getRangeChecks(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean) {
+        let checks: string[] = [];
+        let args: string[] = [];
         if (keyLowRange !== null && keyLowRange !== void 0) {
             checks.push(this._queryColumn + (lowRangeExclusive ? ' > ' : ' >= ') + '?');
             args.push(NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath));
@@ -584,7 +590,24 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             checks.push(this._queryColumn + (highRangeExclusive ? ' < ' : ' <= ') + '?');
             args.push(NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath));
         }
-        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '), args, reverse, limit,
-            offset);
+        return { checks, args };
+    }
+
+    countAll(): SyncTasks.Promise<number> {
+        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName).then(result => result[0]['cnt']);
+    }
+
+    countOnly(key: any|any[]): SyncTasks.Promise<number> {
+        let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+
+        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn 
+            + ' = ?', [joinedKey]).then(result => result[0]['cnt']);
+    }
+
+    countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+            : SyncTasks.Promise<number> {
+        const { checks, args } = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '),
+            args).then(result => result[0]['cnt']);
     }
 }

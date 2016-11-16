@@ -121,7 +121,7 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
         this._keyPath = keyPath;
 
         // Construct the index data once
-        let data = store.getData();
+        const data = store.getData();
 
         if (pk) {
             this._data = data;
@@ -130,7 +130,7 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
             this._data = {};
             _.each(data, item => {
                 // Each item may be non-unique so store as an array of items for each key
-                let keys = multiEntry ?
+                const keys = multiEntry ?
                     _.map(NoSqlProviderUtils.arrayify(NoSqlProviderUtils.getValueForSingleKeypath(item, <string>this._keyPath)), val =>
                         NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath)) :
                     [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._keyPath)];
@@ -146,7 +146,7 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
     }
 
     getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        let sortedKeys = _.keys(this._data).sort();
+        const sortedKeys = _.keys(this._data).sort();
 
         return this._returnResultsFromKeys(sortedKeys, reverse, limit, offset);
     }
@@ -156,14 +156,17 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
     }
 
     getRange<T>(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-        reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        let keyLow = NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath);
-        let keyHigh = NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath);
-        let sortedKeys = _.filter(_.keys(this._data), key =>
-            (key > keyLow || (key === keyLow && !lowRangeExclusive)) && (key < keyHigh || (key === keyHigh && !highRangeExclusive))
-        ).sort();
-
+            reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+        const sortedKeys = this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).sort();
         return this._returnResultsFromKeys(sortedKeys, reverse, limit, offset);
+    }
+
+    private _getKeysForRange(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+            : string[] {
+        const keyLow = NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath);
+        const keyHigh = NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath);
+        return _.filter(_.keys(this._data), key =>
+            (key > keyLow || (key === keyLow && !lowRangeExclusive)) && (key < keyHigh || (key === keyHigh && !highRangeExclusive)));
     }
 
     private _returnResultsFromKeys(sortedKeys: string[], reverse?: boolean, limit?: number, offset?: number) {
@@ -181,5 +184,19 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
 
         let results = _.map(sortedKeys, key => this._data[key]);
         return SyncTasks.Resolved(_.flatten(results));
+    }
+
+    countAll(): SyncTasks.Promise<number> {
+        return SyncTasks.Resolved(_.keys(this._data).length);
+    }
+
+    countOnly(key: any|any[]): SyncTasks.Promise<number> {
+        return this.countRange(key, key, false, false);
+    }
+
+    countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+            : SyncTasks.Promise<number> {
+        const keys = this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        return SyncTasks.Resolved(keys.length);
     }
 }

@@ -81,13 +81,13 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             }
         }
 
-        var dbOpen = this._dbFactory.open(dbName, schema.version);
+        const dbOpen = this._dbFactory.open(dbName, schema.version);
 
         let migrationPutters: SyncTasks.Promise<void>[] = [];
 
         dbOpen.onupgradeneeded = (event) => {
-            var db: IDBDatabase = dbOpen.result;
-            var target = <IDBOpenDBRequest>(event.currentTarget || event.target);
+            const db: IDBDatabase = dbOpen.result;
+            const target = <IDBOpenDBRequest>(event.currentTarget || event.target);
 
             if (schema.lastUsableVersion && event.oldVersion < schema.lastUsableVersion) {
                 // Clear all stores if it's past the usable version
@@ -109,7 +109,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                 let store: IDBObjectStore = null;
                 let migrateData = false;
                 if (!_.includes(db.objectStoreNames, storeSchema.name)) {
-                    var primaryKeyPath = storeSchema.primaryKeyPath;
+                    let primaryKeyPath = storeSchema.primaryKeyPath;
                     if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(primaryKeyPath)) {
                         // Going to have to hack the compound primary key index into a column, so here it is.
                         primaryKeyPath = 'nsp_pk';
@@ -123,10 +123,10 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
                     // Check for any indexes no longer in the schema or have been changed
                     _.each(store.indexNames, indexName => {
-                        var index = store.index(indexName);
+                        const index = store.index(indexName);
 
-                        var nuke = false;
-                        var indexSchema = _.find(storeSchema.indexes, idx => idx.name === indexName);
+                        let nuke = false;
+                        const indexSchema = _.find(storeSchema.indexes, idx => idx.name === indexName);
                         if (!_.isObject(indexSchema)) {
                             nuke = true;
                         } else if (typeof index.keyPath !== typeof indexSchema.keyPath) {
@@ -139,7 +139,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                             // Keypath length doesn't match, don't bother doing a comparison of each element
                             nuke = true;
                         } else {
-                            for (var i = 0; i < index.keyPath.length; i++) {
+                            for (let i = 0; i < index.keyPath.length; i++) {
                                 if (index.keyPath[i] !== indexSchema.keyPath[i]) {
                                     nuke = true;
                                     break;
@@ -156,7 +156,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                 // Check any indexes in the schema that need to be created
                 _.each(storeSchema.indexes, indexSchema => {
                     if (!_.includes(store.indexNames, indexSchema.name)) {
-                        var keyPath = indexSchema.keyPath;
+                        const keyPath = indexSchema.keyPath;
                         if (this._fakeComplicatedKeys) {
                             if (indexSchema.multiEntry) {
                                 if (NoSqlProviderUtils.isCompoundKeyPath(keyPath)) {
@@ -169,7 +169,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
                                     if (migrateData) {
                                         // Walk every element in the store and re-put it to fill out the new index.
-                                        var cursorReq = store.openCursor();
+                                        const cursorReq = store.openCursor();
                                         let thisIndexPutters: SyncTasks.Promise<void>[] = [];
                                         migrationPutters.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
                                             let item = cursor.value;
@@ -184,7 +184,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
                                             // After nuking the existing entries, add the new ones
                                             _.each(vals, val => {
-                                                var indexObj = {
+                                                const indexObj = {
                                                     key: val,
                                                     refkey: refKey
                                                 };
@@ -214,7 +214,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             });
         };
 
-        var promise = IndexedDbProvider.WrapRequest<IDBDatabase>(dbOpen);
+        const promise = IndexedDbProvider.WrapRequest<IDBDatabase>(dbOpen);
 
         return promise.then(db => {
             return SyncTasks.all(migrationPutters).then(() => {
@@ -265,8 +265,8 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         }
 
         try {
-            let trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
-            var ourTrans = new IndexedDbTransaction(trans, this._schema, intStoreNames, this._fakeComplicatedKeys);
+            const trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
+            const ourTrans = new IndexedDbTransaction(trans, this._schema, intStoreNames, this._fakeComplicatedKeys);
             return SyncTasks.Resolved<NoSqlProvider.DbTransaction>(ourTrans);
         } catch (e) {
             return SyncTasks.Rejected(e);
@@ -290,13 +290,13 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
     }
 
     getStore(storeName: string): NoSqlProvider.DbStore {
-        var store = _.find(this._stores, s => s.name === storeName);
-        var storeSchema = _.find(this._schema.stores, s => s.name === storeName);
+        const store = _.find(this._stores, s => s.name === storeName);
+        const storeSchema = _.find(this._schema.stores, s => s.name === storeName);
         if (store === void 0 || storeSchema === void 0) {
             return null;
         }
 
-        var indexStores: IDBObjectStore[] = [];
+        const indexStores: IDBObjectStore[] = [];
         if (this._fakeComplicatedKeys && storeSchema.indexes) {
             // Pull the alternate multientry stores in as well
             _.each(storeSchema.indexes, indexSchema => {
@@ -381,14 +381,14 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                         }
 
                         // First clear out the old values from the index store for the refkey
-                        var cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey));
+                        const cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey));
                         promises.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
                             cursor['delete']();
                         })
                             .then(() => {
                                 // After nuking the existing entries, add the new ones
                                 let iputters = _.map(keys, key => {
-                                    var indexObj = {
+                                    const indexObj = {
                                         key: key,
                                         refkey: refKey
                                     };
@@ -416,7 +416,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
     }
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
-        var keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
+        let keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
 
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._schema.primaryKeyPath)) {
             keys = _.map(keys, key => NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath));
@@ -434,7 +434,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                             let refKey = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
 
                             // First clear out the old values from the index store for the refkey
-                            var cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey));
+                            const cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey));
                             return IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
                                 cursor['delete']();
                             });
@@ -509,7 +509,7 @@ class IndexedDbIndex implements NoSqlProvider.DbIndex {
             // Get based on the keys from the index store, which have refkeys that point back to the original store
             return IndexedDbIndex.getFromCursorRequest<{ key: string, refkey: any }>(req, limit, offset).then(rets => {
                 // Now get the original items using the refkeys from the index store, which are PKs on the main store
-                var getters = _.map(rets, ret => IndexedDbProvider.WrapRequest<T>(this._fakedOriginalStore.get(ret.refkey)));
+                const getters = _.map(rets, ret => IndexedDbProvider.WrapRequest<T>(this._fakedOriginalStore.get(ret.refkey)));
                 return SyncTasks.all(getters);
             });
         } else {
@@ -518,35 +518,58 @@ class IndexedDbIndex implements NoSqlProvider.DbIndex {
     }
 
     getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        var req = this._store.openCursor(null, reverse ? 'prev' : 'next');
+        const req = this._store.openCursor(null, reverse ? 'prev' : 'next');
         return this._resolveCursorResult<T>(req, limit, offset);
     }
 
     getOnly<T>(key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
-            key = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
-        }
-
-        var req = this._store.openCursor(IDBKeyRange.only(key), reverse ? 'prev' : 'next');
-
+        const req = this._store.openCursor(this._getKeyRangeForOnly(key), reverse ? 'prev' : 'next');
         return this._resolveCursorResult<T>(req, limit, offset);
+    }
+
+    private _getKeyRangeForOnly(key: any|any[]): IDBKeyRange {
+        if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
+            return IDBKeyRange.only(NoSqlProviderUtils.serializeKeyToString(key, this._keyPath));
+        }
+        return IDBKeyRange.only(key);
     }
 
     getRange<T>(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
         reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
-            // IE has to switch to hacky pre-joined-compound-keys
-            keyLowRange = NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath);
-            keyHighRange = NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath);
-        }
-
-        var req = this._store.openCursor(IDBKeyRange.bound(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive),
+        const req = this._store.openCursor(this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive),
             reverse ? 'prev' : 'next');
         return this._resolveCursorResult<T>(req, limit, offset);
     }
 
+    private _getKeyRangeForRange(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+            : IDBKeyRange {
+        if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
+            // IE has to switch to hacky pre-joined-compound-keys
+            return IDBKeyRange.bound(NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath),
+                NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath),
+                lowRangeExclusive, highRangeExclusive)
+        }
+        return IDBKeyRange.bound(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+    }
+
+    countAll(): SyncTasks.Promise<number> {
+        const req = this._store.count(null);
+        return this._countRequest(req);
+    }
+
+    countOnly(key: any|any[]): SyncTasks.Promise<number> {
+        const req = this._store.count(this._getKeyRangeForOnly(key));
+        return this._countRequest(req);
+    }
+
+    countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+            : SyncTasks.Promise<number> {
+        const req = this._store.count(this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive));
+        return this._countRequest(req);
+    }
+
     static getFromCursorRequest<T>(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        var outList: any[] = [];
+        let outList: any[] = [];
         return this.iterateOverCursorRequest(req, cursor => {
             outList.push(cursor.value);
         }, limit, offset).then(() => {
@@ -554,12 +577,25 @@ class IndexedDbIndex implements NoSqlProvider.DbIndex {
         });
     }
 
+    private _countRequest(req: IDBRequest): SyncTasks.Promise<number> {
+        const deferred = SyncTasks.Defer<number>();
+
+        req.onsuccess = (event) => {
+            deferred.resolve((<IDBRequest>event.target).result as number);
+        };
+        req.onerror = (ev) => {
+            deferred.reject(ev);
+        };
+
+        return deferred.promise();
+    }
+
     static iterateOverCursorRequest(req: IDBRequest, func: (IDBCursor) => void, limit?: number, offset?: number): SyncTasks.Promise<void> {
         const deferred = SyncTasks.Defer<void>();
 
-        var count = 0;
+        let count = 0;
         req.onsuccess = (event) => {
-            var cursor: IDBCursor = (<IDBRequest>event.target).result;
+            const cursor: IDBCursor = (<IDBRequest>event.target).result;
             if (cursor) {
                 if (offset) {
                     cursor.advance(offset);

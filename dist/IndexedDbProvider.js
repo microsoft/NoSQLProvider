@@ -464,20 +464,39 @@ var IndexedDbIndex = (function () {
         return this._resolveCursorResult(req, limit, offset);
     };
     IndexedDbIndex.prototype.getOnly = function (key, reverse, limit, offset) {
-        if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
-            key = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
-        }
+        var finalKey = this._getKeyForOnly(key);
         var req = this._store.openCursor(IDBKeyRange.only(key), reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     };
+    IndexedDbIndex.prototype._getKeyForOnly = function (key) {
+        if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
+            return NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+        }
+        return key;
+    };
     IndexedDbIndex.prototype.getRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset) {
+        var req = this._store.openCursor(this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive), reverse ? 'prev' : 'next');
+        return this._resolveCursorResult(req, limit, offset);
+    };
+    IndexedDbIndex.prototype._getKeyRangeForRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
             // IE has to switch to hacky pre-joined-compound-keys
-            keyLowRange = NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath);
-            keyHighRange = NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath);
+            return IDBKeyRange.bound(NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath), NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath), lowRangeExclusive, highRangeExclusive);
         }
-        var req = this._store.openCursor(IDBKeyRange.bound(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive), reverse ? 'prev' : 'next');
-        return this._resolveCursorResult(req, limit, offset);
+        return IDBKeyRange.bound(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+    };
+    IndexedDbIndex.prototype.countAll = function () {
+        var req = this._store.count(null);
+        return this._countRequest(req);
+    };
+    IndexedDbIndex.prototype.countOnly = function (key) {
+        var finalKey = this._getKeyForOnly(key);
+        var req = this._store.count(IDBKeyRange.only(key));
+        return this._countRequest(req);
+    };
+    IndexedDbIndex.prototype.countRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
+        var req = this._store.count(this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive));
+        return this._countRequest(req);
     };
     IndexedDbIndex.getFromCursorRequest = function (req, limit, offset) {
         var outList = [];
@@ -486,6 +505,16 @@ var IndexedDbIndex = (function () {
         }, limit, offset).then(function () {
             return outList;
         });
+    };
+    IndexedDbIndex.prototype._countRequest = function (req) {
+        var deferred = SyncTasks.Defer();
+        req.onsuccess = function (event) {
+            deferred.resolve(event.target.result);
+        };
+        req.onerror = function (ev) {
+            deferred.reject(ev);
+        };
+        return deferred.promise();
     };
     IndexedDbIndex.iterateOverCursorRequest = function (req, func, limit, offset) {
         var deferred = SyncTasks.Defer();

@@ -42,6 +42,10 @@ export interface DbIndex {
     getOnly<T>(key: any|any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
     getRange<T>(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
         reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
+    countAll(): SyncTasks.Promise<number>;
+    countOnly(key: any|any[]): SyncTasks.Promise<number>;
+    countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+        : SyncTasks.Promise<number>;
 }
 
 // Interface type describing a database store opened for accessing.  Get commands at this level work against the primary keypath
@@ -182,6 +186,49 @@ export abstract class DbProvider {
                 return SyncTasks.Rejected<T[]>('Index "' + indexName + '" not found');
             }
             return index.getRange<T>(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset);
+        });
+    }
+
+    countAll(storeName: string, indexName?: string): SyncTasks.Promise<number> {
+        return this.openTransaction(storeName, false).then(trans => {
+            const store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
+            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected('Index "' + indexName + '" not found');
+            }
+            return index.countAll();
+        });
+    }
+
+    countOnly(storeName: string, indexName: string, key: any|any[]): SyncTasks.Promise<number> {
+        return this.openTransaction(storeName, false).then(trans => {
+            const store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
+            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected('Index "' + indexName + '" not found');
+            }
+            return index.countOnly(key);
+        });
+    }
+
+    countRange(storeName: string, indexName: string, keyLowRange: any|any[], keyHighRange: any|any[],
+        lowRangeExclusive?: boolean, highRangeExclusive?: boolean): SyncTasks.Promise<number> {
+        return this.openTransaction(storeName, false).then(trans => {
+            var store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
+            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected('Index "' + indexName + '" not found');
+            }
+            return index.countRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
     }
 }

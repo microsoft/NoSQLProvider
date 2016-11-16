@@ -104,6 +104,10 @@ describe('NoSqlProvider', function () {
                             [1, 2, 3, 4, 5].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
+                        let t1count = prov.countAll('test', indexName).then(ret => {
+                            assert.equal(ret, 5, 'countAll');
+                        });
+
                         let t1b = prov.getAll<any>('test', indexName, false, 3).then(ret => {
                             assert.equal(ret.length, 3, 'getAll lim3');
                             [1, 2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
@@ -119,9 +123,17 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret[0].val, 'val3');
                         });
 
+                        let t2count = prov.countOnly('test', indexName, formIndex(3)).then(ret => {
+                            assert.equal(ret, 1, 'countOnly');
+                        });
+
                         let t3 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4)).then(ret => {
                             assert.equal(ret.length, 3, 'getRange++');
                             [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                        });
+
+                        let t3count = prov.countRange('test', indexName, formIndex(2), formIndex(4)).then(ret => {
+                            assert.equal(ret, 3, 'countRange++');
                         });
 
                         let t3b = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 1).then(ret => {
@@ -155,9 +167,17 @@ describe('NoSqlProvider', function () {
                             [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
 
+                        let t4count = prov.countRange('test', indexName, formIndex(2), formIndex(4), true, false).then(ret => {
+                            assert.equal(ret, 2, 'countRange-+');
+                        });
+
                         let t5 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, true).then(ret => {
                             assert.equal(ret.length, 2, 'getRange+-');
                             [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                        });
+
+                        let t5count = prov.countRange('test', indexName, formIndex(2), formIndex(4), false, true).then(ret => {
+                            assert.equal(ret, 2, 'countRange+-');
                         });
 
                         let t6 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), true, true).then(ret => {
@@ -165,12 +185,21 @@ describe('NoSqlProvider', function () {
                             [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
 
-                        return SyncTasks.all([t1, t1b, t1c, t2, t3, t3b, t3b2, t3c, t3d, t3d2, t4, t5, t6]).then(() => {
+                        let t6count = prov.countRange('test', indexName, formIndex(2), formIndex(4), true, true).then(ret => {
+                            assert.equal(ret, 1, 'countRange--');
+                        });
+
+                        return SyncTasks.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3c, t3d, t3d2, t4, t4count, t5, t5count, t6, t6count]).then(() => {
                             if (compound) {
                                 let tt1 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3))
                                     .then(ret => {
                                         assert.equal(ret.length, 2, 'getRange2++');
                                         [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                    });
+
+                                let tt1count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
+                                    .then(ret => {
+                                        assert.equal(ret, 2, 'countRange2++');
                                     });
 
                                 let tt2 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
@@ -179,13 +208,23 @@ describe('NoSqlProvider', function () {
                                         [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
 
+                                let tt2count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
+                                    .then(ret => {
+                                        assert.equal(ret, 2, 'countRange2+-');
+                                    });
+
                                 let tt3 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
                                     .then(ret => {
                                         assert.equal(ret.length, 1, 'getRange2-+');
                                         [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
 
-                                return SyncTasks.all([tt1, tt2, tt3]).then(() => {
+                                let tt3count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
+                                    .then(ret => {
+                                        assert.equal(ret, 1, 'countRange2-+');
+                                    });
+
+                                return SyncTasks.all([tt1, tt1count, tt2, tt2count, tt3, tt3count]).then(() => {
                                     return prov.close();
                                 });
                             } else {

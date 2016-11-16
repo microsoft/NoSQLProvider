@@ -111,6 +111,45 @@ var DbProvider = (function () {
             return index.getRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset);
         });
     };
+    DbProvider.prototype.countAll = function (storeName, indexName) {
+        return this.openTransaction(storeName, false).then(function (trans) {
+            var store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
+            var index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected('Index "' + indexName + '" not found');
+            }
+            return index.countAll();
+        });
+    };
+    DbProvider.prototype.countOnly = function (storeName, indexName, key) {
+        return this.openTransaction(storeName, false).then(function (trans) {
+            var store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
+            var index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected('Index "' + indexName + '" not found');
+            }
+            return index.countOnly(key);
+        });
+    };
+    DbProvider.prototype.countRange = function (storeName, indexName, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
+        return this.openTransaction(storeName, false).then(function (trans) {
+            var store = trans.getStore(storeName);
+            if (!store) {
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
+            }
+            var index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            if (!index) {
+                return SyncTasks.Rejected('Index "' + indexName + '" not found');
+            }
+            return index.countRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        });
+    };
     return DbProvider;
 }());
 exports.DbProvider = DbProvider;

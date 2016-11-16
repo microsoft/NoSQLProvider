@@ -30,6 +30,9 @@ export interface DbIndex {
     getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
     getOnly<T>(key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
     getRange<T>(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
+    countAll(): SyncTasks.Promise<number>;
+    countOnly(key: any | any[]): SyncTasks.Promise<number>;
+    countRange(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean): SyncTasks.Promise<number>;
 }
 export interface DbStore {
     get<T>(key: any | any[]): SyncTasks.Promise<T>;
@@ -57,5 +60,8 @@ export declare abstract class DbProvider {
     getAll<T>(storeName: string, indexName?: string, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
     getOnly<T>(storeName: string, indexName: string, key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
     getRange<T>(storeName: string, indexName: string, keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
+    countAll(storeName: string, indexName?: string): SyncTasks.Promise<number>;
+    countOnly(storeName: string, indexName: string, key: any | any[]): SyncTasks.Promise<number>;
+    countRange(storeName: string, indexName: string, keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean): SyncTasks.Promise<number>;
 }
 export declare function openListOfProviders(providersToTry: DbProvider[], dbName: string, schema: DbSchema, wipeIfExists?: boolean, verbose?: boolean): SyncTasks.Promise<DbProvider>;
