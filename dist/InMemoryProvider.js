@@ -141,12 +141,15 @@ var InMemoryIndex = (function () {
         return this.getRange(key, key, false, false, reverse, limit, offset);
     };
     InMemoryIndex.prototype.getRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset) {
+        var sortedKeys = this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).sort();
+        return this._returnResultsFromKeys(sortedKeys, reverse, limit, offset);
+    };
+    InMemoryIndex.prototype._getKeysForRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
         var keyLow = NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath);
         var keyHigh = NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath);
-        var sortedKeys = _.filter(_.keys(this._data), function (key) {
+        return _.filter(_.keys(this._data), function (key) {
             return (key > keyLow || (key === keyLow && !lowRangeExclusive)) && (key < keyHigh || (key === keyHigh && !highRangeExclusive));
-        }).sort();
-        return this._returnResultsFromKeys(sortedKeys, reverse, limit, offset);
+        });
     };
     InMemoryIndex.prototype._returnResultsFromKeys = function (sortedKeys, reverse, limit, offset) {
         var _this = this;
@@ -161,6 +164,16 @@ var InMemoryIndex = (function () {
         }
         var results = _.map(sortedKeys, function (key) { return _this._data[key]; });
         return SyncTasks.Resolved(_.flatten(results));
+    };
+    InMemoryIndex.prototype.countAll = function () {
+        return SyncTasks.Resolved(_.keys(this._data).length);
+    };
+    InMemoryIndex.prototype.countOnly = function (key) {
+        return this.countRange(key, key, false, false);
+    };
+    InMemoryIndex.prototype.countRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
+        var keys = this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        return SyncTasks.Resolved(keys.length);
     };
     return InMemoryIndex;
 }());

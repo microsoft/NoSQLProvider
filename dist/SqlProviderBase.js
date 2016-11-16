@@ -507,6 +507,10 @@ var SqlStoreIndex = (function () {
         return this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?', [joinedKey], reverse, limit, offset);
     };
     SqlStoreIndex.prototype.getRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset) {
+        var _a = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive), checks = _a.checks, args = _a.args;
+        return this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '), args, reverse, limit, offset);
+    };
+    SqlStoreIndex.prototype._getRangeChecks = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
         var checks = [];
         var args = [];
         if (keyLowRange !== null && keyLowRange !== void 0) {
@@ -517,7 +521,19 @@ var SqlStoreIndex = (function () {
             checks.push(this._queryColumn + (highRangeExclusive ? ' < ' : ' <= ') + '?');
             args.push(NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath));
         }
-        return this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '), args, reverse, limit, offset);
+        return { checks: checks, args: args };
+    };
+    SqlStoreIndex.prototype.countAll = function () {
+        return this._trans.getResultFromQuery('SELECT COUNT(*) cnt FROM ' + this._tableName).then(function (result) { return result['cnt']; });
+    };
+    SqlStoreIndex.prototype.countOnly = function (key) {
+        var joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+        return this._trans.getResultFromQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn
+            + ' = ?', [joinedKey]).then(function (result) { return result['cnt']; });
+    };
+    SqlStoreIndex.prototype.countRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
+        var _a = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive), checks = _a.checks, args = _a.args;
+        return this._trans.getResultFromQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '), args).then(function (result) { return result['cnt']; });
     };
     return SqlStoreIndex;
 }());
