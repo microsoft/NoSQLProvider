@@ -103,72 +103,60 @@ export abstract class DbProvider {
         });
     }
 
-    // Shortcut functions
-    get<T>(storeName: string, key: any|any[]): SyncTasks.Promise<T> {
-        return this.openTransaction(storeName, false).then(trans => {
+    private _getStoreTransaction(storeName: string, readWrite: boolean): SyncTasks.Promise<DbStore> {
+        return this.openTransaction(storeName, readWrite).then(trans => {
             const store = trans.getStore(storeName);
             if (!store) {
-                return SyncTasks.Rejected<T>('Store "' + storeName + '" not found');
+                return SyncTasks.Rejected('Store "' + storeName + '" not found');
             }
+            return store;
+        });
+    }
+
+    // Shortcut functions
+    get<T>(storeName: string, key: any|any[]): SyncTasks.Promise<T> {
+        return this._getStoreTransaction(storeName, false).then(store => {
             return store.get<T>(key);
         });
     }
 
     getMultiple<T>(storeName: string, keyOrKeys: any|any[]): SyncTasks.Promise<T[]> {
-        return this.openTransaction(storeName, false).then(trans => {
-            const store = trans.getStore(storeName);
-            if (!store) {
-                return SyncTasks.Rejected<T[]>('Store "' + storeName + '" not found');
-            }
+        return this._getStoreTransaction(storeName, false).then(store => {
             return store.getMultiple<T>(keyOrKeys);
         });
     }
 
     put(storeName: string, itemOrItems: any|any[]): SyncTasks.Promise<void> {
-        return this.openTransaction(storeName, true).then(trans => {
-            const store = trans.getStore(storeName);
-            if (!store) {
-                return SyncTasks.Rejected<void>('Store "' + storeName + '" not found');
-            }
+        return this._getStoreTransaction(storeName, true).then(store => {
             return store.put(itemOrItems);
         });
     }
 
     remove(storeName: string, keyOrKeys: any|any[]): SyncTasks.Promise<void> {
-        return this.openTransaction(storeName, true).then(trans => {
-            const store = trans.getStore(storeName);
-            if (!store) {
-                return SyncTasks.Rejected<void>('Store "' + storeName + '" not found');
-            }
+        return this._getStoreTransaction(storeName, true).then(store => {
             return store.remove(keyOrKeys);
         });
     }
 
-    getAll<T>(storeName: string, indexName?: string, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        return this.openTransaction(storeName, false).then(trans => {
-            const store = trans.getStore(storeName);
-            if (!store) {
-                return SyncTasks.Rejected<T[]>('Store "' + storeName + '" not found');
-            }
+    private _getStoreIndexTransaction(storeName: string, readWrite: boolean, indexName: string): SyncTasks.Promise<DbIndex> {
+        return this._getStoreTransaction(storeName, readWrite).then(store => {
             const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
             if (!index) {
-                return SyncTasks.Rejected<T[]>('Index "' + indexName + '" not found');
+                return SyncTasks.Rejected('Index "' + indexName + '" not found');
             }
+            return index;
+        });
+    }
+
+    getAll<T>(storeName: string, indexName?: string, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+        return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.getAll<T>(reverse, limit, offset);
         });
     }
 
     getOnly<T>(storeName: string, indexName: string, key: any|any[], reverse?: boolean, limit?: number, offset?: number)
             : SyncTasks.Promise<T[]> {
-        return this.openTransaction(storeName, false).then(trans => {
-            const store = trans.getStore(storeName);
-            if (!store) {
-                return SyncTasks.Rejected<T[]>('Store "' + storeName + '" not found');
-            }
-            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
-            if (!index) {
-                return SyncTasks.Rejected<T[]>('Index "' + indexName + '" not found');
-            }
+        return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.getOnly<T>(key, reverse, limit, offset);
         });
     }
@@ -176,58 +164,26 @@ export abstract class DbProvider {
     getRange<T>(storeName: string, indexName: string, keyLowRange: any|any[], keyHighRange: any|any[],
         lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverse?: boolean, limit?: number, offset?: number)
             : SyncTasks.Promise<T[]> {
-        return this.openTransaction(storeName, false).then(trans => {
-            var store = trans.getStore(storeName);
-            if (!store) {
-                return SyncTasks.Rejected<T[]>('Store "' + storeName + '" not found');
-            }
-            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
-            if (!index) {
-                return SyncTasks.Rejected<T[]>('Index "' + indexName + '" not found');
-            }
+        return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.getRange<T>(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset);
         });
     }
 
     countAll(storeName: string, indexName?: string): SyncTasks.Promise<number> {
-        return this.openTransaction(storeName, false).then(trans => {
-            const store = trans.getStore(storeName);
-            if (!store) {
-                return SyncTasks.Rejected('Store "' + storeName + '" not found');
-            }
-            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
-            if (!index) {
-                return SyncTasks.Rejected('Index "' + indexName + '" not found');
-            }
+        return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.countAll();
         });
     }
 
     countOnly(storeName: string, indexName: string, key: any|any[]): SyncTasks.Promise<number> {
-        return this.openTransaction(storeName, false).then(trans => {
-            const store = trans.getStore(storeName);
-            if (!store) {
-                return SyncTasks.Rejected('Store "' + storeName + '" not found');
-            }
-            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
-            if (!index) {
-                return SyncTasks.Rejected('Index "' + indexName + '" not found');
-            }
+        return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.countOnly(key);
         });
     }
 
     countRange(storeName: string, indexName: string, keyLowRange: any|any[], keyHighRange: any|any[],
-        lowRangeExclusive?: boolean, highRangeExclusive?: boolean): SyncTasks.Promise<number> {
-        return this.openTransaction(storeName, false).then(trans => {
-            var store = trans.getStore(storeName);
-            if (!store) {
-                return SyncTasks.Rejected('Store "' + storeName + '" not found');
-            }
-            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
-            if (!index) {
-                return SyncTasks.Rejected('Index "' + indexName + '" not found');
-            }
+            lowRangeExclusive?: boolean, highRangeExclusive?: boolean): SyncTasks.Promise<number> {
+        return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.countRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
     }
