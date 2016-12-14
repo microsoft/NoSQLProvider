@@ -124,7 +124,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 // Go over each index and see if we need to create an index or a table for a multiEntry index
                                 if (index.multiEntry) {
                                     if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
-                                        throw 'Can\'t use multiEntry and compound keys';
+                                        throw new Error('Can\'t use multiEntry and compound keys');
                                     } else {
                                         return trans.runQuery('CREATE TABLE ' + storeSchema.name + '_' + index.name +
                                             ' (nsp_key TEXT, nsp_refrowid INTEGER)').then(() => {

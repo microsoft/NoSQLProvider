@@ -94,6 +94,9 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret.length, 5, 'getAll');
                             [1, 2, 3, 4, 5].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; }), 'cant find ' + v); });
                         });
+                        var t1count = prov.countAll('test', indexName).then(function (ret) {
+                            assert.equal(ret, 5, 'countAll');
+                        });
                         var t1b = prov.getAll('test', indexName, false, 3).then(function (ret) {
                             assert.equal(ret.length, 3, 'getAll lim3');
                             [1, 2, 3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; }), 'cant find ' + v); });
@@ -106,9 +109,15 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret.length, 1, 'getOnly');
                             assert.equal(ret[0].val, 'val3');
                         });
+                        var t2count = prov.countOnly('test', indexName, formIndex(3)).then(function (ret) {
+                            assert.equal(ret, 1, 'countOnly');
+                        });
                         var t3 = prov.getRange('test', indexName, formIndex(2), formIndex(4)).then(function (ret) {
                             assert.equal(ret.length, 3, 'getRange++');
                             [2, 3, 4].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
+                        });
+                        var t3count = prov.countRange('test', indexName, formIndex(2), formIndex(4)).then(function (ret) {
+                            assert.equal(ret, 3, 'countRange++');
                         });
                         var t3b = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1).then(function (ret) {
                             assert.equal(ret.length, 1, 'getRange++ lim1');
@@ -135,32 +144,53 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret.length, 2, 'getRange-+');
                             [3, 4].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                         });
+                        var t4count = prov.countRange('test', indexName, formIndex(2), formIndex(4), true, false).then(function (ret) {
+                            assert.equal(ret, 2, 'countRange-+');
+                        });
                         var t5 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, true).then(function (ret) {
                             assert.equal(ret.length, 2, 'getRange+-');
                             [2, 3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
+                        });
+                        var t5count = prov.countRange('test', indexName, formIndex(2), formIndex(4), false, true).then(function (ret) {
+                            assert.equal(ret, 2, 'countRange+-');
                         });
                         var t6 = prov.getRange('test', indexName, formIndex(2), formIndex(4), true, true).then(function (ret) {
                             assert.equal(ret.length, 1, 'getRange--');
                             [3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                         });
-                        return SyncTasks.all([t1, t1b, t1c, t2, t3, t3b, t3b2, t3c, t3d, t3d2, t4, t5, t6]).then(function () {
+                        var t6count = prov.countRange('test', indexName, formIndex(2), formIndex(4), true, true).then(function (ret) {
+                            assert.equal(ret, 1, 'countRange--');
+                        });
+                        return SyncTasks.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3c, t3d, t3d2, t4, t4count, t5, t5count, t6, t6count]).then(function () {
                             if (compound) {
                                 var tt1 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
                                     .then(function (ret) {
                                     assert.equal(ret.length, 2, 'getRange2++');
                                     [2, 3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                                 });
+                                var tt1count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
+                                    .then(function (ret) {
+                                    assert.equal(ret, 2, 'countRange2++');
+                                });
                                 var tt2 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
                                     .then(function (ret) {
                                     assert.equal(ret.length, 2, 'getRange2+-');
                                     [2, 3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
+                                });
+                                var tt2count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
+                                    .then(function (ret) {
+                                    assert.equal(ret, 2, 'countRange2+-');
                                 });
                                 var tt3 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
                                     .then(function (ret) {
                                     assert.equal(ret.length, 1, 'getRange2-+');
                                     [3].forEach(function (v) { assert(_.find(ret, function (r) { return r.val === 'val' + v; })); });
                                 });
-                                return SyncTasks.all([tt1, tt2, tt3]).then(function () {
+                                var tt3count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
+                                    .then(function (ret) {
+                                    assert.equal(ret, 1, 'countRange2-+');
+                                });
+                                return SyncTasks.all([tt1, tt1count, tt2, tt2count, tt3, tt3count]).then(function () {
                                     return prov.close();
                                 });
                             }
