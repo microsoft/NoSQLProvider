@@ -55,7 +55,7 @@ exports.isCompoundKeyPath = isCompoundKeyPath;
 function formListOfKeys(keyOrKeys, keyPath) {
     if (isCompoundKeyPath(keyPath)) {
         if (!isArray(keyOrKeys)) {
-            throw 'Compound keypath requires compound keys';
+            throw new Error('Compound keypath requires compound keys');
         }
         if (!isArray(keyOrKeys[0])) {
             // Looks like a single compound key, so make it a list of a single key
@@ -79,7 +79,7 @@ function serializeValueToOrderableString(val) {
         return 'C' + val;
     }
     var type = _.isObject(val) ? Object.getPrototypeOf(val).constructor : typeof val;
-    throw 'Type \'' + type + '\' unsupported at this time.  Only numbers, Dates, and strings are currently supported.';
+    throw new Error('Type \'' + type + '\' unsupported at this time.  Only numbers, Dates, and strings are currently supported.');
 }
 exports.serializeValueToOrderableString = serializeValueToOrderableString;
 var zeroes = '0000000000000000';
@@ -116,12 +116,12 @@ function serializeKeyToString(key, keyPath) {
             return _.map(key, function (k) { return serializeValueToOrderableString(k); }).join(keypathJoinerString);
         }
         else {
-            throw 'Compound keypath requires compound key';
+            throw new Error('Compound keypath requires compound key');
         }
     }
     else {
         if (isArray(key)) {
-            throw 'Non-compound keypath requires non-compound key';
+            throw new Error('Non-compound keypath requires non-compound key');
         }
         else {
             return serializeValueToOrderableString(key);

@@ -53,10 +53,12 @@ export declare abstract class DbProvider {
     abstract close(): SyncTasks.Promise<void>;
     abstract openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<DbTransaction>;
     clearAllData(): SyncTasks.Promise<void>;
+    private _getStoreTransaction(storeName, readWrite);
     get<T>(storeName: string, key: any | any[]): SyncTasks.Promise<T>;
     getMultiple<T>(storeName: string, keyOrKeys: any | any[]): SyncTasks.Promise<T[]>;
     put(storeName: string, itemOrItems: any | any[]): SyncTasks.Promise<void>;
     remove(storeName: string, keyOrKeys: any | any[]): SyncTasks.Promise<void>;
+    private _getStoreIndexTransaction(storeName, readWrite, indexName);
     getAll<T>(storeName: string, indexName?: string, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
     getOnly<T>(storeName: string, indexName: string, key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
     getRange<T>(storeName: string, indexName: string, keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;

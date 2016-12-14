@@ -146,7 +146,7 @@ var IndexedDbProvider = (function (_super) {
                         if (_this._fakeComplicatedKeys) {
                             if (indexSchema.multiEntry) {
                                 if (NoSqlProviderUtils.isCompoundKeyPath(keyPath)) {
-                                    throw 'Can\'t use multiEntry and compound keys';
+                                    throw new Error('Can\'t use multiEntry and compound keys');
                                 }
                                 else {
                                     // Create an object store for the index
@@ -464,15 +464,14 @@ var IndexedDbIndex = (function () {
         return this._resolveCursorResult(req, limit, offset);
     };
     IndexedDbIndex.prototype.getOnly = function (key, reverse, limit, offset) {
-        var finalKey = this._getKeyForOnly(key);
-        var req = this._store.openCursor(IDBKeyRange.only(key), reverse ? 'prev' : 'next');
+        var req = this._store.openCursor(this._getKeyRangeForOnly(key), reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     };
-    IndexedDbIndex.prototype._getKeyForOnly = function (key) {
+    IndexedDbIndex.prototype._getKeyRangeForOnly = function (key) {
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
-            return NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+            return IDBKeyRange.only(NoSqlProviderUtils.serializeKeyToString(key, this._keyPath));
         }
-        return key;
+        return IDBKeyRange.only(key);
     };
     IndexedDbIndex.prototype.getRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset) {
         var req = this._store.openCursor(this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive), reverse ? 'prev' : 'next');
@@ -490,8 +489,7 @@ var IndexedDbIndex = (function () {
         return this._countRequest(req);
     };
     IndexedDbIndex.prototype.countOnly = function (key) {
-        var finalKey = this._getKeyForOnly(key);
-        var req = this._store.count(IDBKeyRange.only(key));
+        var req = this._store.count(this._getKeyRangeForOnly(key));
         return this._countRequest(req);
     };
     IndexedDbIndex.prototype.countRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {

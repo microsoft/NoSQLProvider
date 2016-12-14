@@ -160,7 +160,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                         if (this._fakeComplicatedKeys) {
                             if (indexSchema.multiEntry) {
                                 if (NoSqlProviderUtils.isCompoundKeyPath(keyPath)) {
-                                    throw 'Can\'t use multiEntry and compound keys';
+                                    throw new Error('Can\'t use multiEntry and compound keys');
                                 } else {
                                     // Create an object store for the index
                                     let indexStore = db.createObjectStore(storeSchema.name + '_' + indexSchema.name, { keyPath: 'key' });

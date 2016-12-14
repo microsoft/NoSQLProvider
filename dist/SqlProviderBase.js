@@ -123,7 +123,7 @@ var SqlProviderBase = (function (_super) {
                             // Go over each index and see if we need to create an index or a table for a multiEntry index
                             if (index.multiEntry) {
                                 if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
-                                    throw 'Can\'t use multiEntry and compound keys';
+                                    throw new Error('Can\'t use multiEntry and compound keys');
                                 }
                                 else {
                                     return trans.runQuery('CREATE TABLE ' + storeSchema.name + '_' + index.name +
@@ -524,16 +524,16 @@ var SqlStoreIndex = (function () {
         return { checks: checks, args: args };
     };
     SqlStoreIndex.prototype.countAll = function () {
-        return this._trans.getResultFromQuery('SELECT COUNT(*) cnt FROM ' + this._tableName).then(function (result) { return result['cnt']; });
+        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName).then(function (result) { return result[0]['cnt']; });
     };
     SqlStoreIndex.prototype.countOnly = function (key) {
         var joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
-        return this._trans.getResultFromQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn
-            + ' = ?', [joinedKey]).then(function (result) { return result['cnt']; });
+        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn
+            + ' = ?', [joinedKey]).then(function (result) { return result[0]['cnt']; });
     };
     SqlStoreIndex.prototype.countRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
         var _a = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive), checks = _a.checks, args = _a.args;
-        return this._trans.getResultFromQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '), args).then(function (result) { return result['cnt']; });
+        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '), args).then(function (result) { return result[0]['cnt']; });
     };
     return SqlStoreIndex;
 }());
