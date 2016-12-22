@@ -12,102 +12,169 @@ import SyncTasks = require('synctasks');
 import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
+export type StoreData = { data: { [pk: string]: any }, schema: NoSqlProvider.StoreSchema };
+
 // Very simple in-memory dbprovider for handling IE inprivate windows (and unit tests, maybe?)
 export class InMemoryProvider extends NoSqlProvider.DbProvider {
-    private _stores: { [storeName: string]: InMemoryStore } = {};
+    private _stores: { [storeName: string]: StoreData } = {};
+
+    private _openReadTransCount = 0;
+    private _openWriteTrans = false;
+    private _pendingTransactions: { storeNames: string | string[], write: boolean, defer: SyncTasks.Deferred<NoSqlProvider.DbTransaction> }[] = [];
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
-        _.each(this._schema.stores, store => {
-            let nStore = new InMemoryStore(store);
-            this._stores[store.name] = nStore;
+        _.each(this._schema.stores, storeSchema => {
+            this._stores[storeSchema.name] = { schema: storeSchema, data: {} };
         });
 
         return SyncTasks.Resolved<void>();
     }
 
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
-        return SyncTasks.Resolved(new InMemoryTransaction(this));
+        let defer = SyncTasks.Defer<NoSqlProvider.DbTransaction>();
+        this._pendingTransactions.push({storeNames, write: writeNeeded, defer});
+        this._resolveNextTransaction();
+        return defer.promise();
+    }
+
+    private _openTransaction(storeNames: string | string[], writeNeeded: boolean): InMemoryTransaction {
+        if (writeNeeded) {
+            this._openWriteTrans = true;
+        } else {
+            this._openReadTransCount++;
+        }
+
+        return new InMemoryTransaction(this, writeNeeded);
     }
 
     close(): SyncTasks.Promise<void> {
         return SyncTasks.Resolved<void>();
     }
 
-    getStore(name: string): NoSqlProvider.DbStore {
+    internal_getStore(name: string): StoreData {
         return this._stores[name];
+    }
+
+    internal_transClosed(write: boolean): void {
+        if (write) {
+            this._openWriteTrans = false;
+        } else {
+            this._openReadTransCount--;
+        }
+
+        this._resolveNextTransaction();
+    }
+
+    private _resolveNextTransaction(): void {
+        // Find the first transaction in the list that can execute, if any.
+        const i = _.findIndex(this._pendingTransactions, (trans, index) => {
+            if (this._openWriteTrans || (trans.write && this._openReadTransCount > 0)) {
+                return false;
+            }
+
+            return true;
+        });
+
+        if (i !== -1) {
+            const trans = this._pendingTransactions.splice(i, 1)[0];
+            trans.defer.resolve(this._openTransaction(trans.storeNames, trans.write));
+        }
     }
 }
 
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
 class InMemoryTransaction implements NoSqlProvider.DbTransaction {
-    private _prov: InMemoryProvider;
+    private _openTimer: number;
 
-    constructor(prov: InMemoryProvider) {
-        this._prov = prov;
+    constructor(private _prov: InMemoryProvider, private _write: boolean) {
+        // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
+        // goes by, there can't have been anything pending.
+        this._openTimer = setTimeout(() => {
+            this._openTimer = undefined;
+            this._prov.internal_transClosed(this._write);
+        }, 0) as any as number;
     }
 
     getStore(storeName: string): NoSqlProvider.DbStore {
-        return this._prov.getStore(storeName);
+        const store = this._prov.internal_getStore(storeName);
+        if (!store) {
+            throw 'Store not found: ' + storeName;
+        }
+        return new InMemoryStore(this, store);
+    }
+
+    internal_isOpen() {
+        return !!this._openTimer;
     }
 }
 
 class InMemoryStore implements NoSqlProvider.DbStore {
-    private _schema: NoSqlProvider.StoreSchema;
-
-    private _data: { [pk: string]: any } = {};
-
-    constructor(schema: NoSqlProvider.StoreSchema) {
-        this._schema = schema;
+    constructor(private _trans: InMemoryTransaction, private _storeData: StoreData) {
     }
 
     get<T>(key: any | any[]): SyncTasks.Promise<T> {
-        let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath);
-        return SyncTasks.Resolved(this._data[joinedKey]);
+        if (!this._trans.internal_isOpen()) {
+            return SyncTasks.Rejected('InMemoryTransaction already closed');
+        }
+        let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._storeData.schema.primaryKeyPath);
+        return SyncTasks.Resolved(this._storeData.data[joinedKey]);
     }
 
     getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
-        let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
-        return SyncTasks.Resolved(_.compact(_.map(joinedKeys, key => this._data[key])));
+        if (!this._trans.internal_isOpen()) {
+            return SyncTasks.Rejected('InMemoryTransaction already closed');
+        }
+        let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeData.schema.primaryKeyPath);
+        return SyncTasks.Resolved(_.compact(_.map(joinedKeys, key => this._storeData.data[key])));
     }
 
     put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
+        if (!this._trans.internal_isOpen()) {
+            return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
+        }
         _.each(NoSqlProviderUtils.arrayify(itemOrItems), item => {
-            let pk = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
-            this._data[pk] = item;
+            let pk = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._storeData.schema.primaryKeyPath);
+            this._storeData.data[pk] = item;
         });
         return SyncTasks.Resolved<void>();
     }
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
-        let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
+        if (!this._trans.internal_isOpen()) {
+            return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
+        }
+        let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeData.schema.primaryKeyPath);
         _.each(joinedKeys, key => {
-            delete this._data[key];
+            delete this._storeData.data[key];
         });
         return SyncTasks.Resolved<void>();
     }
 
     openPrimaryKey(): NoSqlProvider.DbIndex {
-        return new InMemoryIndex(this, this._schema.primaryKeyPath, false, true);
+        return new InMemoryIndex(this._trans, this._storeData, this._storeData.schema.primaryKeyPath, false, true);
     }
 
     openIndex(indexName: string): NoSqlProvider.DbIndex {
-        let indexSchema = _.find(this._schema.indexes, idx => idx.name === indexName);
+        let indexSchema = _.find(this._storeData.schema.indexes, idx => idx.name === indexName);
         if (indexSchema === void 0) {
             return null;
         }
 
-        return new InMemoryIndex(this, indexSchema.keyPath, indexSchema.multiEntry, false);
+        return new InMemoryIndex(this._trans, this._storeData, indexSchema.keyPath, indexSchema.multiEntry, false);
     }
 
     clearAllData(): SyncTasks.Promise<void> {
-        this._data = {};
+        if (!this._trans.internal_isOpen()) {
+            return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
+        }
+        this._storeData.data = {};
         return SyncTasks.Resolved<void>();
     }
 
-    getData() {
-        return this._data;
+    internal_getData() {
+        return this._storeData.data;
     }
 }
 
@@ -117,18 +184,17 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
 
     private _data: { [key: string]: any[] };
 
-    constructor(store: InMemoryStore, keyPath: string | string[], multiEntry: boolean, pk: boolean) {
+    constructor(private _trans: InMemoryTransaction, storeData: StoreData, keyPath: string | string[], multiEntry: boolean, pk: boolean) {
         this._keyPath = keyPath;
 
         // Construct the index data once
-        const data = store.getData();
 
         if (pk) {
-            this._data = data;
+            this._data = storeData.data;
         } else {
             // If it's not the PK index, re-pivot the data to be keyed off the key value built from the keypath
             this._data = {};
-            _.each(data, item => {
+            _.each(storeData.data, item => {
                 // Each item may be non-unique so store as an array of items for each key
                 const keys = multiEntry ?
                     _.map(NoSqlProviderUtils.arrayify(NoSqlProviderUtils.getValueForSingleKeypath(item, <string>this._keyPath)), val =>
@@ -146,8 +212,10 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
     }
 
     getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+        if (!this._trans.internal_isOpen()) {
+            return SyncTasks.Rejected('InMemoryTransaction already closed');
+        }
         const sortedKeys = _.keys(this._data).sort();
-
         return this._returnResultsFromKeys(sortedKeys, reverse, limit, offset);
     }
 
@@ -157,6 +225,9 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
 
     getRange<T>(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
             reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+        if (!this._trans.internal_isOpen()) {
+            return SyncTasks.Rejected('InMemoryTransaction already closed');
+        }
         const sortedKeys = this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).sort();
         return this._returnResultsFromKeys(sortedKeys, reverse, limit, offset);
     }
@@ -187,6 +258,9 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
     }
 
     countAll(): SyncTasks.Promise<number> {
+        if (!this._trans.internal_isOpen()) {
+            return SyncTasks.Rejected('InMemoryTransaction already closed');
+        }
         return SyncTasks.Resolved(_.keys(this._data).length);
     }
 
@@ -196,6 +270,9 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
 
     countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
             : SyncTasks.Promise<number> {
+        if (!this._trans.internal_isOpen()) {
+            return SyncTasks.Rejected('InMemoryTransaction already closed');
+        }
         const keys = this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         return SyncTasks.Resolved(keys.length);
     }

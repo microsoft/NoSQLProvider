@@ -30,6 +30,12 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
     return NoSqlProvider.openListOfProviders([provider], 'test', schema, wipeFirst, false);
 }
 
+function sleep(timeMs: number): SyncTasks.Promise<void> {
+    let defer = SyncTasks.Defer<void>();
+    setTimeout(() => { defer.resolve(); }, timeMs);
+    return defer.promise();
+}
+
 describe('NoSqlProvider', function () {
     //this.timeout(30000);
 
@@ -484,6 +490,77 @@ describe('NoSqlProvider', function () {
                             return SyncTasks.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
                                 return prov.close();
                             });
+                        });
+                    });
+                });
+            });
+
+            describe('Transaction Semantics', () => {
+                it('Testing transaction expiration', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.openTransaction('test', true).then(trans => {
+                            return sleep(200).then(() => {
+                                const store = trans.getStore('test');
+                                return store.put({ id: 'abc', a: 'a' });
+                            });
+                        }).then(() => {
+                            assert.ok(false, 'Should fail');
+                            return SyncTasks.Rejected();
+                        }, err => {
+                            // woot
+                            return undefined;
+                        }).then(() => {
+                            return prov.close();
+                        });
+                    });
+                });
+
+                it('Testing read/write transaction locks', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', { id: 'abc', a: 'a' }).then(() => {
+                            let check1 = false, check2 = false;
+                            let started1 = false;
+                            const p1 = prov.openTransaction('test', true).then(trans => {
+                                started1 = true;
+                                const store = trans.getStore('test');
+                                return store.put({ id: 'abc', a: 'b' }).then(() => {
+                                    return store.get<any>('abc').then(val => {
+                                        assert.ok(val && val.a === 'b');
+                                        check1 = true;
+                                    });
+                                });
+                            });
+                            const p2 = prov.openTransaction('test', false).then(trans => {
+                                // Can't put the started1 && check1 check here, since indexeddb actually "opens" the transaction, then blocks
+                                // the get call until the previous write transaction completes...  Technically correct, but wonky behavior.
+                                const store = trans.getStore('test');
+                                return store.get<any>('abc').then(val => {
+                                    assert.ok(started1 && check1);
+                                    assert.ok(val && val.a === 'b');
+                                    check2 = true;
+                                });
+                            });
+                            return SyncTasks.all([p1, p2]).then(() => {
+                                assert.ok(check1 && check2);
+                            });
+                        }).then(() => {
+                            return prov.close();
                         });
                     });
                 });
