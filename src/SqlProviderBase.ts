@@ -7,7 +7,6 @@
  */
 
 import _ = require('lodash');
-
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
@@ -283,34 +282,40 @@ export class SqliteSqlTransaction extends SqlTransaction {
             console.log('Query: ' + sql);
         }
 
-        this._trans.executeSql(sql, parameters, (t, rs) => {
-            const index = _.indexOf(this._pendingQueries, deferred);
-            if (index !== -1) {
-                var rows = [];
-                for (var i = 0; i < rs.rows.length; i++) {
-                    rows.push(rs.rows.item(i));
+        const errRet = _.attempt(() => {
+            this._trans.executeSql(sql, parameters, (t, rs) => {
+                const index = _.indexOf(this._pendingQueries, deferred);
+                if (index !== -1) {
+                    var rows = [];
+                    for (var i = 0; i < rs.rows.length; i++) {
+                        rows.push(rs.rows.item(i));
+                    }
+                    this._pendingQueries.splice(index, 1);
+                    deferred.resolve(rows);
+                } else {
+                    console.error('SQL statement resolved twice (success this time): ' + sql);
                 }
-                this._pendingQueries.splice(index, 1);
-                deferred.resolve(rows);
-            } else {
-                console.error('SQL statement resolved twice (success this time): ' + sql);
-            }
-        }, (t, err) => {
-            if (!err) {
-                // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error, slightly breaking the interface.
-                err = t as any;
-            }
+            }, (t, err) => {
+                if (!err) {
+                    // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error, slightly breaking the interface.
+                    err = t as any;
+                }
 
-            console.log('Query Error: SQL: ' + sql + ', Error: ' + err.message);
+                console.log('Query Error: SQL: ' + sql + ', Error: ' + err.message);
 
-            const index = _.indexOf(this._pendingQueries, deferred);
-            if (index !== -1) {
-                this._pendingQueries.splice(index, 1);
-                deferred.reject(err);
-            } else {
-                console.error('SQL statement resolved twice (this time with failure)');
-            }
+                const index = _.indexOf(this._pendingQueries, deferred);
+                if (index !== -1) {
+                    this._pendingQueries.splice(index, 1);
+                    deferred.reject(err);
+                } else {
+                    console.error('SQL statement resolved twice (this time with failure)');
+                }
+            });
         });
+
+        if (errRet) {
+            deferred.reject(errRet);
+        }
 
         return deferred.promise();
     }
