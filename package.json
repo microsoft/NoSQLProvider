@@ -1,44 +1,45 @@
 {
-    "name": "nosqlprovider",
-    "version": "0.3.1",
-    "description": "A cross-browser/platform indexeddb-like client library",
-    "author": "David de Regt <David.de.Regt@microsoft.com>",
-    "scripts": {
-        "postinstall": "cd src && tsd install",
-        "test": "mocha dist/tests/NoSqlProviderTests.js",
-        "webtest": "webpack",
-        "build": "tsc"
-    },
-    "main": "dist/NoSqlProvider.js",
-    "dependencies": {
-        "lodash": "^3.10.0 || ^4.0.0",
-        "synctasks": "~0.2.6"
-    },
-    "devDependencies": {
-        "mocha": "^2.3.4",
-        "sqlite3": "^3.0.9",
-        "ts-loader": "^0.8.1",
-        "tsd": "^0.6.5",
-        "typescript": "^1.8.9",
-        "webpack": "^1.12.14"
-    },
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/Microsoft/NoSQLProvider"
-    },
-    "bugs": {
-        "url": "https://github.com/Microsoft/NoSQLProvider/issues"
-    },
-    "typings": "dist/NoSqlProvider.d.ts",
-    "typescript": {
-        "definition": "dist/NoSqlProvider.d.ts"
-    },
-    "keywords": [
-        "nosql",
-        "indexeddb",
-        "websql",
-        "sqlite",
-        "browser"
-    ],
-    "license": "MIT"
+  "name": "nosqlprovider",
+  "version": "0.3.1",
+  "description": "A cross-browser/platform indexeddb-like client library",
+  "author": "David de Regt <David.de.Regt@microsoft.com>",
+  "scripts": {
+    "postinstall": "cd src && tsd install",
+    "test": "mocha dist/tests/NoSqlProviderTests.js",
+    "webtest": "webpack --watch",
+    "build": "tsc"
+  },
+  "main": "dist/NoSqlProvider.js",
+  "dependencies": {
+    "lodash": "^3.10.0 || ^4.0.0",
+    "synctasks": "^0.2.12"
+  },
+  "devDependencies": {
+    "mocha": "^2.3.4",
+    "sqlite3": "^3.0.9",
+    "ts-loader": "1.3.3",
+    "tsd": "^0.6.5",
+    "typescript": "2.1.4",
+    "webpack": "1.14.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Microsoft/NoSQLProvider"
+  },
+  "bugs": {
+    "url": "https://github.com/Microsoft/NoSQLProvider/issues"
+  },
+  "typings": "dist/NoSqlProvider.d.ts",
+  "typescript": {
+    "definition": "dist/NoSqlProvider.d.ts"
+  },
+  "keywords": [
+    "nosql",
+    "indexeddb",
+    "websql",
+    "sqlite",
+    "browser",
+    "react native"
+  ],
+  "license": "MIT"
 }
