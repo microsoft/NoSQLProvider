@@ -95,7 +95,7 @@ class InMemoryTransaction implements NoSqlProvider.DbTransaction {
     }
 
     getStore(storeName: string): NoSqlProvider.DbStore {
-        if (!_.contains(NoSqlProviderUtils.arrayify(this._storeNames), storeName)) {
+        if (!_.includes(NoSqlProviderUtils.arrayify(this._storeNames), storeName)) {
             throw 'Store not found in transaction-scoped store list: ' + storeName;
         }
         const store = this._prov.internal_getStore(storeName);
