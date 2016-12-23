@@ -1,0 +1,14 @@
+/node_modules
+/src/.vs
+/src/bin
+/src/obj
+*.user
+/src/typings
+/NoSQLProviderTestsPack.js
+/.vscode
+test.html
+tsconfig.json
+webpack.config.js
+README.md
+/src
+/dist/tests
