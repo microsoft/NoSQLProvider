@@ -10,5 +10,3 @@ test.html
 tsconfig.json
 webpack.config.js
 README.md
-/src
-/dist/tests
