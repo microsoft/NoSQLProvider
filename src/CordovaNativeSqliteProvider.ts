@@ -53,6 +53,9 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
 
     private _db: SqliteDatabase;
 
+    private _closingDefer: SyncTasks.Deferred<void>;
+    private _transactionCount = 0;
+
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
@@ -84,17 +87,28 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
     }
 
     close(): SyncTasks.Promise<void> {
-        let task = SyncTasks.Defer<void>();
-        this._db.close(() => {
-            this._db = null;
-            task.resolve();
-        }, (err) => {
-            task.reject(err);
-        });
-        return task.promise();
+        this._closingDefer = SyncTasks.Defer<void>();
+        this._checkClose();
+        return this._closingDefer.promise();
+    }
+
+    private _checkClose() {
+        if (this._closingDefer && this._transactionCount === 0) {
+            this._db.close(() => {
+                this._db = null;
+                this._closingDefer.resolve();
+            }, (err) => {
+                this._closingDefer.reject(err);
+            });
+        }
     }
 
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
+        if (this._closingDefer) {
+            return SyncTasks.Rejected('Currently closing provider -- rejecting transaction open');
+        }
+
+        this._transactionCount++;
         const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
 
         let ourTrans: SqlProviderBase.SqliteSqlTransaction;
@@ -106,8 +120,14 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
                 ourTrans.internal_markTransactionClosed();
             }
             deferred.reject(err);
+
+            this._transactionCount--;
+            this._checkClose();
         }, () => {
             ourTrans.internal_markTransactionClosed();
+
+            this._transactionCount--;
+            this._checkClose();
         });
 
         return deferred.promise();
