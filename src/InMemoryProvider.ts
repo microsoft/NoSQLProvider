@@ -39,16 +39,6 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
         return defer.promise();
     }
 
-    private _openTransaction(storeNames: string | string[], writeNeeded: boolean): InMemoryTransaction {
-        if (writeNeeded) {
-            this._openWriteTrans = true;
-        } else {
-            this._openReadTransCount++;
-        }
-
-        return new InMemoryTransaction(this, writeNeeded);
-    }
-
     close(): SyncTasks.Promise<void> {
         return SyncTasks.Resolved<void>();
     }
@@ -79,7 +69,14 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
 
         if (i !== -1) {
             const trans = this._pendingTransactions.splice(i, 1)[0];
-            trans.defer.resolve(this._openTransaction(trans.storeNames, trans.write));
+
+            if (trans.write) {
+                this._openWriteTrans = true;
+            } else {
+                this._openReadTransCount++;
+            }
+
+            trans.defer.resolve(new InMemoryTransaction(this, trans.storeNames, trans.write));
         }
     }
 }
@@ -88,7 +85,7 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
 class InMemoryTransaction implements NoSqlProvider.DbTransaction {
     private _openTimer: number;
 
-    constructor(private _prov: InMemoryProvider, private _write: boolean) {
+    constructor(private _prov: InMemoryProvider, private _storeNames: string | string[], private _write: boolean) {
         // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
         // goes by, there can't have been anything pending.
         this._openTimer = setTimeout(() => {
@@ -98,6 +95,9 @@ class InMemoryTransaction implements NoSqlProvider.DbTransaction {
     }
 
     getStore(storeName: string): NoSqlProvider.DbStore {
+        if (!_.contains(NoSqlProviderUtils.arrayify(this._storeNames), storeName)) {
+            throw 'Store not found in transaction-scoped store list: ' + storeName;
+        }
         const store = this._prov.internal_getStore(storeName);
         if (!store) {
             throw 'Store not found: ' + storeName;

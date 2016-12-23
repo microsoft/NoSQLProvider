@@ -97,10 +97,17 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
         const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
 
+        let ourTrans: SqlProviderBase.SqliteSqlTransaction;
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db, (trans: SQLTransaction) => {
-            deferred.resolve(new CordovaNativeSqliteTransaction(trans, this._schema, this._verbose, 999));
+            ourTrans = new CordovaNativeSqliteTransaction(trans, this._schema, this._verbose, 999);
+            deferred.resolve(ourTrans);
         }, (err) => {
+            if (ourTrans) {
+                ourTrans.internal_markTransactionClosed();
+            }
             deferred.reject(err);
+        }, () => {
+            ourTrans.internal_markTransactionClosed();
         });
 
         return deferred.promise();

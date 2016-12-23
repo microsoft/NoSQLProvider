@@ -87,9 +87,12 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                     // Got an error from inside the transaction.  Error out all pending queries on the 
                     // transaction since they won't exit out gracefully for whatever reason.
                     ourTrans.failAllPendingQueries(err);
+                    ourTrans.internal_markTransactionClosed();
                 } else {
                     deferred.reject(err);
                 }
+            }, () => {
+                ourTrans.internal_markTransactionClosed();
             });
 
         return deferred.promise();

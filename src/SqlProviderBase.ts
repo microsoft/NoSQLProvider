@@ -175,7 +175,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             let migrator = () => {
                                 var store = trans.getStore(storeSchema.name);
                                 var objs = [];
-                                return trans.getResultsFromQueryWithCallback('SELECT nsp_data FROM temp_' + storeSchema.name, null,
+                                return trans.internal_getResultsFromQueryWithCallback('SELECT nsp_data FROM temp_' + storeSchema.name, null,
                                     (obj) => {
                                         objs.push(obj);
                                     }).then(() => {
@@ -202,25 +202,35 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 // The DbTransaction implementation for the WebSQL DbProvider.  All WebSQL accesses go through the transaction
 // object, so this class actually has several helpers for executing SQL queries, getting results from them, etc.
 export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
+    private _isOpen = true;
+
     constructor(
         protected _schema: NoSqlProvider.DbSchema,
         protected _verbose: boolean,
         protected _maxVariables: number) {
     }
 
+    protected _isTransactionOpen(): boolean {
+        return this._isOpen;
+    }
+
+    internal_markTransactionClosed(): void {
+        this._isOpen = false;
+    }
+
     abstract runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]>;
 
-    abstract getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;
+    abstract internal_getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;
 
-    getMaxVariables(): number {
+    internal_getMaxVariables(): number {
         return this._maxVariables;
     }
 
-    nonQuery(sql: string, parameters?: any[]): SyncTasks.Promise<void> {
+    internal_nonQuery(sql: string, parameters?: any[]): SyncTasks.Promise<void> {
         return this.runQuery(sql, parameters).then<void>(_.noop);
     }
 
-    getResultsFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T[]> {
+    internal_getResultsFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T[]> {
         return this.runQuery(sql, parameters).then(rows => {
             var rets: T[] = [];
             for (var i = 0; i < rows.length; i++) {
@@ -234,8 +244,8 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
         });
     }
 
-    getResultFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T> {
-        return this.getResultsFromQuery<T>(sql, parameters)
+    internal_getResultFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T> {
+        return this.internal_getResultsFromQuery<T>(sql, parameters)
             .then(rets => rets.length < 1 ? null : rets[0]);
     }
 
@@ -258,7 +268,7 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
 export class SqliteSqlTransaction extends SqlTransaction {
     private _pendingQueries: SyncTasks.Deferred<any>[] = [];
     
-    constructor(private _trans: SQLTransaction,
+    constructor(protected _trans: SQLTransaction,
         schema: NoSqlProvider.DbSchema, verbose: boolean, maxVariables: number) {
         super(schema, verbose, maxVariables);
     }
@@ -275,6 +285,10 @@ export class SqliteSqlTransaction extends SqlTransaction {
     }
 
     runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]> {
+        if (!this._isTransactionOpen()) {
+            return SyncTasks.Rejected('SqliteSqlTransaction already closed');
+        }
+
         const deferred = SyncTasks.Defer<any[]>();
         this._pendingQueries.push(deferred);
 
@@ -320,7 +334,7 @@ export class SqliteSqlTransaction extends SqlTransaction {
         return deferred.promise();
     }
 
-    getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void> {
+    internal_getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void> {
         const deferred = SyncTasks.Defer<void>();
 
         if (this._verbose) {
@@ -357,19 +371,13 @@ export class SqliteSqlTransaction extends SqlTransaction {
 // DbStore implementation for the SQL-based DbProviders.  Implements the getters/setters against the transaction object and all of the
 // glue for index/compound key support.
 class SqlStore implements NoSqlProvider.DbStore {
-    private _trans: SqlTransaction;
-    private _schema: NoSqlProvider.StoreSchema;
-    private _replaceUnicode: boolean;
-
-    constructor(trans: SqlTransaction, schema: NoSqlProvider.StoreSchema, replaceUnicode: boolean) {
-        this._trans = trans;
-        this._schema = schema;
-        this._replaceUnicode = replaceUnicode;
+    constructor(private _trans: SqlTransaction, private _schema: NoSqlProvider.StoreSchema, private _replaceUnicode: boolean) {
+        // Empty
     }
 
     get<T>(key: any | any[]): SyncTasks.Promise<T> {
         let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath);
-        return this._trans.getResultFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
+        return this._trans.internal_getResultFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
     }
 
     getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
@@ -384,7 +392,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             qmarks[i] = '?';
         }
 
-        return this._trans.getResultsFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk IN (' +
+        return this._trans.internal_getResultsFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk IN (' +
             qmarks.join(',') + ')', joinedKeys);
     }
 
@@ -429,11 +437,11 @@ class SqlStore implements NoSqlProvider.DbStore {
 
         // Need to not use too many variables per insert, so batch the insert if needed.
         let inserts: SyncTasks.Promise<void>[] = [];
-        const itemPageSize = Math.floor(this._trans.getMaxVariables() / fields.length);
+        const itemPageSize = Math.floor(this._trans.internal_getMaxVariables() / fields.length);
         for (let i = 0; i < items.length; i += itemPageSize) {
             const thisPageCount = Math.min(itemPageSize, items.length - i);
             const qmarksValues = _.fill(new Array(thisPageCount), qmarkString);
-            inserts.push(this._trans.nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
+            inserts.push(this._trans.internal_nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
                 qmarksValues.join('),(') + ')', args.splice(0, thisPageCount*fields.length)));
         }
 
@@ -460,9 +468,9 @@ class SqlStore implements NoSqlProvider.DbStore {
                                         args.push(val);
                                         args.push(rowid);
                                     });
-                                    return this._trans.nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
+                                    return this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
                                         ' WHERE nsp_refrowid = ?', [rowid]).then(() => {
-                                            this._trans.nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
+                                            this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
                                                 ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
                                         });
                                 }).value();
@@ -488,14 +496,14 @@ class SqlStore implements NoSqlProvider.DbStore {
                     }
 
                     var queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
-                        this._trans.nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
+                        this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
                             ' WHERE nsp_refrowid = ?', [rets[0].a])).value();
-                    queries.push(this._trans.nonQuery('DELETE FROM ' + this._schema.name + ' WHERE rowid = ?', [rets[0].a]));
+                    queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + ' WHERE rowid = ?', [rets[0].a]));
                     return SyncTasks.all(queries).then(_.noop);
                 });
             }
 
-            return this._trans.nonQuery('DELETE FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
+            return this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
         });
 
         return SyncTasks.all(queries).then(rets => void 0);
@@ -516,9 +524,9 @@ class SqlStore implements NoSqlProvider.DbStore {
 
     clearAllData(): SyncTasks.Promise<void> {
         var queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
-            this._trans.nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name)).value();
+            this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name)).value();
 
-        queries.push(this._trans.nonQuery('DELETE FROM ' + this._schema.name));
+        queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name));
 
         return SyncTasks.all(queries).then(rets => void 0);
     }
@@ -563,7 +571,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             sql += ' OFFSET ' + offset.toString();
         }
 
-        return this._trans.getResultsFromQuery<T>(sql, args);
+        return this._trans.internal_getResultsFromQuery<T>(sql, args);
     }
 
     getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
