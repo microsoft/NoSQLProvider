@@ -141,7 +141,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
             } else {
                 deferred.resolve(rows);
             }
-            
+
             stmt.finalize();
         });
 

@@ -717,6 +717,45 @@ describe('NoSqlProvider', function () {
                         });
                     });
 
+                    it('Remove store with index', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [{
+                                        name: 'ind1',
+                                        keyPath: 'tt'
+                                    }]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', tt: 'abc' }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test2',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                return prov.get('test', 'abc').then(item => {
+                                    return prov.close().then(() => {
+                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                    });
+                                }, () => {
+                                    // Expected to fail, so chain from failure to success
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
                     it('Add index', () => {
                         return openProvider(provName, {
                             version: 1,

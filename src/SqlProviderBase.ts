@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SqlProviderBase.ts
  * Author: David de Regt
  * Copyright: Microsoft 2015
@@ -12,12 +12,36 @@ import SyncTasks = require('synctasks');
 import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
+const schemaVersionKey = 'schemaVersion';
+
+interface IndexMetadata {
+    key: string;
+    storeName: string;
+    index: NoSqlProvider.IndexSchema;
+}
+
+function getIndexIdentifier(storeSchema: NoSqlProvider.StoreSchema, index: NoSqlProvider.IndexSchema): string {
+    return storeSchema.name + '_' + index.name;
+}
+
 export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
-    protected _getDbVersion(): SyncTasks.Promise<number> {
+    private _getMetadata(trans: SqlTransaction): SyncTasks.Promise<{ name: string; value: string;}[]> {
+        // Create table if needed
+        return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then(() => {
+            return trans.runQuery('SELECT name, value from metadata', []);
+        });
+    }
+
+    private _storeIndexMetadata(trans: SqlTransaction, meta: IndexMetadata) {
+        return trans.runQuery('INSERT OR REPLACE into metadata (\'name\', \'value\') VALUES' +
+            '(\'' + meta.key + '\', ?)', [JSON.stringify(meta)]);
+    }
+
+    private _getDbVersion(): SyncTasks.Promise<number> {
         return this.openTransaction('metadata', true).then((trans: SqlTransaction) => {
-            // Create table if needed
-            return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then((data) => {
-                return trans.runQuery('SELECT value from metadata where name=?', ['schemaVersion']).then(data => {
+              // Create table if needed
+            return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then(() => {
+                return trans.runQuery('SELECT value from metadata where name=?', [schemaVersionKey]).then(data => {
                     if (data && data[0] && data[0].value) {
                         return Number(data[0].value) || 0;
                     }
@@ -28,8 +52,8 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     }
 
     protected _changeDbVersion(oldVersion: number, newVersion: number): SyncTasks.Promise<SqlTransaction> {
-        return this.openTransaction('metadata', true).then((trans: SqlTransaction) => {
-            return trans.runQuery('INSERT OR REPLACE into metadata (\'name\', \'value\') VALUES (\'schemaVersion\', ?)', [newVersion])
+        return this.openTransaction(null, true).then((trans: SqlTransaction) => {
+            return trans.runQuery('INSERT OR REPLACE into metadata (\'name\', \'value\') VALUES (\'' + schemaVersionKey + '\', ?)', [newVersion])
                 .then(() => {
                     return trans;
                 });
@@ -60,90 +84,134 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
     protected _upgradeDb(trans: SqlTransaction, oldVersion: number, wipeAnyway: boolean): SyncTasks.Promise<void> {
         // Get a list of all tables and indexes on the tables
-        return trans.runQuery('SELECT type, name, tbl_name from sqlite_master', [])
-            .then(rows => {
-                let tableNames: string[] = [];
-                let indexNames: { [table: string]: string[] } = {};
-                
-                _.each(rows, row => {
-                    if (row['tbl_name'] === '__WebKitDatabaseInfoTable__' || row['tbl_name'] === 'metadata') {
-                        return;
-                    }
-                    if (row['type'] === 'table') {
-                        tableNames.push(row['name']);
-                        if (!indexNames[row['name']]) {
-                            indexNames[row['name']] = [];
-                        }
-                    }
-                    if (row['type'] === 'index') {
-                        if (row['name'].substring(0, 17) === 'sqlite_autoindex_') {
-                            // auto-index, ignore
+        return this._getMetadata(trans).then(fullMeta => {
+            // Get Index metadatas
+            let indexMetadata: IndexMetadata[] = _.chain(fullMeta)
+                .map(meta => {
+                    let metaObj: IndexMetadata;
+                    _.attempt(() => {
+                        metaObj = JSON.parse(meta.value)
+                    })
+                    return metaObj;
+                })
+                .filter(meta => meta && !!meta.storeName)
+                .value();
+            return trans.runQuery('SELECT type, name, tbl_name, sql from sqlite_master', [])
+                .then(rows => {
+                    let tableNames: string[] = [];
+                    let indexNames: { [table: string]: string[] } = {};
+                    let tableSqlStatements: { [table: string]: string } = {};
+
+                    _.each(rows, row => {
+                        const tableName = row['tbl_name'];
+                        if (tableName === '__WebKitDatabaseInfoTable__' || tableName === 'metadata') {
                             return;
                         }
-                        if (!indexNames[row['tbl_name']]) {
-                            indexNames[row['tbl_name']] = [];
+                        if (row['type'] === 'table') {
+                            tableNames.push(row['name']);
+                            if (!indexNames[row['name']]) {
+                                indexNames[row['name']] = [];
+                            }
+                            tableSqlStatements[row['name']] = row['sql'];
                         }
-                        indexNames[row['tbl_name']].push(row['name']);
-                    }
-                });
-
-                // Check each table!
-                var dropQueries = [];
-                if (wipeAnyway || (this._schema.lastUsableVersion && oldVersion < this._schema.lastUsableVersion)) {
-                    // Clear all stores if it's past the usable version
-                    if (!wipeAnyway) {
-                        console.log('Old version detected (' + oldVersion + '), clearing all tables');
-                    }
-
-                    dropQueries = _.map(tableNames, name => {
-                        trans.runQuery('DROP TABLE ' + name);
+                        if (row['type'] === 'index') {
+                            if (row['name'].substring(0, 17) === 'sqlite_autoindex_') {
+                                // auto-index, ignore
+                                return;
+                            }
+                            if (!indexNames[tableName]) {
+                                indexNames[tableName] = [];
+                            }
+                            indexNames[tableName].push(row['name']);
+                        }
                     });
 
-                    tableNames = [];
-                } else {
-                    // Just delete tables we don't care about anymore.  Only care about the raw data in the tables since we're going to
-                    // re-insert all data anyways, so clear out any multiEntry index tables.
-                    let tableNamesNeeded: string[] = [];
-                    _.each(this._schema.stores, store => {
-                        tableNamesNeeded.push(store.name);
-                    });
-                    dropQueries = _.chain(tableNames).filter(name => !_.includes(tableNamesNeeded, name))
-                        .map(name => trans.runQuery('DROP TABLE ' + name)).value();
+                    // Check each table!
+                    var dropQueries: SyncTasks.Promise<any>[] = [];
+                    if (wipeAnyway || (this._schema.lastUsableVersion && oldVersion < this._schema.lastUsableVersion)) {
+                        // Clear all stores if it's past the usable version
+                        if (!wipeAnyway) {
+                            console.log('Old version detected (' + oldVersion + '), clearing all tables');
+                        }
 
-                    tableNames = _.filter(tableNames, name => _.includes(tableNamesNeeded, name));
-                }
+                        dropQueries = _.map(tableNames, name => trans.runQuery('DROP TABLE ' + name));
 
-                return SyncTasks.all(dropQueries).then(() => {
-                    var tableQueries = [];
-
-                    // Go over each store and see what needs changing
-                    _.each(this._schema.stores, storeSchema => {
-                        var indexMaker = () => {
-                            var indexQueries = _.map(storeSchema.indexes, index => {
-                                // Go over each index and see if we need to create an index or a table for a multiEntry index
+                        // Drop all existing metadata
+                        const metaToDropArg = _.map(indexMetadata, meta => meta.key).join(', ');
+                        dropQueries.push(trans.runQuery('DELETE FROM metadata where name in (?) ', [metaToDropArg]));
+                        indexMetadata = [];
+                        tableNames = [];
+                    } else {
+                        // Just delete tables we don't care about anymore. Preserve multi-entry tables, they may not be changed
+                        let tableNamesNeeded: string[] = [];
+                        _.each(this._schema.stores, store => {
+                            tableNamesNeeded.push(store.name);
+                            _.each(store.indexes, index => {
                                 if (index.multiEntry) {
-                                    if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
-                                        throw new Error('Can\'t use multiEntry and compound keys');
-                                    } else {
-                                        return trans.runQuery('CREATE TABLE ' + storeSchema.name + '_' + index.name +
-                                            ' (nsp_key TEXT, nsp_refrowid INTEGER)').then(() => {
-                                                return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') + 'INDEX ' +
-                                                    storeSchema.name + '_' + index.name + '_pi ON ' + storeSchema.name + '_' +
-                                                    index.name + ' (nsp_key, nsp_refrowid)');
-                                            });
-                                    }
-                                } else {
-                                    return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') + 'INDEX ' + storeSchema.name +
-                                        '_' + index.name + ' ON ' + storeSchema.name + ' (nsp_i_' + index.name + ')');
+                                    tableNamesNeeded.push(getIndexIdentifier(store, index));
                                 }
                             });
+                        });
+                        dropQueries = _.flatten(_.chain(tableNames)
+                            .filter(name => !_.includes(tableNamesNeeded, name))
+                            .map(name => {
+                                const transList: SyncTasks.Promise<any>[] = [trans.runQuery('DROP TABLE ' + name)];
+                                const metasToDelete = _.chain(indexMetadata)
+                                    .filter(meta => meta.storeName === name)
+                                    .map(meta => meta.key)
+                                    .value()
 
-                            return SyncTasks.all(indexQueries);
-                        };
+                                // Clean up metas
+                                if (metasToDelete.length > 0) {
+                                    transList.push(trans.runQuery('DELETE FROM metadata where name in (?)', [metasToDelete.join(', ')]));
+                                    indexMetadata = _.filter(indexMetadata, meta => !_.includes(metasToDelete, meta.key));
+                                }
+                                return transList;
+                            })
+                            .value());
 
-                        var tableMaker = () => {
-                            // Create the table
+                        tableNames = _.filter(tableNames, name => _.includes(tableNamesNeeded, name));
+                    }
 
+                    return SyncTasks.all(dropQueries).then(() => {
+                        var tableQueries = [];
+
+                        // Go over each store and see what needs changing
+                        _.each(this._schema.stores, storeSchema => {
+                            var indexMaker = () => {
+                                let metaQueries: SyncTasks.Promise<any>[] = [];
+                                var indexQueries = _.map(storeSchema.indexes, index => {
+                                    const indexIdentifier = getIndexIdentifier(storeSchema, index);
+
+                                    // Store meta for the index
+                                    const newMeta: IndexMetadata = {
+                                        key: indexIdentifier,
+                                        storeName: storeSchema.name,
+                                        index: index
+                                    };
+                                    metaQueries.push(this._storeIndexMetadata(trans, newMeta))
+                                    // Go over each index and see if we need to create an index or a table for a multiEntry index
+                                    if (index.multiEntry) {
+                                        if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
+                                            throw new Error('Can\'t use multiEntry and compound keys');
+                                        } else {
+                                            return trans.runQuery('CREATE TABLE ' + indexIdentifier +
+                                                ' (nsp_key TEXT, nsp_refrowid INTEGER)').then(() => {
+                                                    return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') + 'INDEX ' +
+                                                        indexIdentifier + '_pi ON ' + indexIdentifier + ' (nsp_key, nsp_refrowid)');
+                                                });
+                                        }
+                                    } else {
+                                        return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') + 'INDEX ' + indexIdentifier + ' ON ' + storeSchema.name + ' (nsp_i_' + index.name + ')');
+                                    }
+                                });
+
+                                return SyncTasks.all(indexQueries).then(() => {
+
+                                });
+                            };
+
+                            // Form SQL statement for table creation
                             var fieldList = [];
 
                             fieldList.push('nsp_pk TEXT PRIMARY KEY');
@@ -153,49 +221,81 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             var nonMultiIndexes = _.filter(storeSchema.indexes || [], index => !index.multiEntry);
                             var indexColumns = _.map(nonMultiIndexes, index => 'nsp_i_' + index.name + ' TEXT');
                             fieldList = fieldList.concat(indexColumns);
+                            const tableMakerSql = 'CREATE TABLE ' + storeSchema.name + ' (' + fieldList.join(', ') + ')';
 
-                            return trans.runQuery('CREATE TABLE ' + storeSchema.name + ' (' + fieldList.join(', ') + ')')
-                                .then(indexMaker);
-                        };
-
-                        if (_.includes(tableNames, storeSchema.name)) {
-                            // If the table exists, we can't read its schema due to websql security rules,
-                            // so just make a copy and fully migrate the data over.
-
-                            // Nuke old indexes on the original table (since they don't change names and we don't need them anymore)
-                            let nukeIndexesAndRename = SyncTasks.all(_.map(indexNames[storeSchema.name], indexName =>
-                                trans.runQuery('DROP INDEX ' + indexName)
-                            )).then(() => {
-                                // Then rename the table to a temp_[name] table so we can migrate the data out of it
-                                return trans.runQuery('ALTER TABLE ' + storeSchema.name + ' RENAME TO temp_' + storeSchema.name);
-                            });
-
-                            // Migrate the data over using our existing put functions (since it will do the right things with the indexes)
-                            // and delete the temp table.
-                            let migrator = () => {
-                                var store = trans.getStore(storeSchema.name);
-                                var objs = [];
-                                return trans.internal_getResultsFromQueryWithCallback('SELECT nsp_data FROM temp_' + storeSchema.name, null,
-                                    (obj) => {
-                                        objs.push(obj);
-                                    }).then(() => {
-                                        return store.put(objs).then(() => {
-                                            return trans.runQuery('DROP TABLE temp_' + storeSchema.name);
-                                        });
-                                    });
+                            var tableMaker = () => {
+                                // Create the table
+                                return trans.runQuery(tableMakerSql)
+                                    .then(indexMaker);
                             };
 
-                            tableQueries.push(nukeIndexesAndRename.then(tableMaker).then(migrator));
-                        } else {
-                            // Table doesn't exist -- just go ahead and create it without the migration path
-                            tableQueries.push(tableMaker());
-                        }
-                    });
+                            var needsMigration = () => {
+                                // Check if sql used to create the base table has changed
+                                if (tableSqlStatements[storeSchema.name] !== tableMakerSql) {
+                                    return true;
+                                }
 
-                    return SyncTasks.all(tableQueries);
-                });
-            })
-            .then(() => void 0);
+                                // Check if indicies are missing
+                                return _.some(storeSchema.indexes, index => {
+                                    // Check if key paths agree
+                                    const indexIdentifier = getIndexIdentifier(storeSchema, index);
+                                    const indexMeta = _.find(indexMetadata, meta => meta.key === indexIdentifier);
+                                    if (!indexMeta || !_.isEqual(indexMeta.index, index)) {
+                                        return true;
+                                    }
+
+                                    // Check that indicies actually exist
+                                    if (index.multiEntry && !_.includes(tableNames, indexIdentifier)) {
+                                        return true;
+                                    }
+
+                                    if (!index.multiEntry && !_.includes(indexNames[storeSchema.name], indexIdentifier)) {
+                                        return true;
+                                    }
+                                })
+                            }
+
+                            // If the table exists, check if we can view the sql statement used to create this table. Use it to determine
+                            // if a migration is needed, otherwise just make a copy and fully migrate the data over.
+                            const tableExists = _.includes(tableNames, storeSchema.name);
+                            const tableRequiresMigration = tableExists && needsMigration();
+
+                            if (tableExists && tableRequiresMigration) {
+                                // Nuke old indexes on the original table (since they don't change names and we don't need them anymore)
+                                let nukeIndexesAndRename = SyncTasks.all(_.map(indexNames[storeSchema.name], indexName =>
+                                    trans.runQuery('DROP INDEX ' + indexName)
+                                )).then(() => {
+                                    // Then rename the table to a temp_[name] table so we can migrate the data out of it
+                                    return trans.runQuery('ALTER TABLE ' + storeSchema.name + ' RENAME TO temp_' + storeSchema.name);
+                                });
+
+                                // Migrate the data over using our existing put functions (since it will do the right things with the indexes)
+                                // and delete the temp table.
+                                let migrator = () => {
+                                    var store = trans.getStore(storeSchema.name);
+                                    var objs = [];
+                                    return trans.internal_getResultsFromQueryWithCallback('SELECT nsp_data FROM temp_' + storeSchema.name, null,
+                                        (obj) => {
+                                            objs.push(obj);
+                                        }).then(() => {
+                                            return store.put(objs).then(() => {
+                                                return trans.runQuery('DROP TABLE temp_' + storeSchema.name);
+                                            });
+                                        });
+                                };
+
+                                tableQueries.push(nukeIndexesAndRename.then(tableMaker).then(migrator));
+                            } else if (!tableExists) {
+                                // Table doesn't exist -- just go ahead and create it without the migration path
+                                tableQueries.push(tableMaker());
+                            }
+                        });
+
+                        return SyncTasks.all(tableQueries);
+                    });
+                })
+        })
+        .then(() => void 0);
     }
 }
 
@@ -267,13 +367,13 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
 // Conveniently, this works for both WebSql and cordova's Sqlite plugin.
 export class SqliteSqlTransaction extends SqlTransaction {
     private _pendingQueries: SyncTasks.Deferred<any>[] = [];
-    
+
     constructor(protected _trans: SQLTransaction,
         schema: NoSqlProvider.DbSchema, verbose: boolean, maxVariables: number) {
         super(schema, verbose, maxVariables);
     }
-    
-    // If an external provider of the transaction determines that the transaction has failed but won't report its failures 
+
+    // If an external provider of the transaction determines that the transaction has failed but won't report its failures
     // (i.e. in the case of WebSQL), we need a way to kick the hanging queries that they're going to fail since otherwise
     // they'll never respond.
     failAllPendingQueries(error: any) {
@@ -613,7 +713,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     countOnly(key: any|any[]): SyncTasks.Promise<number> {
         let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
 
-        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn 
+        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn
             + ' = ?', [joinedKey]).then(result => result[0]['cnt']);
     }
 
