@@ -1,21 +1,16 @@
 {
     "compilerOptions": {
-        "declaration": false,
+        "declaration": true,
         "noResolve": false,
         "module": "commonjs",
-        "target": "es5"
+        "target": "es5",
+        "outDir": "dist/"
     },
-    
+
     "filesGlob": [
-        "src/**/*{ts,tsx}",
-        "src/typings/**/*.d.ts"
+        "src/**/*{ts,tsx}"
     ],
-    
-    "compilerOptions": {
-        "outDir": "dist/",
-        "declaration": true
-    },
-    
+
     "exclude": [
         "dist",
         "node_modules"

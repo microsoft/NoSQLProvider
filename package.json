@@ -4,13 +4,15 @@
   "description": "A cross-browser/platform indexeddb-like client library",
   "author": "David de Regt <David.de.Regt@microsoft.com>",
   "scripts": {
-    "postinstall": "cd src && tsd install",
     "test": "mocha dist/tests/NoSqlProviderTests.js",
     "webtest": "webpack --watch",
     "build": "tsc"
   },
   "main": "dist/NoSqlProvider.js",
   "dependencies": {
+    "@types/lodash": "^4.14.52",
+    "@types/mocha": "^2.2.38",
+    "@types/sqlite3": "^2.2.32",
     "lodash": "^3.10.0 || ^4.0.0",
     "synctasks": "^0.2.12"
   },
@@ -18,7 +20,6 @@
     "mocha": "^2.3.4",
     "sqlite3": "^3.0.9",
     "ts-loader": "1.3.3",
-    "tsd": "^0.6.5",
     "typescript": "2.1.4",
     "webpack": "1.14.0"
   },
