@@ -67,7 +67,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             return SyncTasks.Rejected<void>('Android NativeSqlite is broken, skipping');
         }
 
-        const dbParams = _.extend<SqlitePluginDbParams, SqlitePluginDbParams>({
+        const dbParams = _.extend<SqlitePluginDbParams>({
             name: dbName + '.db',
             location: 2
         }, this._openOptions);
