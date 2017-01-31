@@ -11,6 +11,7 @@ import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
+import TransactionLockHelper from './TransactionLockHelper';
 
 // The DbProvider implementation for IndexedDB.  This one is fairly straightforward since the library's access patterns pretty
 // closely mirror IndexedDB's.  We mostly do a lot of wrapping of the APIs into JQuery promises and have some fancy footwork to
@@ -20,6 +21,8 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
     private _test: boolean;
     private _dbFactory: IDBFactory;
     private _fakeComplicatedKeys: boolean;
+
+    private _lockHelper: TransactionLockHelper;
 
     // By default, it uses the in-browser indexed db factory, but you can pass in an explicit factory.  Currently only used for unit tests.
     constructor(explicitDbFactory?: IDBFactory, explicitDbFactorySupportsCompoundKeys?: boolean) {
@@ -80,6 +83,8 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                 // Don't care
             }
         }
+
+        this._lockHelper = new TransactionLockHelper(schema);
 
         const dbOpen = this._dbFactory.open(dbName, schema.version);
 
@@ -239,13 +244,16 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
     }
 
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
-        // Clone the list becuase we're going to add fake store names to it
-        let intStoreNames = NoSqlProviderUtils.arrayify(_.clone(storeNames));
+        let storeNamesArr = NoSqlProviderUtils.arrayify(storeNames);
+        let intStoreNames = storeNamesArr;
 
         if (this._fakeComplicatedKeys) {
+            // Clone the list becuase we're going to add fake store names to it
+            intStoreNames = _.clone(storeNamesArr);
+
             // Pull the alternate multientry stores into the transaction as well
             let missingStores: string[] = [];
-            _.each(intStoreNames, storeName => {
+            _.each(storeNamesArr, storeName => {
                 let storeSchema = _.find(this._schema.stores, s => s.name === storeName);
                 if (!storeSchema) {
                     missingStores.push(storeName);
@@ -265,9 +273,14 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         }
 
         try {
-            const trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
-            const ourTrans = new IndexedDbTransaction(trans, this._schema, intStoreNames, this._fakeComplicatedKeys);
-            return SyncTasks.Resolved<NoSqlProvider.DbTransaction>(ourTrans);
+            return this._lockHelper.checkOpenTransaction(storeNamesArr, writeNeeded).then(() => {
+                const trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
+                const ourTrans = new IndexedDbTransaction(trans, this._schema, intStoreNames, this._fakeComplicatedKeys);
+                trans.oncomplete = () => {
+                    this._lockHelper.transactionComplete(storeNamesArr, writeNeeded);
+                };
+                return ourTrans;
+            });
         } catch (e) {
             return SyncTasks.Rejected(e);
         }

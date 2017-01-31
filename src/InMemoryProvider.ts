@@ -11,6 +11,7 @@ import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
+import TransactionLockHelper from './TransactionLockHelper';
 
 export type StoreData = { data: { [pk: string]: any }, schema: NoSqlProvider.StoreSchema };
 
@@ -18,9 +19,7 @@ export type StoreData = { data: { [pk: string]: any }, schema: NoSqlProvider.Sto
 export class InMemoryProvider extends NoSqlProvider.DbProvider {
     private _stores: { [storeName: string]: StoreData } = {};
 
-    private _openReadTransCount = 0;
-    private _openWriteTrans = false;
-    private _pendingTransactions: { storeNames: string | string[], write: boolean, defer: SyncTasks.Deferred<NoSqlProvider.DbTransaction> }[] = [];
+    private _lockHelper: TransactionLockHelper;
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
@@ -29,14 +28,15 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
             this._stores[storeSchema.name] = { schema: storeSchema, data: {} };
         });
 
+        this._lockHelper = new TransactionLockHelper(schema);
+
         return SyncTasks.Resolved<void>();
     }
 
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
-        let defer = SyncTasks.Defer<NoSqlProvider.DbTransaction>();
-        this._pendingTransactions.push({storeNames, write: writeNeeded, defer});
-        this._resolveNextTransaction();
-        return defer.promise();
+        const intStoreNames = NoSqlProviderUtils.arrayify(storeNames);
+        return this._lockHelper.checkOpenTransaction(intStoreNames, writeNeeded).then(() => 
+            new InMemoryTransaction(this, this._lockHelper, intStoreNames, writeNeeded));
     }
 
     close(): SyncTasks.Promise<void> {
@@ -46,51 +46,19 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
     internal_getStore(name: string): StoreData {
         return this._stores[name];
     }
-
-    internal_transClosed(write: boolean): void {
-        if (write) {
-            this._openWriteTrans = false;
-        } else {
-            this._openReadTransCount--;
-        }
-
-        this._resolveNextTransaction();
-    }
-
-    private _resolveNextTransaction(): void {
-        // Find the first transaction in the list that can execute, if any.
-        const i = _.findIndex(this._pendingTransactions, (trans, index) => {
-            if (this._openWriteTrans || (trans.write && this._openReadTransCount > 0)) {
-                return false;
-            }
-
-            return true;
-        });
-
-        if (i !== -1) {
-            const trans = this._pendingTransactions.splice(i, 1)[0];
-
-            if (trans.write) {
-                this._openWriteTrans = true;
-            } else {
-                this._openReadTransCount++;
-            }
-
-            trans.defer.resolve(new InMemoryTransaction(this, trans.storeNames, trans.write));
-        }
-    }
 }
 
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
 class InMemoryTransaction implements NoSqlProvider.DbTransaction {
     private _openTimer: number;
 
-    constructor(private _prov: InMemoryProvider, private _storeNames: string | string[], private _write: boolean) {
+    constructor(private _prov: InMemoryProvider, private _lockHelper: TransactionLockHelper, private _storeNames: string[],
+            private _exclusive: boolean) {
         // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
         // goes by, there can't have been anything pending.
         this._openTimer = setTimeout(() => {
             this._openTimer = undefined;
-            this._prov.internal_transClosed(this._write);
+            this._lockHelper.transactionComplete(this._storeNames, this._exclusive);
         }, 0) as any as number;
     }
 

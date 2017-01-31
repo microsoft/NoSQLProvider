@@ -5,6 +5,7 @@
  *
  * NoSqlProvider provider setup for NodeJs to use an in-memory sqlite3-based provider.
  * Largely only used for unit tests.
+ * Doesn't support actually running BEGIN/COMMIT TRANSACTION queries for transactions, only fakes it with the LockHelper.
  */
 
 import _ = require('lodash');
@@ -12,14 +13,14 @@ import sqlite3 = require('sqlite3');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
+import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 import SqlProviderBase = require('./SqlProviderBase');
+import TransactionLockHelper from './TransactionLockHelper';
 
 export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase {
     private _db: sqlite3.Database;
 
-    private _openReadTransCount = 0;
-    private _openWriteTrans = false;
-    private _pendingTransactions: { storeNames: string | string[], write: boolean, defer: SyncTasks.Deferred<NoSqlProvider.DbTransaction> }[] = [];
+    private _lockHelper: TransactionLockHelper;
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
@@ -30,14 +31,15 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
 
         this._db = new sqlite3.Database(':memory:');
 
+        this._lockHelper = new TransactionLockHelper(schema);
+
         return this._ourVersionChecker(wipeIfExists);
     }
 
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
-        let defer = SyncTasks.Defer<NoSqlProvider.DbTransaction>();
-        this._pendingTransactions.push({storeNames, write: writeNeeded, defer});
-        this._resolveNextTransaction();
-        return defer.promise();
+        const intStoreNames = NoSqlProviderUtils.arrayify(storeNames);
+        return this._lockHelper.checkOpenTransaction(intStoreNames, writeNeeded).then(() =>
+            new NodeSqlite3Transaction(this, this._db, this._lockHelper, intStoreNames, writeNeeded, this._schema, this._verbose));
     }
 
     close(): SyncTasks.Promise<void> {
@@ -52,48 +54,16 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
         });
         return task.promise();
     }
-
-    internal_transClosed(write: boolean): void {
-        if (write) {
-            this._openWriteTrans = false;
-        } else {
-            this._openReadTransCount--;
-        }
-
-        this._resolveNextTransaction();
-    }
-
-    private _resolveNextTransaction(): void {
-        // Find the first transaction in the list that can execute, if any.
-        const i = _.findIndex(this._pendingTransactions, (trans, index) => {
-            if (this._openWriteTrans || (trans.write && this._openReadTransCount > 0)) {
-                return false;
-            }
-
-            return true;
-        });
-
-        if (i !== -1) {
-            const trans = this._pendingTransactions.splice(i, 1)[0];
-
-            if (trans.write) {
-                this._openWriteTrans = true;
-            } else {
-                this._openReadTransCount++;
-            }
-
-            const transObj = new NodeSqlite3Transaction(this, this._db, trans.write, this._schema, this._verbose);
-            trans.defer.resolve(transObj);
-        }
-    }
 }
 
 class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
     private _openTimer: number;
     private _openQueryCount = 0;
 
-    constructor(private _prov: NodeSqlite3MemoryDbProvider, private _db: sqlite3.Database, private _write, schema: NoSqlProvider.DbSchema, verbose: boolean) {
+    constructor(private _prov: NodeSqlite3MemoryDbProvider, private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper,
+            private _storeNames: string[], private _exclusive: boolean, schema: NoSqlProvider.DbSchema, verbose: boolean) {
         super(schema, verbose, 999);
+
         this._setTimer();
     }
 
@@ -109,7 +79,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
         this._openTimer = setTimeout(() => {
             this._openTimer = undefined;
             this.internal_markTransactionClosed();
-            this._prov.internal_transClosed(this._write);
+            this._lockHelper.transactionComplete(this._storeNames, this._exclusive);
         }, 0) as any as number;
     }
 
