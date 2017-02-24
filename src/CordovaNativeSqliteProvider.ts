@@ -110,7 +110,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             return SyncTasks.Rejected('Currently closing provider -- rejecting transaction open');
         }
 
-        this._lockHelper.checkOpenTransaction(storeNamesArr, writeNeeded).then(() => {
+        return this._lockHelper.checkOpenTransaction(storeNamesArr, writeNeeded).then(() => {
             const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
 
             let ourTrans: SqlProviderBase.SqliteSqlTransaction;
