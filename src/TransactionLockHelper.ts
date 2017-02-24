@@ -33,6 +33,35 @@ class TransactionLockHelper {
         })
     }
 
+    hasTransaction(): boolean {
+        let result = false;
+        if (this._pendingTransactions.length > 0) {
+            result = true;
+        } else {
+            _.each(this._exclusiveLocks, (value: boolean, key: string) => {
+                if (value) {
+                    result = true;
+                    return false;
+                } else {
+                    return true;
+                }
+            });
+
+            if (!result) {
+                _.each(this._readOnlyCounts, (value: number, key: string) => {
+                    if (value > 0) {
+                        result = true;
+                        return false;
+                    } else {
+                        return true;
+                    }
+                });
+            }
+        }
+
+        return result;
+    }
+
     checkOpenTransaction(storeNames: string[], exclusive: boolean): SyncTasks.Promise<void> {
         const pendingTrans: PendingTransaction = {
             storeNames,
