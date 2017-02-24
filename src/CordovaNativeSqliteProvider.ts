@@ -17,7 +17,6 @@ import SqlProviderBase = require('./SqlProviderBase');
 export interface SqlitePluginDbOptionalParams {
     createFromLocation?: number;
     androidDatabaseImplementation?: number;
-    androidLockWorkaround?: number;
     // Database encryption pass phrase
     key?: string;
 }
@@ -29,11 +28,8 @@ export interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
 
 export interface SqliteDatabase {
     openDBs: string[];
-    addTransaction(transaction: SQLTransaction): void;
     transaction(transaction: SQLTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
     readTransaction(transaction: SQLTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
-    startNextTransaction(): void;
-    abortAllPendingTransactions(): void;
     open(success: Function, error: Function): void;
     close(success: Function, error: Function): void;
     executeSql(statement: string, params?: any[], success?: SQLStatementCallback, error?: SQLStatementErrorCallback): void;
