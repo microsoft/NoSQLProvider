@@ -40,7 +40,7 @@ export interface SqliteDatabase {
 export interface SqlitePlugin {
     openDatabase(dbInfo: SqlitePluginDbParams, success?: Function, error?: Function): SqliteDatabase;
     deleteDatabase(dbInfo: SqlitePluginDbParams, successCallback?: Function, errorCallback?: Function);
-    sqliteFeatures: { isSQLitePlugin: boolean }
+    sqliteFeatures: { isSQLitePlugin: boolean };
 }
 
 export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
@@ -105,7 +105,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
     }
 
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
-        const storeNamesArr = NoSqlProviderUtils.arrayify(storeNames)
+        const storeNamesArr = NoSqlProviderUtils.arrayify(storeNames);
         if (this._closingDefer) {
             return SyncTasks.Rejected('Currently closing provider -- rejecting transaction open');
         }

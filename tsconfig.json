@@ -4,6 +4,7 @@
         "noResolve": false,
         "module": "commonjs",
         "target": "es5",
+        "noUnusedLocals": true,
         "outDir": "dist/"
     },
 

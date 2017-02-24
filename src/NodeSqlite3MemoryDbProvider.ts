@@ -8,7 +8,6 @@
  * Doesn't support actually running BEGIN/COMMIT TRANSACTION queries for transactions, only fakes it with the LockHelper.
  */
 
-import _ = require('lodash');
 import sqlite3 = require('sqlite3');
 import SyncTasks = require('synctasks');
 
@@ -60,7 +59,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
     private _openTimer: number;
     private _openQueryCount = 0;
 
-    constructor(private _prov: NodeSqlite3MemoryDbProvider, private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper,
+    constructor(_prov: NodeSqlite3MemoryDbProvider, private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper,
             private _storeNames: string[], private _exclusive: boolean, schema: NoSqlProvider.DbSchema, verbose: boolean) {
         super(schema, verbose, 999);
 

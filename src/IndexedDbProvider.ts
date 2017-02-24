@@ -565,7 +565,7 @@ class IndexedDbIndex implements NoSqlProvider.DbIndex {
             // IE has to switch to hacky pre-joined-compound-keys
             return IDBKeyRange.bound(NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath),
                 NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath),
-                lowRangeExclusive, highRangeExclusive)
+                lowRangeExclusive, highRangeExclusive);
         }
         return IDBKeyRange.bound(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
     }
