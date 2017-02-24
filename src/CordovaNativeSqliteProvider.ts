@@ -68,7 +68,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             return SyncTasks.Rejected<void>('Android NativeSqlite is broken, skipping');
         }
 
-        let dbParams =  _.extend<SqlitePluginDbParams>({
+        const dbParams = _.extend<SqlitePluginDbParams>({
             name: dbName + '.db',
             location: 2
         }, this._openOptions);
@@ -148,7 +148,6 @@ class CordovaNativeSqliteTransaction extends SqlProviderBase.SqliteSqlTransactio
         this._lockHelper.transactionComplete(this._stores, this._exclusive);
     }
 
-    
     protected _requiresUnicodeReplacement(): boolean {
         // TODO dadere (#333863): Possibly limit this to just iOS, since Android seems to handle it properly
         return true;
