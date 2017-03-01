@@ -38,7 +38,7 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
         const intStoreNames = NoSqlProviderUtils.arrayify(storeNames);
         return this._lockHelper.checkOpenTransaction(intStoreNames, writeNeeded).then(() =>
-            new NodeSqlite3Transaction(this, this._db, this._lockHelper, intStoreNames, writeNeeded, this._schema, this._verbose));
+            new NodeSqlite3Transaction(this._db, this._lockHelper, intStoreNames, writeNeeded, this._schema, this._verbose));
     }
 
     close(): SyncTasks.Promise<void> {
@@ -59,7 +59,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
     private _openTimer: number;
     private _openQueryCount = 0;
 
-    constructor(_prov: NodeSqlite3MemoryDbProvider, private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper,
+    constructor(private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper,
             private _storeNames: string[], private _exclusive: boolean, schema: NoSqlProvider.DbSchema, verbose: boolean) {
         super(schema, verbose, 999);
 
