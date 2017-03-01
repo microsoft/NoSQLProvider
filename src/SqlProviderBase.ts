@@ -25,7 +25,7 @@ function getIndexIdentifier(storeSchema: NoSqlProvider.StoreSchema, index: NoSql
 }
 
 export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
-    private _getMetadata(trans: SqlTransaction): SyncTasks.Promise<{ name: string; value: string;}[]> {
+    private _getMetadata(trans: SqlTransaction): SyncTasks.Promise<{ name: string; value: string; }[]> {
         // Create table if needed
         return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then(() => {
             return trans.runQuery('SELECT name, value from metadata', []);
@@ -90,8 +90,8 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                 .map(meta => {
                     let metaObj: IndexMetadata;
                     _.attempt(() => {
-                        metaObj = JSON.parse(meta.value)
-                    })
+                        metaObj = JSON.parse(meta.value);
+                    });
                     return metaObj;
                 })
                 .filter(meta => meta && !!meta.storeName)
@@ -159,7 +159,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 const metasToDelete = _.chain(indexMetadata)
                                     .filter(meta => meta.storeName === name)
                                     .map(meta => meta.key)
-                                    .value()
+                                    .value();
 
                                 // Clean up metas
                                 if (metasToDelete.length > 0) {
@@ -189,7 +189,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                         storeName: storeSchema.name,
                                         index: index
                                     };
-                                    metaQueries.push(this._storeIndexMetadata(trans, newMeta))
+                                    metaQueries.push(this._storeIndexMetadata(trans, newMeta));
                                     // Go over each index and see if we need to create an index or a table for a multiEntry index
                                     if (index.multiEntry) {
                                         if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
@@ -252,8 +252,8 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     if (!index.multiEntry && !_.includes(indexNames[storeSchema.name], indexIdentifier)) {
                                         return true;
                                     }
-                                })
-                            }
+                                });
+                            };
 
                             // If the table exists, check if we can view the sql statement used to create this table. Use it to determine
                             // if a migration is needed, otherwise just make a copy and fully migrate the data over.
@@ -293,7 +293,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                         return SyncTasks.all(tableQueries);
                     });
-                })
+                });
         })
         .then(() => void 0);
     }
@@ -335,7 +335,7 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
             var rets: T[] = [];
             for (var i = 0; i < rows.length; i++) {
                 try {
-                    rets.push(JSON.parse(rows[i].nsp_data))
+                    rets.push(JSON.parse(rows[i].nsp_data));
                 } catch (e) {
                     return SyncTasks.Rejected('Error parsing database entry in getResultsFromQuery: ' + JSON.stringify(rows[i].nsp_data));
                 }
@@ -542,7 +542,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             const thisPageCount = Math.min(itemPageSize, items.length - i);
             const qmarksValues = _.fill(new Array(thisPageCount), qmarkString);
             inserts.push(this._trans.internal_nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
-                qmarksValues.join('),(') + ')', args.splice(0, thisPageCount*fields.length)));
+                qmarksValues.join('),(') + ')', args.splice(0, thisPageCount * fields.length)));
         }
 
         return SyncTasks.all(inserts).then(() => {

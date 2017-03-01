@@ -12,7 +12,6 @@ import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
-import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 interface PendingTransaction {
     storeNames: string[];
@@ -30,7 +29,7 @@ class TransactionLockHelper {
         _.each(schema.stores, store => {
             this._exclusiveLocks[store.name] = false;
             this._readOnlyCounts[store.name] = 0;
-        })
+        });
     }
 
     hasTransaction(): boolean {
