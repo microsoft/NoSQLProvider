@@ -12,12 +12,13 @@ import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
+import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 import SqlProviderBase = require('./SqlProviderBase');
+import TransactionLockHelper from './TransactionLockHelper';
 
 export interface SqlitePluginDbOptionalParams {
     createFromLocation?: number;
     androidDatabaseImplementation?: number;
-    androidLockWorkaround?: number;
     // Database encryption pass phrase
     key?: string;
 }
@@ -29,11 +30,8 @@ export interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
 
 export interface SqliteDatabase {
     openDBs: string[];
-    addTransaction(transaction: SQLTransaction): void;
     transaction(transaction: SQLTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
     readTransaction(transaction: SQLTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
-    startNextTransaction(): void;
-    abortAllPendingTransactions(): void;
     open(success: Function, error: Function): void;
     close(success: Function, error: Function): void;
     executeSql(statement: string, params?: any[], success?: SQLStatementCallback, error?: SQLStatementErrorCallback): void;
@@ -46,6 +44,9 @@ export interface SqlitePlugin {
 }
 
 export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
+
+    private _lockHelper: TransactionLockHelper;
+
     // You can use the openOptions object to pass extra optional parameters like androidDatabaseImplementation to the open command
     constructor(private _plugin: SqlitePlugin = window.sqlitePlugin, private _openOptions: SqlitePluginDbOptionalParams = {}) {
         super();
@@ -54,10 +55,10 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
     private _db: SqliteDatabase;
 
     private _closingDefer: SyncTasks.Deferred<void>;
-    private _transactionCount = 0;
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
+        this._lockHelper = new TransactionLockHelper(schema);
 
         if (!this._plugin || !this._plugin.openDatabase) {
             return SyncTasks.Rejected<void>('No support for native sqlite in this browser');
@@ -93,7 +94,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
     }
 
     private _checkClose() {
-        if (this._closingDefer && this._transactionCount === 0) {
+        if (this._closingDefer && this._lockHelper.hasTransaction()) {
             this._db.close(() => {
                 this._db = null;
                 this._closingDefer.resolve();
@@ -104,37 +105,49 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
     }
 
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
+        const storeNamesArr = NoSqlProviderUtils.arrayify(storeNames)
         if (this._closingDefer) {
             return SyncTasks.Rejected('Currently closing provider -- rejecting transaction open');
         }
 
-        this._transactionCount++;
-        const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
+        return this._lockHelper.checkOpenTransaction(storeNamesArr, writeNeeded).then(() => {
+            const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
 
-        let ourTrans: SqlProviderBase.SqliteSqlTransaction;
-        (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db, (trans: SQLTransaction) => {
-            ourTrans = new CordovaNativeSqliteTransaction(trans, this._schema, this._verbose, 999);
-            deferred.resolve(ourTrans);
-        }, (err) => {
-            if (ourTrans) {
+            let ourTrans: SqlProviderBase.SqliteSqlTransaction;
+            (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db, (trans: SQLTransaction) => {
+                ourTrans = new CordovaNativeSqliteTransaction(trans, this._lockHelper, this._schema, storeNamesArr, writeNeeded, this._verbose, 999);
+                deferred.resolve(ourTrans);
+            }, (err) => {
+                if (ourTrans) {
+                    ourTrans.internal_markTransactionClosed();
+                }
+                deferred.reject(err);
+                this._checkClose();
+            }, () => {
                 ourTrans.internal_markTransactionClosed();
-            }
-            deferred.reject(err);
-
-            this._transactionCount--;
-            this._checkClose();
-        }, () => {
-            ourTrans.internal_markTransactionClosed();
-
-            this._transactionCount--;
-            this._checkClose();
-        });
-
-        return deferred.promise();
+                this._checkClose();
+            });
+            return deferred.promise();
+        });    
     }
 }
 
 class CordovaNativeSqliteTransaction extends SqlProviderBase.SqliteSqlTransaction {
+    constructor(protected trans: SQLTransaction,
+                protected _lockHelper: TransactionLockHelper,
+                schema: NoSqlProvider.DbSchema,
+                private _stores: string[],
+                private _exclusive: boolean,
+                verbose: boolean,
+                maxVariables: number) {
+        super(trans, schema, verbose, maxVariables);
+    }
+
+    internal_markTransactionClosed(): void {
+        super.internal_markTransactionClosed();
+        this._lockHelper.transactionComplete(this._stores, this._exclusive);
+    }
+
     protected _requiresUnicodeReplacement(): boolean {
         // TODO dadere (#333863): Possibly limit this to just iOS, since Android seems to handle it properly
         return true;

@@ -33,6 +33,12 @@ class TransactionLockHelper {
         })
     }
 
+    hasTransaction(): boolean {
+        return this._pendingTransactions.length > 0 ||
+            _.some(this._exclusiveLocks, (value) =>  value) ||
+            _.some(this._readOnlyCounts, (value) => value > 0);
+    }
+
     checkOpenTransaction(storeNames: string[], exclusive: boolean): SyncTasks.Promise<void> {
         const pendingTrans: PendingTransaction = {
             storeNames,

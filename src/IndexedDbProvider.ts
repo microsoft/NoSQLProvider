@@ -276,9 +276,14 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             return this._lockHelper.checkOpenTransaction(storeNamesArr, writeNeeded).then(() => {
                 const trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
                 const ourTrans = new IndexedDbTransaction(trans, this._schema, intStoreNames, this._fakeComplicatedKeys);
-                trans.oncomplete = () => {
+                const transactionUnlock = () => {
                     this._lockHelper.transactionComplete(storeNamesArr, writeNeeded);
                 };
+
+                trans.oncomplete = transactionUnlock;
+                trans.onerror = transactionUnlock;
+                trans.onabort = transactionUnlock;
+                
                 return ourTrans;
             });
         } catch (e) {
