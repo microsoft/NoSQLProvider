@@ -891,6 +891,53 @@ describe('NoSqlProvider', function () {
                     });
                 });
             }
+
+            it('Full Text Index', () => {
+                return openProvider(provName, {
+                    version: 1,
+                    stores: [
+                        {
+                            name: 'test',
+                            primaryKeyPath: 'id',
+                            indexes: [{
+                                name: 'i',
+                                keyPath: 'txt',
+                                fullText: true
+                            }]
+                        }
+                    ]
+                }, true).then(prov => {
+                    return prov.put('test', [
+                            { id: 'a1', txt: 'the quick brown fox jumps over the lazy dog' },
+                            { id: 'a2', txt: 'bob likes his dog' }]).then(() => {
+                        const p1 = prov.fullTextSearch<any>('test', 'i', 'brown').then(res => {
+                            assert.equal(res.length, 1);
+                            assert.equal(res[0].id, 'a1');
+                        });
+                        const p2 = prov.fullTextSearch<any>('test', 'i', 'dog').then(res => {
+                            assert.equal(res.length, 2);
+                        });
+                        const p3 = prov.fullTextSearch<any>('test', 'i', 'do').then(res => {
+                            assert.equal(res.length, 2);
+                        });
+                        const p4 = prov.fullTextSearch<any>('test', 'i', 'like').then(res => {
+                            assert.equal(res.length, 1);
+                            assert.equal(res[0].id, 'a2');
+                        });
+                        const p5 = prov.fullTextSearch<any>('test', 'i', 'azy').then(res => {
+                            assert.equal(res.length, 0);
+                        });
+                        const p6 = prov.fullTextSearch<any>('test', 'i', 'lazy dog').then(res => {
+                            assert.equal(res.length, 1);
+                            assert.equal(res[0].id, 'a1');
+                        });
+
+                        return SyncTasks.all([p1, p2, p3, p4, p5, p6]).then(() => {
+                            return prov.close();
+                        });
+                    });
+                });
+            });
         });
     });
 });

@@ -12,12 +12,13 @@
 
 import SyncTasks = require('synctasks');
 
-// Schema type describing an index for a store.  Multientry indexes aren't supported yet, but compound/composite keypaths are.
+// Schema type describing an index for a store.
 export interface IndexSchema {
     name: string;
     keyPath: string | string[];
     unique?: boolean;
     multiEntry?: boolean;
+    fullText?: boolean;
 }
 
 // Schema type describing a data store.  Must give a keypath for the primary key for the store.  Further indexes are optional.
@@ -46,6 +47,7 @@ export interface DbIndex {
     countOnly(key: any|any[]): SyncTasks.Promise<number>;
     countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
         : SyncTasks.Promise<number>;
+    fullTextSearch<T>(searchPhrase: string): SyncTasks.Promise<T[]>;
 }
 
 // Interface type describing a database store opened for accessing.  Get commands at this level work against the primary keypath
@@ -185,6 +187,12 @@ export abstract class DbProvider {
             lowRangeExclusive?: boolean, highRangeExclusive?: boolean): SyncTasks.Promise<number> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.countRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        });
+    }
+
+    fullTextSearch<T>(storeName: string, indexName: string, searchPhrase: string): SyncTasks.Promise<T[]> {
+        return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
+            return index.fullTextSearch(searchPhrase);
         });
     }
 }
