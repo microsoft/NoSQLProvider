@@ -9,6 +9,7 @@
 import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
+import FullTextSearchHelpers = require('./FullTextSearchHelpers');
 import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 import TransactionLockHelper from './TransactionLockHelper';
@@ -340,12 +341,6 @@ function filterFullTextMetadataAndReturn<T>(schema: NoSqlProvider.StoreSchema, v
     return val;
 }
 
-function getFullTextIndexWordsForItem(schema: NoSqlProvider.IndexSchema, item: any): string[] {
-    const rawString = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>schema.keyPath);
-
-    return _.uniq(_.map(NoSqlProviderUtils.breakWords(rawString), word => NoSqlProviderUtils.normalizeSearchTerm(word)));
-}
-
 // DbStore implementation for the IndexedDB DbProvider.  Again, fairly closely maps to the standard IndexedDB spec, aside from
 // a bunch of hacks to support compound keypaths on IE.
 class IndexedDbStore implements NoSqlProvider.DbStore {
@@ -393,7 +388,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 
                         let keys: any[];
                         if (index.fullText) {
-                            keys = getFullTextIndexWordsForItem(index, item);
+                            keys = FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item);
                         } else {
                             // Get each value of the multientry and put it into the index store
                             const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
@@ -438,7 +433,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             } else {
                 _.each(this._schema.indexes, index => {
                     if (index.fullText) {
-                        item['nsp_i_' + index.name] = getFullTextIndexWordsForItem(index, item);
+                        item['nsp_i_' + index.name] = FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item);
                     }
                 });
             }
@@ -532,10 +527,10 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 // DbIndex implementation for the IndexedDB DbProvider.  Fairly closely maps to the standard IndexedDB spec, aside from
 // a bunch of hacks to support compound keypaths on IE and some helpers to make the caller not have to walk the awkward cursor
 // result APIs to get their result list.  Also added ability to use an "index" for opening the primary key on a store.
-class IndexedDbIndex implements NoSqlProvider.DbIndex {
-    constructor(private _store: IDBIndex | IDBObjectStore, private _keyPath: string | string[], private _primaryKeyPath: string | string[],
+class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
+    constructor(private _store: IDBIndex | IDBObjectStore, private _keyPath: string | string[], primaryKeyPath: string | string[],
             private _fakeComplicatedKeys: boolean, private _fakedOriginalStore?: IDBObjectStore) {
-        // NOP
+        super(primaryKeyPath);
     }
 
     private _resolveCursorResult<T>(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
@@ -600,26 +595,6 @@ class IndexedDbIndex implements NoSqlProvider.DbIndex {
             : SyncTasks.Promise<number> {
         const req = this._store.count(this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive));
         return this._countRequest(req);
-    }
-
-    fullTextSearch<T>(searchPhrase: string): SyncTasks.Promise<T[]> {
-        const promises = _.map(NoSqlProviderUtils.breakWords(searchPhrase), term => this._fullTextSearchSingleTerm<T>(term));
-        return SyncTasks.all(promises).then(results => {
-            if (results.length === 1) {
-                return results[0];
-            }
-
-            // Only return terms that show up in all of the results sets.
-            // The @types for _.intersectionBy is wrong and needs fixing, so this will hack around that for now...
-            return (_.intersectionBy as any)(...results, item =>
-                NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._primaryKeyPath));
-        });
-    }
-
-    private _fullTextSearchSingleTerm<T>(term: string): SyncTasks.Promise<T[]> {
-        const normTerm = NoSqlProviderUtils.normalizeSearchTerm(term);
-        const upperEnd = normTerm.substr(0, normTerm.length - 1) + String.fromCharCode(normTerm.charCodeAt(normTerm.length - 1) + 1);
-        return this.getRange(normTerm, upperEnd, false, true);
     }
 
     static getFromCursorRequest<T>(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
