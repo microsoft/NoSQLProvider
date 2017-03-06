@@ -573,7 +573,7 @@ describe('NoSqlProvider', function () {
                 });
             }
 
-            if (provName !== 'memory' && provName !== 'sqlite3memory') {
+            if (provName !== 'memory' && provName.indexOf('sqlite3memory') === -1) {
                 describe('Schema Upgrades', () => {
                     it('Opening an older DB version', () => {
                         return openProvider(provName, {
