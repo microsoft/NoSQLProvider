@@ -17,6 +17,10 @@ import SqlProviderBase = require('./SqlProviderBase');
 export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
     private _db: Database;
 
+    constructor(supportsFTS3 = true) {
+        super(supportsFTS3);
+    }
+
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
@@ -50,7 +54,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             }
 
             this._db.changeVersion(this._db.version, this._schema.version.toString(), (t) => {
-                let trans = new SqlProviderBase.SqliteSqlTransaction(t, this._schema, this._verbose, 999);
+                let trans = new SqlProviderBase.SqliteSqlTransaction(t, this._schema, this._verbose, 999, this._supportsFTS3);
 
                 this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => { deferred.resolve(); }, () => { deferred.reject(); });
             }, (err) => {
@@ -80,7 +84,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
         let ourTrans: SqlProviderBase.SqliteSqlTransaction = null;
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db,
             trans => {
-                ourTrans = new SqlProviderBase.SqliteSqlTransaction(trans, this._schema, this._verbose, 999);
+                ourTrans = new SqlProviderBase.SqliteSqlTransaction(trans, this._schema, this._verbose, 999, this._supportsFTS3);
                 deferred.resolve(ourTrans);
             }, (err) => {
                 if (ourTrans) {

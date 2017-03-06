@@ -9,6 +9,7 @@
 import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
+import FullTextSearchHelpers = require('./FullTextSearchHelpers');
 import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
@@ -24,7 +25,14 @@ function getIndexIdentifier(storeSchema: NoSqlProvider.StoreSchema, index: NoSql
     return storeSchema.name + '_' + index.name;
 }
 
+const FakeFTSJoinToken = '^$^';
+
 export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
+    constructor(protected _supportsFTS3: boolean) {
+        super();
+        // NOP
+    }
+
     private _getMetadata(trans: SqlTransaction): SyncTasks.Promise<{ name: string; value: string; }[]> {
         // Create table if needed
         return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then(() => {
@@ -52,7 +60,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     }
 
     protected _changeDbVersion(oldVersion: number, newVersion: number): SyncTasks.Promise<SqlTransaction> {
-        return this.openTransaction(null, true).then((trans: SqlTransaction) => {
+        return this.openTransaction(undefined, true).then((trans: SqlTransaction) => {
             return trans.runQuery('INSERT OR REPLACE into metadata (\'name\', \'value\') VALUES (\'' + schemaVersionKey + '\', ?)', [newVersion])
                 .then(() => {
                     return trans;
@@ -75,7 +83,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     });
                 } else if (wipeIfExists) {
                     // No version change, but wipe anyway
-                    return this.openTransaction(null, true).then((trans: SqlTransaction) => {
+                    return this.openTransaction(undefined, true).then((trans: SqlTransaction) => {
                         return this._upgradeDb(trans, oldVersion, true);
                     });
                 }
@@ -104,7 +112,12 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                     _.each(rows, row => {
                         const tableName = row['tbl_name'];
+                        // Ignore browser metadata tables for websql support
                         if (tableName === '__WebKitDatabaseInfoTable__' || tableName === 'metadata') {
+                            return;
+                        }
+                        // Ignore FTS-generated side tables
+                        if (tableName.indexOf('_i_content') > 0 || tableName.indexOf('_i_segments') > 0 || tableName.indexOf('_i_segdir') > 0) {
                             return;
                         }
                         if (row['type'] === 'table') {
@@ -201,8 +214,14 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                                         indexIdentifier + '_pi ON ' + indexIdentifier + ' (nsp_key, nsp_refrowid)');
                                                 });
                                         }
+                                    } else if (index.fullText && this._supportsFTS3) {
+                                        // If FTS3 isn't supported, we'll make a normal column and use LIKE to seek over it, so the
+                                        // fallback below works fine.
+                                        return trans.runQuery('CREATE VIRTUAL TABLE ' + indexIdentifier +
+                                            ' USING FTS3(nsp_key TEXT, nsp_refrowid INTEGER)');
                                     } else {
-                                        return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') + 'INDEX ' + indexIdentifier + ' ON ' + storeSchema.name + ' (nsp_i_' + index.name + ')');
+                                        return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') + 'INDEX ' + indexIdentifier +
+                                            ' ON ' + storeSchema.name + ' (nsp_i_' + index.name + ')');
                                     }
                                 });
 
@@ -274,7 +293,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 let migrator = () => {
                                     var store = trans.getStore(storeSchema.name);
                                     var objs = [];
-                                    return trans.internal_getResultsFromQueryWithCallback('SELECT nsp_data FROM temp_' + storeSchema.name, null,
+                                    return trans.internal_getResultsFromQueryWithCallback('SELECT nsp_data FROM temp_' + storeSchema.name, undefined,
                                         (obj) => {
                                             objs.push(obj);
                                         }).then(() => {
@@ -294,8 +313,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         return SyncTasks.all(tableQueries);
                     });
                 });
-        })
-        .then(() => void 0);
+        }).then(_.noop);
     }
 }
 
@@ -307,7 +325,8 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
     constructor(
         protected _schema: NoSqlProvider.DbSchema,
         protected _verbose: boolean,
-        protected _maxVariables: number) {
+        protected _maxVariables: number,
+        private _supportsFTS3: boolean) {
     }
 
     protected _isTransactionOpen(): boolean {
@@ -346,16 +365,16 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
 
     internal_getResultFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T> {
         return this.internal_getResultsFromQuery<T>(sql, parameters)
-            .then(rets => rets.length < 1 ? null : rets[0]);
+            .then(rets => rets.length < 1 ? undefined : rets[0]);
     }
 
     getStore(storeName: string): NoSqlProvider.DbStore {
         var storeSchema = _.find(this._schema.stores, store => store.name === storeName);
-        if (storeSchema === void 0) {
-            return null;
+        if (!storeSchema) {
+            return undefined;
         }
 
-        return new SqlStore(this, storeSchema, this._requiresUnicodeReplacement());
+        return new SqlStore(this, storeSchema, this._requiresUnicodeReplacement(), this._supportsFTS3);
     }
 
     protected _requiresUnicodeReplacement(): boolean {
@@ -368,9 +387,9 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
 export class SqliteSqlTransaction extends SqlTransaction {
     private _pendingQueries: SyncTasks.Deferred<any>[] = [];
 
-    constructor(protected _trans: SQLTransaction,
-        schema: NoSqlProvider.DbSchema, verbose: boolean, maxVariables: number) {
-        super(schema, verbose, maxVariables);
+    constructor(protected _trans: SQLTransaction, schema: NoSqlProvider.DbSchema, verbose: boolean, maxVariables: number,
+            supportsFTS3: boolean) {
+        super(schema, verbose, maxVariables, supportsFTS3);
     }
 
     // If an external provider of the transaction determines that the transaction has failed but won't report its failures
@@ -471,7 +490,8 @@ export class SqliteSqlTransaction extends SqlTransaction {
 // DbStore implementation for the SQL-based DbProviders.  Implements the getters/setters against the transaction object and all of the
 // glue for index/compound key support.
 class SqlStore implements NoSqlProvider.DbStore {
-    constructor(private _trans: SqlTransaction, private _schema: NoSqlProvider.StoreSchema, private _replaceUnicode: boolean) {
+    constructor(private _trans: SqlTransaction, private _schema: NoSqlProvider.StoreSchema, private _replaceUnicode: boolean,
+            private _supportsFTS3: boolean) {
         // Empty
     }
 
@@ -499,8 +519,6 @@ class SqlStore implements NoSqlProvider.DbStore {
     private static _unicodeFixer = new RegExp('[\u2028\u2029]', 'g');
 
     put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
-        // TODO dadere (#333864): Change to a multi-insert single query, but make sure to take the multiEntry madness into account
-
         let items = NoSqlProviderUtils.arrayify(itemOrItems);
 
         if (items.length === 0) {
@@ -512,7 +530,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         var args: any[] = [];
 
         _.each(this._schema.indexes, index => {
-            if (!index.multiEntry) {
+            if (!index.multiEntry || (index.fullText && !this._supportsFTS3)) {
                 qmarks.push('?');
                 fields.push('nsp_i_' + index.name);
             }
@@ -529,7 +547,10 @@ class SqlStore implements NoSqlProvider.DbStore {
             args.push(NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath), serializedData);
 
             _.each(this._schema.indexes, index => {
-                if (!index.multiEntry) {
+                if (index.fullText && !this._supportsFTS3) {
+                    args.push(FakeFTSJoinToken +
+                        FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(FakeFTSJoinToken));
+                } else if (!index.multiEntry) {
                     args.push(NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath));
                 }
             });
@@ -546,41 +567,51 @@ class SqlStore implements NoSqlProvider.DbStore {
         }
 
         return SyncTasks.all(inserts).then(() => {
-                if (_.some(this._schema.indexes, index => index.multiEntry)) {
-                    let queries: SyncTasks.Promise<void>[] = [];
+            if (_.some(this._schema.indexes, index => index.multiEntry || (index.fullText && this._supportsFTS3))) {
+                let queries: SyncTasks.Promise<void>[] = [];
 
-                    _.each(items, item => {
-                        queries.push(this._trans.runQuery('SELECT rowid a FROM ' + this._schema.name + ' WHERE nsp_pk = ?',
-                            [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath)])
-                            .then(rets => {
-                                let rowid = rets[0].a;
+                // Go through and do followup inserts for multientry indexes
+                _.each(items, item => {
+                    queries.push(this._trans.runQuery('SELECT rowid a FROM ' + this._schema.name + ' WHERE nsp_pk = ?',
+                        [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath)])
+                        .then(rets => {
+                            let rowid = rets[0].a;
 
-                                let inserts = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index => {
+                            let inserts: SyncTasks.Promise<void>[] = [];
+                            _.each(this._schema.indexes, index => {
+                                let serializedKeys: string[];
+
+                                if (index.fullText && this._supportsFTS3) {
+                                    // FTS3 terms go in a separate virtual table...
+                                    serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(' ')];
+                                } else if (index.multiEntry) {
                                     // Have to extract the multiple entries into the alternate table...
-
                                     const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
-                                    const serializedKeys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
+                                    serializedKeys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
                                         NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
+                                } else {
+                                    return;
+                                }
 
-                                    let valArgs = [], args = [];
-                                    _.each(serializedKeys, val => {
-                                        valArgs.push('(?, ?)');
-                                        args.push(val);
-                                        args.push(rowid);
-                                    });
-                                    return this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
+                                let valArgs = [], args = [];
+                                _.each(serializedKeys, val => {
+                                    valArgs.push('(?, ?)');
+                                    args.push(val);
+                                    args.push(rowid);
+                                });
+                                inserts.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
                                         ' WHERE nsp_refrowid = ?', [rowid]).then(() => {
-                                            this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
-                                                ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
-                                        });
-                                }).value();
-                                return SyncTasks.all(inserts).then(rets => void 0);
-                            }));
-                    });
+                                    return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
+                                        ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
+                                }));
+                            });
+                            return SyncTasks.all(inserts).then(_.noop);
+                        }));
+                });
 
-                    return SyncTasks.all(queries).then(rets => void 0);
-                }
-            });
+                return SyncTasks.all(queries).then(_.noop);
+            }
+        });
     }
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
@@ -592,7 +623,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                 // If there's any multientry indexes, we have to do the more complicated version...
                 return this._trans.runQuery('SELECT rowid a FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]).then(rets => {
                     if (rets.length === 0) {
-                        return null;
+                        return undefined;
                     }
 
                     var queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
@@ -606,20 +637,20 @@ class SqlStore implements NoSqlProvider.DbStore {
             return this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
         });
 
-        return SyncTasks.all(queries).then(rets => void 0);
+        return SyncTasks.all(queries).then(_.noop);
     }
 
     openIndex(indexName: string): NoSqlProvider.DbIndex {
-        var indexSchema = _.find(this._schema.indexes, index => index.name === indexName);
-        if (indexSchema === void 0) {
-            return null;
+        const indexSchema = _.find(this._schema.indexes, index => index.name === indexName);
+        if (!indexSchema) {
+            return undefined;
         }
 
-        return new SqlStoreIndex(this._trans, this._schema, indexSchema);
+        return new SqlStoreIndex(this._trans, this._schema, indexSchema, this._supportsFTS3);
     }
 
     openPrimaryKey(): NoSqlProvider.DbIndex {
-        return new SqlStoreIndex(this._trans, this._schema, null);
+        return new SqlStoreIndex(this._trans, this._schema, undefined, this._supportsFTS3);
     }
 
     clearAllData(): SyncTasks.Promise<void> {
@@ -628,28 +659,26 @@ class SqlStore implements NoSqlProvider.DbStore {
 
         queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name));
 
-        return SyncTasks.all(queries).then(rets => void 0);
+        return SyncTasks.all(queries).then(_.noop);
     }
 }
 
 // DbIndex implementation for SQL-based DbProviders.  Wraps all of the nasty compound key logic and general index traversal logic into
 // the appropriate SQL queries.
 class SqlStoreIndex implements NoSqlProvider.DbIndex {
-    private _trans: SqlTransaction;
     private _queryColumn: string;
     private _tableName: string;
     private _keyPath: string | string[];
 
-    constructor(trans: SqlTransaction, storeSchema: NoSqlProvider.StoreSchema, indexSchema: NoSqlProvider.IndexSchema) {
-        this._trans = trans;
-
+    constructor(protected _trans: SqlTransaction, storeSchema: NoSqlProvider.StoreSchema, indexSchema: NoSqlProvider.IndexSchema,
+            private _supportsFTS3: boolean) {
         if (!indexSchema) {
             // Going against the PK of the store
             this._tableName = storeSchema.name;
             this._queryColumn = 'nsp_pk';
             this._keyPath = storeSchema.primaryKeyPath;
         } else {
-            if (indexSchema.multiEntry) {
+            if (indexSchema.multiEntry || (indexSchema.fullText && this._supportsFTS3)) {
                 this._tableName = storeSchema.name + '_' + indexSchema.name + ' mi LEFT JOIN ' + storeSchema.name +
                 ' ON mi.nsp_refrowid = ' + storeSchema.name + '.rowid';
                 this._queryColumn = 'mi.nsp_key';
@@ -675,7 +704,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName, null, reverse, limit, offset);
+        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName, undefined, reverse, limit, offset);
     }
 
     getOnly<T>(key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
@@ -695,11 +724,11 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     private _getRangeChecks(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean) {
         let checks: string[] = [];
         let args: string[] = [];
-        if (keyLowRange !== null && keyLowRange !== void 0) {
+        if (keyLowRange !== null && keyLowRange !== undefined) {
             checks.push(this._queryColumn + (lowRangeExclusive ? ' > ' : ' >= ') + '?');
             args.push(NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath));
         }
-        if (keyHighRange !== null && keyHighRange !== void 0) {
+        if (keyHighRange !== null && keyHighRange !== undefined) {
             checks.push(this._queryColumn + (highRangeExclusive ? ' < ' : ' <= ') + '?');
             args.push(NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath));
         }
@@ -722,5 +751,18 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         const { checks, args } = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '),
             args).then(result => result[0]['cnt']);
+    }
+
+    fullTextSearch<T>(searchPhrase: string): SyncTasks.Promise<T[]> {
+        const terms = FullTextSearchHelpers.breakAndNormalizeSearchPhrase(searchPhrase);
+
+        if (this._supportsFTS3) {
+            return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' MATCH ?',
+                [_.map(terms, term => term + '*').join(' ')]);
+        } else {
+            return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' +
+                _.map(terms, term => this._queryColumn + ' LIKE ?').join(' AND '),
+                _.map(terms, term => '%' + FakeFTSJoinToken + term + '%'));
+        }
     }
 }

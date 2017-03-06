@@ -21,6 +21,10 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
 
     private _lockHelper: TransactionLockHelper;
 
+    constructor(supportsFTS3 = true) {
+        super(supportsFTS3);
+    }
+
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
@@ -38,13 +42,14 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
         const intStoreNames = NoSqlProviderUtils.arrayify(storeNames);
         return this._lockHelper.checkOpenTransaction(intStoreNames, writeNeeded).then(() =>
-            new NodeSqlite3Transaction(this._db, this._lockHelper, intStoreNames, writeNeeded, this._schema, this._verbose));
+            new NodeSqlite3Transaction(this._db, this._lockHelper, intStoreNames, writeNeeded, this._schema, this._verbose,
+            this._supportsFTS3));
     }
 
     close(): SyncTasks.Promise<void> {
         let task = SyncTasks.Defer<void>();
         this._db.close((err) => {
-            this._db = null;
+            this._db = undefined;
             if (err) {
                 task.reject(err);
             } else {
@@ -59,9 +64,9 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
     private _openTimer: number;
     private _openQueryCount = 0;
 
-    constructor(private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper,
-            private _storeNames: string[], private _exclusive: boolean, schema: NoSqlProvider.DbSchema, verbose: boolean) {
-        super(schema, verbose, 999);
+    constructor(private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper, private _storeNames: string[],
+            private _exclusive: boolean, schema: NoSqlProvider.DbSchema, verbose: boolean, supportsFTS3: boolean) {
+        super(schema, verbose, 999, supportsFTS3);
 
         this._setTimer();
     }

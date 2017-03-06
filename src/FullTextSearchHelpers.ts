@@ -12,11 +12,6 @@ import SyncTasks = require('synctasks');
 import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
-export function breakWords(rawString: string): string[] {
-    // Figure out how to do this in a localized fashion
-    return rawString.split(' ');
-}
-
 const _charMap: { [char: string]: string } = {
     'ª': 'a', 'º': 'o', 'À': 'A', 'Á': 'A', 'Â': 'A', 'Ã': 'A', 'Ä': 'A', 'Å': 'A', 'Ç': 'C', 'È': 'E',
     'É': 'E', 'Ê': 'E', 'Ë': 'E', 'Ì': 'I', 'Í': 'I', 'Î': 'I', 'Ï': 'I', 'Ñ': 'N', 'Ò': 'O', 'Ó': 'O',
@@ -71,6 +66,15 @@ export function normalizeString(input: string): string {
     return output;
 }
 
+export function breakWords(rawString: string): string[] {
+    // Figure out how to do this in a localized fashion
+    return rawString.split(' ');
+}
+
+export function breakAndNormalizeSearchPhrase(phrase: string): string[] {
+    return _.uniq(_.map(breakWords(phrase), word => normalizeSearchTerm(word)));
+}
+
 export function normalizeSearchTerm(term: string): string {
     return normalizeString(term).toLowerCase();
 }
@@ -78,7 +82,7 @@ export function normalizeSearchTerm(term: string): string {
 export function getFullTextIndexWordsForItem(keyPath: string, item: any): string[] {
     const rawString = NoSqlProviderUtils.getValueForSingleKeypath(item, keyPath);
 
-    return _.uniq(_.map(breakWords(rawString), word => normalizeSearchTerm(word)));
+    return breakAndNormalizeSearchPhrase(rawString);
 }
 
 export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbIndex {
@@ -87,7 +91,10 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
     }
 
     fullTextSearch<T>(searchPhrase: string): SyncTasks.Promise<T[]> {
-        const promises = _.map(breakWords(searchPhrase), term => this._fullTextSearchSingleTerm<T>(term));
+        const promises = _.map(breakAndNormalizeSearchPhrase(searchPhrase), term => {
+            const upperEnd = term.substr(0, term.length - 1) + String.fromCharCode(term.charCodeAt(term.length - 1) + 1);
+            return this.getRange(term, upperEnd, false, true);
+        });
         return SyncTasks.all(promises).then(results => {
             if (results.length === 1) {
                 return results[0];
@@ -98,12 +105,6 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
             return (_.intersectionBy as any)(...results, item =>
                 NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._primaryKeyPath));
         });
-    }
-
-    private _fullTextSearchSingleTerm<T>(term: string): SyncTasks.Promise<T[]> {
-        const normTerm = normalizeSearchTerm(term);
-        const upperEnd = normTerm.substr(0, normTerm.length - 1) + String.fromCharCode(normTerm.charCodeAt(normTerm.length - 1) + 1);
-        return this.getRange(normTerm, upperEnd, false, true);
     }
 
     abstract getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;

@@ -112,7 +112,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
             // Create all stores
             _.each(schema.stores, storeSchema => {
-                let store: IDBObjectStore = null;
+                let store: IDBObjectStore;
                 let migrateData = false;
                 if (!_.includes(db.objectStoreNames, storeSchema.name)) {
                     let primaryKeyPath = storeSchema.primaryKeyPath;
@@ -246,7 +246,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
     close(): SyncTasks.Promise<void> {
         this._db.close();
-        this._db = null;
+        this._db = undefined;
         return SyncTasks.Resolved<void>();
     }
 
@@ -311,8 +311,8 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
     getStore(storeName: string): NoSqlProvider.DbStore {
         const store = _.find(this._stores, s => s.name === storeName);
         const storeSchema = _.find(this._schema.stores, s => s.name === storeName);
-        if (store === undefined || storeSchema === undefined) {
-            return null;
+        if (!store || !storeSchema) {
+            return undefined;
         }
 
         const indexStores: IDBObjectStore[] = [];
@@ -487,22 +487,22 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
     }
 
     openIndex(indexName: string): NoSqlProvider.DbIndex {
-        let indexSchema = _.find(this._schema.indexes, idx => idx.name === indexName);
-        if (indexSchema === undefined) {
-            return null;
+        const indexSchema = _.find(this._schema.indexes, idx => idx.name === indexName);
+        if (!indexSchema) {
+            return undefined;
         }
 
         if (this._fakeComplicatedKeys && (indexSchema.multiEntry || indexSchema.fullText)) {
-            let store = _.find(this._indexStores, indexStore => indexStore.name === this._schema.name + '_' + indexSchema.name);
-            if (store === undefined) {
-                return null;
+            const store = _.find(this._indexStores, indexStore => indexStore.name === this._schema.name + '_' + indexSchema.name);
+            if (!store) {
+                return undefined;
             }
             return new IndexedDbIndex(store.index('key'), indexSchema.keyPath, this._schema.primaryKeyPath, this._fakeComplicatedKeys,
                 this._store);
         } else {
-            let index = this._store.index(indexName);
-            if (index === undefined) {
-                return null;
+            const index = this._store.index(indexName);
+            if (!index) {
+                return undefined;
             }
             return new IndexedDbIndex(index, indexSchema.keyPath, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
         }
@@ -547,6 +547,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+        // Don't change this null to undefined, IE chokes on it...
         const req = this._store.openCursor(null, reverse ? 'prev' : 'next');
         return this._resolveCursorResult<T>(req, limit, offset);
     }
@@ -582,7 +583,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     countAll(): SyncTasks.Promise<number> {
-        const req = this._store.count(null);
+        const req = this._store.count();
         return this._countRequest(req);
     }
 

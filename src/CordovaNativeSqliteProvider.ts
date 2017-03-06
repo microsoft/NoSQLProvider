@@ -44,12 +44,11 @@ export interface SqlitePlugin {
 }
 
 export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
-
     private _lockHelper: TransactionLockHelper;
 
     // You can use the openOptions object to pass extra optional parameters like androidDatabaseImplementation to the open command
     constructor(private _plugin: SqlitePlugin = window.sqlitePlugin, private _openOptions: SqlitePluginDbOptionalParams = {}) {
-        super();
+        super(true);
     }
 
     private _db: SqliteDatabase;
@@ -115,7 +114,8 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
 
             let ourTrans: SqlProviderBase.SqliteSqlTransaction;
             (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db, (trans: SQLTransaction) => {
-                ourTrans = new CordovaNativeSqliteTransaction(trans, this._lockHelper, this._schema, storeNamesArr, writeNeeded, this._verbose, 999);
+                ourTrans = new CordovaNativeSqliteTransaction(trans, this._lockHelper, this._schema, storeNamesArr, writeNeeded,
+                    this._verbose, 999, this._supportsFTS3);
                 deferred.resolve(ourTrans);
             }, (err) => {
                 if (ourTrans) {
@@ -139,8 +139,9 @@ class CordovaNativeSqliteTransaction extends SqlProviderBase.SqliteSqlTransactio
                 private _stores: string[],
                 private _exclusive: boolean,
                 verbose: boolean,
-                maxVariables: number) {
-        super(trans, schema, verbose, maxVariables);
+                maxVariables: number,
+                supportsFTS3: boolean) {
+        super(trans, schema, verbose, maxVariables, supportsFTS3);
     }
 
     internal_markTransactionClosed(): void {

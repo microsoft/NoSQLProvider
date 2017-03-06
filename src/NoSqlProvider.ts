@@ -80,7 +80,7 @@ export abstract class DbProvider {
         // virtual call
         this._schema = schema;
         this._verbose = verbose;
-        return null;
+        return undefined;
     }
 
     abstract close(): SyncTasks.Promise<void>;
