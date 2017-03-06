@@ -152,7 +152,7 @@ export function isIE() {
 
 export function breakWords(rawString: string): string[] {
     // Figure out how to do this in a localized fashion
-    return rawString.split('.');
+    return rawString.split(' ');
 }
 
 const _charMap: { [char: string]: string } = {
@@ -207,4 +207,8 @@ export function normalizeString(input: string): string {
     }
 
     return output;
+}
+
+export function normalizeSearchTerm(term: string): string {
+    return normalizeString(term).toLowerCase();
 }

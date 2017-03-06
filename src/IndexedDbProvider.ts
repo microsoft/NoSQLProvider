@@ -163,12 +163,13 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                     if (!_.includes(store.indexNames, indexSchema.name)) {
                         const keyPath = indexSchema.keyPath;
                         if (this._fakeComplicatedKeys) {
-                            if (indexSchema.multiEntry) {
+                            if (indexSchema.multiEntry || indexSchema.fullText) {
                                 if (NoSqlProviderUtils.isCompoundKeyPath(keyPath)) {
                                     throw new Error('Can\'t use multiEntry and compound keys');
                                 } else {
                                     // Create an object store for the index
-                                    let indexStore = db.createObjectStore(storeSchema.name + '_' + indexSchema.name, { keyPath: 'key' });
+                                    let indexStore = db.createObjectStore(storeSchema.name + '_' + indexSchema.name,
+                                        { autoIncrement: true });
                                     indexStore.createIndex('key', 'key');
                                     indexStore.createIndex('refkey', 'refkey');
 
@@ -208,6 +209,11 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                                     unique: indexSchema.unique
                                 });
                             }
+                        } else if (indexSchema.fullText) {
+                            store.createIndex(indexSchema.name, 'nsp_i_' + indexSchema.name, {
+                                unique: false,
+                                multiEntry: true
+                            });
                         } else {
                             store.createIndex(indexSchema.name, keyPath, {
                                 unique: indexSchema.unique,
@@ -261,7 +267,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                 }
                 if (storeSchema.indexes) {
                     _.each(storeSchema.indexes, indexSchema => {
-                        if (indexSchema.multiEntry) {
+                        if (indexSchema.multiEntry || indexSchema.fullText) {
                             intStoreNames.push(storeSchema.name + '_' + indexSchema.name);
                         }
                     });
@@ -294,16 +300,10 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
 // DbTransaction implementation for the IndexedDB DbProvider.
 class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
-    private _trans: IDBTransaction;
     private _stores: IDBObjectStore[];
-    private _schema: NoSqlProvider.DbSchema;
-    private _fakeComplicatedKeys: boolean;
 
-    constructor(trans: IDBTransaction, schema: NoSqlProvider.DbSchema, storeNames: string[], fakeComplicatedKeys: boolean) {
-        this._trans = trans;
-        this._schema = schema;
-        this._fakeComplicatedKeys = fakeComplicatedKeys;
-
+    constructor(private _trans: IDBTransaction, private _schema: NoSqlProvider.DbSchema, storeNames: string[],
+            private _fakeComplicatedKeys: boolean) {
         this._stores = _.map(storeNames, storeName => this._trans.objectStore(storeName));
     }
 
@@ -318,7 +318,7 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
         if (this._fakeComplicatedKeys && storeSchema.indexes) {
             // Pull the alternate multientry stores in as well
             _.each(storeSchema.indexes, indexSchema => {
-                if (indexSchema.multiEntry) {
+                if (indexSchema.multiEntry || indexSchema.fullText) {
                     indexStores.push(this._trans.objectStore(storeSchema.name + '_' + indexSchema.name));
                 }
             });
@@ -330,9 +330,9 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
 
 function filterFullTextMetadataAndReturn<T>(schema: NoSqlProvider.StoreSchema, val: T): T {
     if (val) {
-        _.each(this._schema.indexes, index => {
+        _.each(schema.indexes, index => {
             if (index.fullText) {
-                delete val['nsp_' + index.name];
+                delete val['nsp_i_' + index.name];
             }
         });
     }
@@ -340,19 +340,18 @@ function filterFullTextMetadataAndReturn<T>(schema: NoSqlProvider.StoreSchema, v
     return val;
 }
 
+function getFullTextIndexWordsForItem(schema: NoSqlProvider.IndexSchema, item: any): string[] {
+    const rawString = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>schema.keyPath);
+
+    return _.uniq(_.map(NoSqlProviderUtils.breakWords(rawString), word => NoSqlProviderUtils.normalizeSearchTerm(word)));
+}
+
 // DbStore implementation for the IndexedDB DbProvider.  Again, fairly closely maps to the standard IndexedDB spec, aside from
 // a bunch of hacks to support compound keypaths on IE.
 class IndexedDbStore implements NoSqlProvider.DbStore {
-    private _store: IDBObjectStore;
-    private _indexStores: IDBObjectStore[];
-    private _schema: NoSqlProvider.StoreSchema;
-    private _fakeComplicatedKeys: boolean;
-
-    constructor(store: IDBObjectStore, indexStores: IDBObjectStore[], schema: NoSqlProvider.StoreSchema, fakeComplicatedKeys: boolean) {
-        this._store = store;
-        this._indexStores = indexStores;
-        this._schema = schema;
-        this._fakeComplicatedKeys = fakeComplicatedKeys;
+    constructor(private _store: IDBObjectStore, private _indexStores: IDBObjectStore[], private _schema: NoSqlProvider.StoreSchema,
+            private _fakeComplicatedKeys: boolean) {
+        // NOP
     }
 
     get<T>(key: any | any[]): SyncTasks.Promise<T> {
@@ -389,15 +388,19 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                 }
 
                 _.each(this._schema.indexes, index => {
-                    if (index.multiEntry) {
+                    if (index.multiEntry || index.fullText) {
                         let indexStore = _.find(this._indexStores, store => store.name === this._schema.name + '_' + index.name);
 
-                        // Get each value of the multientry and put it into the index store
-                        const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
-                        // It might be an array of multiple entries, so just always go with array-based logic
-                        const valsArray = NoSqlProviderUtils.arrayify(valsRaw);
+                        let keys: any[];
+                        if (index.fullText) {
+                            keys = getFullTextIndexWordsForItem(index, item);
+                        } else {
+                            // Get each value of the multientry and put it into the index store
+                            const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
+                            // It might be an array of multiple entries, so just always go with array-based logic
+                            keys = NoSqlProviderUtils.arrayify(valsRaw);
+                        }
 
-                        let keys = valsArray;
                         // We're using normal indexeddb tables to store the multientry indexes, so we only need to use the key
                         // serialization if the multientry keys ALSO are compound.
                         if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
@@ -432,6 +435,12 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                         item['nsp_i_' + index.name] = NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath);
                     }
                 });
+            } else {
+                _.each(this._schema.indexes, index => {
+                    if (index.fullText) {
+                        item['nsp_i_' + index.name] = getFullTextIndexWordsForItem(index, item);
+                    }
+                });
             }
 
             let promise: SyncTasks.Promise<void>;
@@ -455,7 +464,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         }
 
         return SyncTasks.all(_.map(keys, key => {
-            if (this._fakeComplicatedKeys && _.some(this._schema.indexes, index => index.multiEntry)) {
+            if (this._fakeComplicatedKeys && _.some(this._schema.indexes, index => index.multiEntry || index.fullText)) {
                 // If we're faking keys and there's any multientry indexes, we have to do the way more complicated version...
                 return IndexedDbProvider.WrapRequest<any>(this._store.get(key)).then(item => {
                     if (item) {
@@ -488,23 +497,24 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             return null;
         }
 
-        if (this._fakeComplicatedKeys && indexSchema.multiEntry) {
+        if (this._fakeComplicatedKeys && (indexSchema.multiEntry || indexSchema.fullText)) {
             let store = _.find(this._indexStores, indexStore => indexStore.name === this._schema.name + '_' + indexSchema.name);
             if (store === undefined) {
                 return null;
             }
-            return new IndexedDbIndex(store.index('key'), indexSchema.keyPath, this._fakeComplicatedKeys, this._store);
+            return new IndexedDbIndex(store.index('key'), indexSchema.keyPath, this._schema.primaryKeyPath, this._fakeComplicatedKeys,
+                this._store);
         } else {
             let index = this._store.index(indexName);
             if (index === undefined) {
                 return null;
             }
-            return new IndexedDbIndex(index, indexSchema.keyPath, this._fakeComplicatedKeys);
+            return new IndexedDbIndex(index, indexSchema.keyPath, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
         }
     }
 
     openPrimaryKey(): NoSqlProvider.DbIndex {
-        return new IndexedDbIndex(this._store, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
+        return new IndexedDbIndex(this._store, this._schema.primaryKeyPath, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
     }
 
     clearAllData(): SyncTasks.Promise<void> {
@@ -523,17 +533,9 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 // a bunch of hacks to support compound keypaths on IE and some helpers to make the caller not have to walk the awkward cursor
 // result APIs to get their result list.  Also added ability to use an "index" for opening the primary key on a store.
 class IndexedDbIndex implements NoSqlProvider.DbIndex {
-    private _store: IDBIndex | IDBObjectStore;
-    private _keyPath: string | string[];
-    private _fakeComplicatedKeys: boolean;
-    private _fakedOriginalStore: IDBObjectStore;
-
-    constructor(store: IDBIndex | IDBObjectStore, keyPath: string | string[], fakeComplicatedKeys: boolean,
-            fakedOriginalStore?: IDBObjectStore) {
-        this._store = store;
-        this._keyPath = keyPath;
-        this._fakeComplicatedKeys = fakeComplicatedKeys;
-        this._fakedOriginalStore = fakedOriginalStore;
+    constructor(private _store: IDBIndex | IDBObjectStore, private _keyPath: string | string[], private _primaryKeyPath: string | string[],
+            private _fakeComplicatedKeys: boolean, private _fakedOriginalStore?: IDBObjectStore) {
+        // NOP
     }
 
     private _resolveCursorResult<T>(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
@@ -601,11 +603,23 @@ class IndexedDbIndex implements NoSqlProvider.DbIndex {
     }
 
     fullTextSearch<T>(searchPhrase: string): SyncTasks.Promise<T[]> {
-        
+        const promises = _.map(NoSqlProviderUtils.breakWords(searchPhrase), term => this._fullTextSearchSingleTerm<T>(term));
+        return SyncTasks.all(promises).then(results => {
+            if (results.length === 1) {
+                return results[0];
+            }
+
+            // Only return terms that show up in all of the results sets.
+            // The @types for _.intersectionBy is wrong and needs fixing, so this will hack around that for now...
+            return (_.intersectionBy as any)(...results, item =>
+                NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._primaryKeyPath));
+        });
     }
 
     private _fullTextSearchSingleTerm<T>(term: string): SyncTasks.Promise<T[]> {
-
+        const normTerm = NoSqlProviderUtils.normalizeSearchTerm(term);
+        const upperEnd = normTerm.substr(0, normTerm.length - 1) + String.fromCharCode(normTerm.charCodeAt(normTerm.length - 1) + 1);
+        return this.getRange(normTerm, upperEnd, false, true);
     }
 
     static getFromCursorRequest<T>(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<T[]> {

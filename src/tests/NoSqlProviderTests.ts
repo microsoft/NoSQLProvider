@@ -37,7 +37,7 @@ function sleep(timeMs: number): SyncTasks.Promise<void> {
 }
 
 describe('NoSqlProvider', function () {
-    //this.timeout(30000);
+    //this.timeout(60000);
 
     let provsToTest = typeof window === 'undefined' ? ['sqlite3memory', 'memory'] : NoSqlProviderUtils.isIE() ? ['indexeddb', 'memory'] : ['indexeddb', 'indexeddbfakekeys', 'websql', 'memory'];
 
