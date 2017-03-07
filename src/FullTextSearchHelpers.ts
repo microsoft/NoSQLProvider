@@ -12,18 +12,10 @@ import SyncTasks = require('synctasks');
 import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
-function breakWords(rawString: string): string[] {
-    // Figure out how to do this in a localized fashion
-    return _.words(rawString);
-}
-
-function normalizeSearchTerm(term: string): string {
-    return _.deburr(term).toLowerCase();
-}
-
 export function breakAndNormalizeSearchPhrase(phrase: string): string[] {
     // Faster than using _.uniq since it's just a pile of strings.
-    return _.keys(_.mapKeys(breakWords(phrase), word => normalizeSearchTerm(word)));
+    // Deburr and tolower before using _.words since _.words breaks on CaseChanges.
+    return _.keys(_.mapKeys(_.words(_.deburr(phrase).toLowerCase())));
 }
 
 export function getFullTextIndexWordsForItem(keyPath: string, item: any): string[] {

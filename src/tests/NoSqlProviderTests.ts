@@ -915,7 +915,7 @@ describe('NoSqlProvider', function () {
                     ]
                 }, true).then(prov => {
                     return prov.put('test', [
-                            { id: 'a1', txt: 'the quick brown fox jumps over the lazy dog' },
+                            { id: 'a1', txt: 'the quick brown fox jumps over the lăzy dog' },
                             { id: 'a2', txt: 'bob likes his dog' }]).then(() => {
                         const p1 = prov.fullTextSearch<any>('test', 'i', 'brown').then(res => {
                             assert.equal(res.length, 1);
@@ -927,7 +927,7 @@ describe('NoSqlProvider', function () {
                         const p3 = prov.fullTextSearch<any>('test', 'i', 'do').then(res => {
                             assert.equal(res.length, 2);
                         });
-                        const p4 = prov.fullTextSearch<any>('test', 'i', 'like').then(res => {
+                        const p4 = prov.fullTextSearch<any>('test', 'i', 'LiKe').then(res => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a2');
                         });
@@ -942,8 +942,16 @@ describe('NoSqlProvider', function () {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
+                        const p8 = prov.fullTextSearch<any>('test', 'i', 'DOG lăzy').then(res => {
+                            assert.equal(res.length, 1);
+                            assert.equal(res[0].id, 'a1');
+                        });
+                        const p9 = prov.fullTextSearch<any>('test', 'i', 'lĄzy').then(res => {
+                            assert.equal(res.length, 1);
+                            assert.equal(res[0].id, 'a1');
+                        });
 
-                        return SyncTasks.all([p1, p2, p3, p4, p5, p6, p7]).then(() => {
+                        return SyncTasks.all([p1, p2, p3, p4, p5, p6, p7, p8, p9]).then(() => {
                             return prov.close();
                         });
                     });
