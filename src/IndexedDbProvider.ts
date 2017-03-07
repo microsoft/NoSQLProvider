@@ -14,6 +14,8 @@ import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 import TransactionLockHelper from './TransactionLockHelper';
 
+const IndexPrefix = 'nsp_i_';
+
 // The DbProvider implementation for IndexedDB.  This one is fairly straightforward since the library's access patterns pretty
 // closely mirror IndexedDB's.  We mostly do a lot of wrapping of the APIs into JQuery promises and have some fancy footwork to
 // do semi-automatic schema upgrades.
@@ -179,14 +181,14 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                                         const cursorReq = store.openCursor();
                                         let thisIndexPutters: SyncTasks.Promise<void>[] = [];
                                         migrationPutters.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
-                                            let item = filterFullTextMetadataAndReturn(storeSchema, cursor.value);
+                                            const item = removeFullTextMetadataAndReturn(storeSchema, cursor.value);
 
                                             // Get each value of the multientry and put it into the index store
-                                            let valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>indexSchema.keyPath);
+                                            const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>indexSchema.keyPath);
                                             // It might be an array of multiple entries, so just always go with array-based logic
-                                            let vals = NoSqlProviderUtils.arrayify(valsRaw);
+                                            const vals = NoSqlProviderUtils.arrayify(valsRaw);
 
-                                            let refKey = NoSqlProviderUtils.getSerializedKeyForKeypath(item,
+                                            const refKey = NoSqlProviderUtils.getSerializedKeyForKeypath(item,
                                                 storeSchema.primaryKeyPath);
 
                                             // After nuking the existing entries, add the new ones
@@ -197,12 +199,12 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                                                 };
                                                 thisIndexPutters.push(IndexedDbProvider.WrapRequest<void>(indexStore.put(indexObj)));
                                             });
-                                        }).then(() => SyncTasks.all(thisIndexPutters).then(() => undefined)));
+                                        }).then(() => SyncTasks.all(thisIndexPutters).then(_.noop)));
                                     }
                                 }
                             } else if (NoSqlProviderUtils.isCompoundKeyPath(keyPath)) {
                                 // Going to have to hack the compound index into a column, so here it is.
-                                store.createIndex(indexSchema.name, 'nsp_i_' + indexSchema.name, {
+                                store.createIndex(indexSchema.name, IndexPrefix + indexSchema.name, {
                                     unique: indexSchema.unique
                                 });
                             } else {
@@ -211,7 +213,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                                 });
                             }
                         } else if (indexSchema.fullText) {
-                            store.createIndex(indexSchema.name, 'nsp_i_' + indexSchema.name, {
+                            store.createIndex(indexSchema.name, IndexPrefix + indexSchema.name, {
                                 unique: false,
                                 multiEntry: true
                             });
@@ -329,11 +331,11 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
     }
 }
 
-function filterFullTextMetadataAndReturn<T>(schema: NoSqlProvider.StoreSchema, val: T): T {
+function removeFullTextMetadataAndReturn<T>(schema: NoSqlProvider.StoreSchema, val: T): T {
     if (val) {
         _.each(schema.indexes, index => {
             if (index.fullText) {
-                delete val['nsp_i_' + index.name];
+                delete val[IndexPrefix + index.name];
             }
         });
     }
@@ -355,7 +357,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         }
 
         return IndexedDbProvider.WrapRequest<T>(this._store.get(key))
-            .then(val => filterFullTextMetadataAndReturn(this._schema, val));
+            .then(val => removeFullTextMetadataAndReturn(this._schema, val));
     }
 
     getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
@@ -367,7 +369,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
         return SyncTasks.all(_.map(keys, key =>
-            IndexedDbProvider.WrapRequest<T>(this._store.get(key)).then(val => filterFullTextMetadataAndReturn(this._schema, val))));
+            IndexedDbProvider.WrapRequest<T>(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))));
     }
 
     put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
@@ -425,15 +427,15 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                                     return IndexedDbProvider.WrapRequest<void>(indexStore.put(indexObj));
                                 });
                                 return SyncTasks.all(iputters);
-                            }).then(rets => undefined));
+                            }).then(_.noop));
                     } else if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
-                        item['nsp_i_' + index.name] = NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath);
+                        item[IndexPrefix + index.name] = NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath);
                     }
                 });
             } else {
                 _.each(this._schema.indexes, index => {
                     if (index.fullText) {
-                        item['nsp_i_' + index.name] = FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item);
+                        item[IndexPrefix + index.name] = FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item);
                     }
                 });
             }
@@ -448,7 +450,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             promises.push(promise);
         });
 
-        return SyncTasks.all(promises).then(rets => undefined);
+        return SyncTasks.all(promises).then(_.noop);
     }
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
@@ -483,7 +485,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             }
 
             return IndexedDbProvider.WrapRequest<void>(this._store['delete'](key));
-        })).then(rets => undefined);
+        })).then(_.noop);
     }
 
     openIndex(indexName: string): NoSqlProvider.DbIndex {
@@ -520,7 +522,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 
         let promises = _.map(storesToClear, store => IndexedDbProvider.WrapRequest(store.clear()));
 
-        return SyncTasks.all(promises).then(rets => undefined);
+        return SyncTasks.all(promises).then(_.noop);
     }
 }
 
