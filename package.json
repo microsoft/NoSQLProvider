@@ -1,6 +1,6 @@
 {
   "name": "nosqlprovider",
-  "version": "0.3.8",
+  "version": "0.4.0",
   "description": "A cross-browser/platform indexeddb-like client library",
   "author": "David de Regt <David.de.Regt@microsoft.com>",
   "scripts": {
@@ -13,7 +13,7 @@
     "@types/lodash": "^4.14.52",
     "@types/mocha": "^2.2.38",
     "@types/sqlite3": "^2.2.32",
-    "lodash": "^3.10.0 || ^4.0.0",
+    "lodash": "^4.0.0",
     "synctasks": "^0.2.12"
   },
   "devDependencies": {

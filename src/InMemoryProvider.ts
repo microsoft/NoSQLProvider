@@ -9,6 +9,7 @@
 import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
+import FullTextSearchHelpers = require('./FullTextSearchHelpers');
 import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 import TransactionLockHelper from './TransactionLockHelper';
@@ -121,7 +122,8 @@ class InMemoryStore implements NoSqlProvider.DbStore {
     }
 
     openPrimaryKey(): NoSqlProvider.DbIndex {
-        return new InMemoryIndex(this._trans, this._storeData, this._storeData.schema.primaryKeyPath, false, true);
+        return new InMemoryIndex(this._trans, this._storeData, this._storeData.schema.primaryKeyPath,
+            this._storeData.schema.primaryKeyPath, false, false, true);
     }
 
     openIndex(indexName: string): NoSqlProvider.DbIndex {
@@ -130,7 +132,8 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return null;
         }
 
-        return new InMemoryIndex(this._trans, this._storeData, indexSchema.keyPath, indexSchema.multiEntry, false);
+        return new InMemoryIndex(this._trans, this._storeData, indexSchema.keyPath, this._storeData.schema.primaryKeyPath, 
+            indexSchema.multiEntry, indexSchema.fullText, false);
     }
 
     clearAllData(): SyncTasks.Promise<void> {
@@ -147,13 +150,12 @@ class InMemoryStore implements NoSqlProvider.DbStore {
 }
 
 // Note: Currently maintains nothing interesting -- rebuilds the results every time from scratch.  Scales like crap.
-class InMemoryIndex implements NoSqlProvider.DbIndex {
-    private _keyPath: string | string[];
-
+class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     private _data: { [key: string]: any[] };
 
-    constructor(private _trans: InMemoryTransaction, storeData: StoreData, keyPath: string | string[], multiEntry: boolean, pk: boolean) {
-        this._keyPath = keyPath;
+    constructor(private _trans: InMemoryTransaction, storeData: StoreData, private _keyPath: string | string[],
+            primaryKeyPath: string | string[], multiEntry: boolean, fullText: boolean, pk: boolean) {
+        super(primaryKeyPath);
 
         // Construct the index data once
 
@@ -164,10 +166,17 @@ class InMemoryIndex implements NoSqlProvider.DbIndex {
             this._data = {};
             _.each(storeData.data, item => {
                 // Each item may be non-unique so store as an array of items for each key
-                const keys = multiEntry ?
-                    _.map(NoSqlProviderUtils.arrayify(NoSqlProviderUtils.getValueForSingleKeypath(item, <string>this._keyPath)), val =>
-                        NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath)) :
-                    [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._keyPath)];
+                let keys: string[];
+                if (fullText) {
+                    keys = _.map(FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>this._keyPath, item), val =>
+                        NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
+                } else if (multiEntry) {
+                    keys = _.map(NoSqlProviderUtils.arrayify(NoSqlProviderUtils.getValueForSingleKeypath(item, <string>this._keyPath)), val =>
+                        NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
+                } else {
+                    keys = [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._keyPath)];
+                }
+                
                 _.each(keys, key => {
                     if (!this._data[key]) {
                         this._data[key] = [item];
