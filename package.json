@@ -6,7 +6,7 @@
   "scripts": {
     "test": "mocha dist/tests/NoSqlProviderTests.js",
     "webtest": "webpack --watch",
-    "build": "tsc"
+    "build": "tslint --project tsconfig.json -r tslint.json --fix|| true && tsc"
   },
   "main": "dist/NoSqlProvider.js",
   "dependencies": {
