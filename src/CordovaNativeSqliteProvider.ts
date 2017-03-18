@@ -120,8 +120,11 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             }, (err) => {
                 if (ourTrans) {
                     ourTrans.internal_markTransactionClosed();
+                } else {
+                    // we need to reject transaction only in cases when it's not resolved
+                    deferred.reject(err);
                 }
-                deferred.reject(err);
+                
                 this._checkClose();
             }, () => {
                 ourTrans.internal_markTransactionClosed();
