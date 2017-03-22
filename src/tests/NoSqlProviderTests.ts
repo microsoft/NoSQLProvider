@@ -984,8 +984,15 @@ describe('NoSqlProvider', function () {
                             assert.equal(res.length, 2);
                             assert.ok(_.some(res, r => r.id === 'a1') && _.some(res, r => r.id === 'a2'));
                         });
+                        const p19 = prov.fullTextSearch<any>('test', 'i', 'fox nopers', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 1);
+                            assert.equal(res[0].id, 'a1');
+                        });
+                        const p20 = prov.fullTextSearch<any>('test', 'i', 'foxers nopers', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 0);
+                        });
 
-                        return SyncTasks.all([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18]).then(() => {
+                        return SyncTasks.all([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20]).then(() => {
                             return prov.close();
                         });
                     });
