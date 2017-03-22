@@ -37,6 +37,11 @@ export interface DbSchema {
     stores: StoreSchema[];
 }
 
+export enum FullTextTermResolution {
+    And,
+    Or
+}
+
 // Interface type describing an index being opened for querying.
 export interface DbIndex {
     getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
@@ -47,7 +52,7 @@ export interface DbIndex {
     countOnly(key: any|any[]): SyncTasks.Promise<number>;
     countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
         : SyncTasks.Promise<number>;
-    fullTextSearch<T>(searchPhrase: string): SyncTasks.Promise<T[]>;
+    fullTextSearch<T>(searchPhrase: string, resolution?: FullTextTermResolution): SyncTasks.Promise<T[]>;
 }
 
 // Interface type describing a database store opened for accessing.  Get commands at this level work against the primary keypath
@@ -190,9 +195,10 @@ export abstract class DbProvider {
         });
     }
 
-    fullTextSearch<T>(storeName: string, indexName: string, searchPhrase: string): SyncTasks.Promise<T[]> {
+    fullTextSearch<T>(storeName: string, indexName: string, searchPhrase: string,
+            resolution: FullTextTermResolution = FullTextTermResolution.And): SyncTasks.Promise<T[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
-            return index.fullTextSearch(searchPhrase);
+            return index.fullTextSearch(searchPhrase, resolution);
         });
     }
 }

@@ -668,6 +668,8 @@ class SqlStore implements NoSqlProvider.DbStore {
 class SqlStoreIndex implements NoSqlProvider.DbIndex {
     private _queryColumn: string;
     private _tableName: string;
+    private _rawTableName: string;
+    private _indexTableName: string;
     private _keyPath: string | string[];
 
     constructor(protected _trans: SqlTransaction, storeSchema: NoSqlProvider.StoreSchema, indexSchema: NoSqlProvider.IndexSchema,
@@ -675,15 +677,21 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         if (!indexSchema) {
             // Going against the PK of the store
             this._tableName = storeSchema.name;
+            this._rawTableName = this._tableName;
+            this._indexTableName = this._tableName;
             this._queryColumn = 'nsp_pk';
             this._keyPath = storeSchema.primaryKeyPath;
         } else {
             if (indexSchema.multiEntry || (indexSchema.fullText && this._supportsFTS3)) {
                 this._tableName = storeSchema.name + '_' + indexSchema.name + ' mi LEFT JOIN ' + storeSchema.name +
                 ' ON mi.nsp_refrowid = ' + storeSchema.name + '.rowid';
+                this._rawTableName = storeSchema.name;
+                this._indexTableName = storeSchema.name + '_' + indexSchema.name;
                 this._queryColumn = 'mi.nsp_key';
             } else {
                 this._tableName = storeSchema.name;
+                this._rawTableName = this._tableName;
+                this._indexTableName = this._tableName;
                 this._queryColumn = 'nsp_i_' + indexSchema.name;
             }
             this._keyPath = indexSchema.keyPath;
@@ -753,15 +761,36 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             args).then(result => result[0]['cnt']);
     }
 
-    fullTextSearch<T>(searchPhrase: string): SyncTasks.Promise<T[]> {
+    fullTextSearch<T>(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And)
+            : SyncTasks.Promise<T[]> {
         const terms = FullTextSearchHelpers.breakAndNormalizeSearchPhrase(searchPhrase);
 
         if (this._supportsFTS3) {
-            return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' MATCH ?',
-                [_.map(terms, term => term + '*').join(' ')]);
+            if (resolution === NoSqlProvider.FullTextTermResolution.And) {
+                return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' MATCH ?',
+                    [_.map(terms, term => term + '*').join(' ')]);
+            } else if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
+                // SQLite FTS3 doesn't support OR queries so we have to hack it...
+                const baseQueries = _.map(terms, term => 'SELECT * FROM ' + this._indexTableName + ' WHERE nsp_key MATCH ?');
+                const joinedQuery = 'SELECT * FROM (SELECT DISTINCT * FROM (' + baseQueries.join(' UNION ALL ') + ')) mi LEFT JOIN ' +
+                    this._rawTableName + ' t ON mi.nsp_refrowid = t.rowid';
+                const args = _.map(terms, term => term + '*');
+                return this._handleQuery<T>(joinedQuery, args);
+            } else {
+                return SyncTasks.Rejected<T[]>('fullTextSearch called with invalid term resolution mode');
+            }
         } else {
+            let joinTerm: string;
+            if (resolution === NoSqlProvider.FullTextTermResolution.And) {
+                joinTerm = ' AND ';
+            } else if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
+                joinTerm = ' OR ';
+            } else {
+                return SyncTasks.Rejected<T[]>('fullTextSearch called with invalid term resolution mode');
+            }
+
             return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' +
-                _.map(terms, term => this._queryColumn + ' LIKE ?').join(' AND '),
+                _.map(terms, term => this._queryColumn + ' LIKE ?').join(joinTerm),
                 _.map(terms, term => '%' + FakeFTSJoinToken + term + '%'));
         }
     }

@@ -122,7 +122,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
     }
 
     openPrimaryKey(): NoSqlProvider.DbIndex {
-        return new InMemoryIndex(this._trans, this._storeData, this._storeData.schema.primaryKeyPath,
+        return new InMemoryIndex(this._trans, this._storeData, undefined,
             this._storeData.schema.primaryKeyPath, false, false, true);
     }
 
@@ -132,7 +132,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return null;
         }
 
-        return new InMemoryIndex(this._trans, this._storeData, indexSchema.keyPath, this._storeData.schema.primaryKeyPath, 
+        return new InMemoryIndex(this._trans, this._storeData, indexSchema, this._storeData.schema.primaryKeyPath, 
             indexSchema.multiEntry, indexSchema.fullText, false);
     }
 
@@ -153,9 +153,9 @@ class InMemoryStore implements NoSqlProvider.DbStore {
 class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     private _data: { [key: string]: any[] };
 
-    constructor(private _trans: InMemoryTransaction, storeData: StoreData, private _keyPath: string | string[],
+    constructor(private _trans: InMemoryTransaction, storeData: StoreData, indexSchema: NoSqlProvider.IndexSchema,
             primaryKeyPath: string | string[], multiEntry: boolean, fullText: boolean, pk: boolean) {
-        super(primaryKeyPath);
+        super(indexSchema, primaryKeyPath);
 
         // Construct the index data once
 
