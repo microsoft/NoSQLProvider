@@ -117,14 +117,13 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
                 ourTrans = new CordovaNativeSqliteTransaction(trans, this._lockHelper, this._schema, storeNamesArr, writeNeeded,
                     this._verbose, 999, this._supportsFTS3);
                 deferred.resolve(ourTrans);
-            }, (err) => {
+            }, (err: Error) => {
                 if (ourTrans) {
-                    ourTrans.internal_markTransactionClosed();
+                    ourTrans.internal_markTransactionFailed(err);
                 } else {
                     // we need to reject transaction only in cases when it's not resolved
                     deferred.reject(err);
                 }
-                
                 this._checkClose();
             }, () => {
                 ourTrans.internal_markTransactionClosed();
@@ -136,6 +135,8 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
 }
 
 class CordovaNativeSqliteTransaction extends SqlProviderBase.SqliteSqlTransaction {
+    private _transactionCompleteDeferred = SyncTasks.Defer<void>();
+
     constructor(protected trans: SQLTransaction,
                 protected _lockHelper: TransactionLockHelper,
                 schema: NoSqlProvider.DbSchema,
@@ -147,9 +148,20 @@ class CordovaNativeSqliteTransaction extends SqlProviderBase.SqliteSqlTransactio
         super(trans, schema, verbose, maxVariables, supportsFTS3);
     }
 
+    getResult(): SyncTasks.Promise<void> {
+        return this._transactionCompleteDeferred.promise();
+    }
+
     internal_markTransactionClosed(): void {
         super.internal_markTransactionClosed();
         this._lockHelper.transactionComplete(this._stores, this._exclusive);
+        this._transactionCompleteDeferred.resolve();
+    }
+
+    internal_markTransactionFailed(e: Error): void {
+        super.internal_markTransactionFailed(e);
+        this._lockHelper.transactionComplete(this._stores, this._exclusive);
+        this._transactionCompleteDeferred.reject(e);
     }
 
     protected _requiresUnicodeReplacement(): boolean {

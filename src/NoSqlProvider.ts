@@ -64,10 +64,12 @@ export interface DbStore {
     clearAllData(): SyncTasks.Promise<void>;
 }
 
-// Interface type describing a transaction.  All accesses to a database must go through a transaction, though the provider has
+// Interface type describing a transaction. All accesses to a database must go through a transaction, though the provider has
 // shortcut accessor functions that get a transaction for you for the one-off queries.
 export interface DbTransaction {
     getStore(storeName: string): DbStore;
+    // Returns Promise which is resolves in case of transaction commit and rejects in case of abort or crash.
+    getResult(): SyncTasks.Promise<void>;
 }
 
 // Abstract base type for a database provider.  Has accessors for opening transactions and one-off accesor helpers.

@@ -86,12 +86,12 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             trans => {
                 ourTrans = new SqlProviderBase.SqliteSqlTransaction(trans, this._schema, this._verbose, 999, this._supportsFTS3);
                 deferred.resolve(ourTrans);
-            }, (err) => {
+            }, (err: Error) => {
                 if (ourTrans) {
                     // Got an error from inside the transaction.  Error out all pending queries on the 
                     // transaction since they won't exit out gracefully for whatever reason.
                     ourTrans.failAllPendingQueries(err);
-                    ourTrans.internal_markTransactionClosed();
+                    ourTrans.internal_markTransactionFailed(err);
                 } else {
                     deferred.reject(err);
                 }

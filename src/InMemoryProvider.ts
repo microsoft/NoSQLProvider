@@ -74,6 +74,10 @@ class InMemoryTransaction implements NoSqlProvider.DbTransaction {
         return new InMemoryStore(this, store);
     }
 
+    getResult(): SyncTasks.Promise<void> {
+        return SyncTasks.Resolved<void>();
+    }
+
     internal_isOpen() {
         return !!this._openTimer;
     }
