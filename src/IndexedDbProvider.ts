@@ -499,19 +499,19 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             if (!store) {
                 return undefined;
             }
-            return new IndexedDbIndex(store.index('key'), indexSchema.keyPath, this._schema.primaryKeyPath, this._fakeComplicatedKeys,
+            return new IndexedDbIndex(store.index('key'), indexSchema, this._schema.primaryKeyPath, this._fakeComplicatedKeys,
                 this._store);
         } else {
             const index = this._store.index(indexName);
             if (!index) {
                 return undefined;
             }
-            return new IndexedDbIndex(index, indexSchema.keyPath, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
+            return new IndexedDbIndex(index, indexSchema, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
         }
     }
 
     openPrimaryKey(): NoSqlProvider.DbIndex {
-        return new IndexedDbIndex(this._store, this._schema.primaryKeyPath, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
+        return new IndexedDbIndex(this._store, undefined, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
     }
 
     clearAllData(): SyncTasks.Promise<void> {
@@ -530,9 +530,9 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 // a bunch of hacks to support compound keypaths on IE and some helpers to make the caller not have to walk the awkward cursor
 // result APIs to get their result list.  Also added ability to use an "index" for opening the primary key on a store.
 class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
-    constructor(private _store: IDBIndex | IDBObjectStore, private _keyPath: string | string[], primaryKeyPath: string | string[],
-            private _fakeComplicatedKeys: boolean, private _fakedOriginalStore?: IDBObjectStore) {
-        super(primaryKeyPath);
+    constructor(private _store: IDBIndex | IDBObjectStore, indexSchema: NoSqlProvider.IndexSchema|undefined,
+            primaryKeyPath: string | string[], private _fakeComplicatedKeys: boolean, private _fakedOriginalStore?: IDBObjectStore) {
+        super(indexSchema, primaryKeyPath);
     }
 
     private _resolveCursorResult<T>(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<T[]> {

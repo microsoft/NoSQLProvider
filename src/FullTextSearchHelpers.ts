@@ -25,24 +25,41 @@ export function getFullTextIndexWordsForItem(keyPath: string, item: any): string
 }
 
 export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbIndex {
-    constructor(protected _primaryKeyPath: string | string[]) {
-        // NOP
+    protected _keyPath: string | string[];
+
+    constructor(protected _indexSchema: NoSqlProvider.IndexSchema, protected _primaryKeyPath: string | string[]) {
+        this._keyPath = this._indexSchema ? this._indexSchema.keyPath : this._primaryKeyPath;
     }
 
-    fullTextSearch<T>(searchPhrase: string): SyncTasks.Promise<T[]> {
-        const promises = _.map(breakAndNormalizeSearchPhrase(searchPhrase), term => {
+    fullTextSearch<T>(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And)
+            : SyncTasks.Promise<T[]> {
+        if (!this._indexSchema.fullText) {
+            return SyncTasks.Rejected<T[]>('fullTextSearch performed against non-fullText index!');
+        }
+
+        const terms = breakAndNormalizeSearchPhrase(searchPhrase);
+        if (terms.length === 0) {
+            return SyncTasks.Rejected<T[]>('fullTextSearch called with empty searchPhrase');
+        }
+
+        const promises = _.map(terms, term => {
             const upperEnd = term.substr(0, term.length - 1) + String.fromCharCode(term.charCodeAt(term.length - 1) + 1);
-            return this.getRange(term, upperEnd, false, true);
+            return this.getRange<T>(term, upperEnd, false, true);
         });
         return SyncTasks.all(promises).then(results => {
-            if (results.length === 1) {
-                return results[0];
+            const uniquers: _.Dictionary<T>[] = _.map(results, resultSet => _.keyBy(resultSet, item =>
+                NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._primaryKeyPath)));
+            
+            if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
+                return _.values(_.assign<_.Dictionary<T>>({}, ...uniquers));
             }
 
-            // Only return terms that show up in all of the results sets.
-            // The @types for _.intersectionBy is wrong and needs fixing, so this will hack around that for now...
-            return (_.intersectionBy as any)(...results, item =>
-                NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._primaryKeyPath));
+            if (resolution === NoSqlProvider.FullTextTermResolution.And) {
+                const [first, ...others] = uniquers;
+                return _.values(_.pickBy<_.Dictionary<T>, _.Dictionary<T>>(first, (value, key) => _.every(others, set => set[key])));
+            }
+
+            return SyncTasks.Rejected<T[]>('Undefined full text term resolution type');
         });
     }
 
