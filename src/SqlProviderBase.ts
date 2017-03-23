@@ -337,6 +337,16 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
         this._isOpen = false;
     }
 
+    internal_markTransactionFailed(e: Error): void {
+        this._isOpen = false;
+    }
+
+    // Default implementation transaction is always marked as resolved
+    // Implemented this way to hotfix react-native flow only
+    getResult(): SyncTasks.Promise<void> {
+        return SyncTasks.Resolved<void>();
+    }
+
     abstract runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]>;
 
     abstract internal_getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;

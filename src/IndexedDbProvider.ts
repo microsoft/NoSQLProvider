@@ -310,6 +310,10 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
         this._stores = _.map(storeNames, storeName => this._trans.objectStore(storeName));
     }
 
+    getResult(): SyncTasks.Promise<void> {
+        return SyncTasks.Resolved<void>();
+    }
+
     getStore(storeName: string): NoSqlProvider.DbStore {
         const store = _.find(this._stores, s => s.name === storeName);
         const storeSchema = _.find(this._schema.stores, s => s.name === storeName);
