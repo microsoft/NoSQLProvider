@@ -24,8 +24,8 @@ const keypathJoinerString = '%&';
 // for compound (or non-compound) values.
 export function getSerializedKeyForKeypath(obj: any, keyPathRaw: string | string[]): string {
     const values = getKeyForKeypath(obj, keyPathRaw);
-    if (values === null) {
-        return null;
+    if (values === undefined) {
+        return undefined;
     }
 
     return serializeKeyToString(values, keyPathRaw);
@@ -36,8 +36,8 @@ export function getKeyForKeypath(obj: any, keyPathRaw: string | string[]): any {
 
     const values = _.map(keyPathArray, kp => getValueForSingleKeypath(obj, kp));
     if (_.some(values, val => _.isNull(val) || _.isUndefined(val))) {
-        // If any components of the key are null, then the result is null
-        return null;
+        // If any components of the key are null/undefined, then the result is undefined
+        return undefined;
     }
 
     if (!_.isArray(keyPathRaw)) {
@@ -49,7 +49,7 @@ export function getKeyForKeypath(obj: any, keyPathRaw: string | string[]): any {
 
 // Internal helper function for getting a value out of a standard keypath.
 export function getValueForSingleKeypath(obj: any, keyPath: string): any {
-    return _.get<any>(obj, keyPath, null);
+    return _.get<any>(obj, keyPath, undefined);
 }
 
 export function isCompoundKeyPath(keyPath: string | string[]) {

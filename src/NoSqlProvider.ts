@@ -73,6 +73,11 @@ export interface DbStore {
 // shortcut accessor functions that get a transaction for you for the one-off queries.
 export interface DbTransaction {
     getStore(storeName: string): DbStore;
+    // This promise will resolve when the transaction commits, or will reject when there's a transaction-level error.
+    getCompletionPromise(): SyncTasks.Promise<void>;
+    // Attempt to abort the transaction (if it hasn't yet completed or aborted).  Completion will be detectable via the
+    // getCompletionPromise promise.
+    abort(): void;
 }
 
 // Abstract base type for a database provider.  Has accessors for opening transactions and one-off accesor helpers.
