@@ -36,7 +36,7 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
 
     openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
         const intStoreNames = NoSqlProviderUtils.arrayify(storeNames);
-        return this._lockHelper.checkOpenTransaction(intStoreNames, writeNeeded).then(() => 
+        return this._lockHelper.checkOpenTransaction(intStoreNames, writeNeeded).then(() =>
             new InMemoryTransaction(this, this._lockHelper, intStoreNames, writeNeeded));
     }
 
@@ -132,7 +132,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return null;
         }
 
-        return new InMemoryIndex(this._trans, this._storeData, indexSchema, this._storeData.schema.primaryKeyPath, 
+        return new InMemoryIndex(this._trans, this._storeData, indexSchema, this._storeData.schema.primaryKeyPath,
             indexSchema.multiEntry, indexSchema.fullText, false);
     }
 
@@ -170,13 +170,16 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
                 if (fullText) {
                     keys = _.map(FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>this._keyPath, item), val =>
                         NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
-                } else if (multiEntry) {
-                    keys = _.map(NoSqlProviderUtils.arrayify(NoSqlProviderUtils.getValueForSingleKeypath(item, <string>this._keyPath)), val =>
-                        NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
+                } else if (multiEntry) {                                    // Have to extract the multiple entries into the alternate table...
+                    const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>this._keyPath);
+                    if (valsRaw) {
+                        keys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
+                            NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
+                    }
                 } else {
                     keys = [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._keyPath)];
                 }
-                
+
                 _.each(keys, key => {
                     if (!this._data[key]) {
                         this._data[key] = [item];
