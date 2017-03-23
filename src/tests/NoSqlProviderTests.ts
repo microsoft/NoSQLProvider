@@ -469,7 +469,11 @@ describe('NoSqlProvider', function () {
                                 }
                             ]
                         }, true).then(prov => {
-                            return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } }).then(() => {
+                            return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
+                            // Insert data without multi-entry key defined
+                            .then(() => prov.put('test', { id: 'c', val: 'd', k: [] }))
+                            .then(() => prov.put('test', { id: 'e', val: 'f' }))
+                            .then(() => {
                                 var g1 = prov.get<any>('test', 'a').then(ret => {
                                     assert.equal(ret.val, 'b');
                                 });

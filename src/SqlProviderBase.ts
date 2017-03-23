@@ -587,8 +587,10 @@ class SqlStore implements NoSqlProvider.DbStore {
                                 } else if (index.multiEntry) {
                                     // Have to extract the multiple entries into the alternate table...
                                     const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
-                                    serializedKeys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
-                                        NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
+                                    if (valsRaw) {
+                                        serializedKeys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
+                                            NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
+                                    }
                                 } else {
                                     return;
                                 }
@@ -601,8 +603,10 @@ class SqlStore implements NoSqlProvider.DbStore {
                                 });
                                 inserts.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
                                         ' WHERE nsp_refrowid = ?', [rowid]).then(() => {
-                                    return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
-                                        ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
+                                    if (valArgs.length > 0){
+                                        return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
+                                            ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
+                                    }
                                 }));
                             });
                             return SyncTasks.all(inserts).then(_.noop);
