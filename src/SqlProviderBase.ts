@@ -74,7 +74,8 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                 if (oldVersion !== this._schema.version) {
                     // Needs a schema upgrade/change
                     if (!wipeIfExists && this._schema.version < oldVersion) {
-                        console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema.version + '). Wiping!');
+                        console.log('Database version too new (' + oldVersion +
+                            ') for schema version (' + this._schema.version + '). Wiping!');
                         wipeIfExists = true;
                     }
 
@@ -117,7 +118,8 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             return;
                         }
                         // Ignore FTS-generated side tables
-                        if (tableName.indexOf('_i_content') > 0 || tableName.indexOf('_i_segments') > 0 || tableName.indexOf('_i_segdir') > 0) {
+                        if (tableName.indexOf('_i_content') > 0 || tableName.indexOf('_i_segments') > 0 
+                            || tableName.indexOf('_i_segdir') > 0) {
                             return;
                         }
                         if (row['type'] === 'table') {
@@ -225,9 +227,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     }
                                 });
 
-                                return SyncTasks.all(indexQueries).then(() => {
-
-                                });
+                                return SyncTasks.all(indexQueries).then(_.noop);
                             };
 
                             // Form SQL statement for table creation
@@ -288,13 +288,14 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     return trans.runQuery('ALTER TABLE ' + storeSchema.name + ' RENAME TO temp_' + storeSchema.name);
                                 });
 
-                                // Migrate the data over using our existing put functions (since it will do the right things with the indexes)
+                                // Migrate the data over using our existing put functions 
+                                // (since it will do the right things with the indexes)
                                 // and delete the temp table.
                                 let migrator = () => {
                                     var store = trans.getStore(storeSchema.name);
                                     var objs = [];
-                                    return trans.internal_getResultsFromQueryWithCallback('SELECT nsp_data FROM temp_' + storeSchema.name, undefined,
-                                        (obj) => {
+                                    return trans.internal_getResultsFromQueryWithCallback('SELECT nsp_data FROM temp_'
+                                        + storeSchema.name, undefined, (obj) => {
                                             objs.push(obj);
                                         }).then(() => {
                                             return store.put(objs).then(() => {
@@ -349,7 +350,8 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
 
     abstract runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]>;
 
-    abstract internal_getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;
+    abstract internal_getResultsFromQueryWithCallback(sql: string,
+        parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;
 
     internal_getMaxVariables(): number {
         return this._maxVariables;
@@ -440,7 +442,8 @@ export class SqliteSqlTransaction extends SqlTransaction {
                 }
             }, (t, err) => {
                 if (!err) {
-                    // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error, slightly breaking the interface.
+                    // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error,
+                    // slightly breaking the interface.
                     err = t as any;
                 }
 
@@ -505,12 +508,24 @@ class SqlStore implements NoSqlProvider.DbStore {
         // Empty
     }
 
-    get<T>(key: any | any[]): SyncTasks.Promise<T> {
+    get<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T> {
+        return NoSqlProviderUtils.guard(() => {
+            return this._get(keyOrKeys);
+        });
+    }
+
+    _get<T>(key: any | any[]): SyncTasks.Promise<T> {
         let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath);
         return this._trans.internal_getResultFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
     }
 
     getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
+        return NoSqlProviderUtils.guard(() => {
+            return this._getMultiple(keyOrKeys);
+        });
+    }
+
+    protected _getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
         let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
 
         if (joinedKeys.length === 0) {
@@ -529,6 +544,12 @@ class SqlStore implements NoSqlProvider.DbStore {
     private static _unicodeFixer = new RegExp('[\u2028\u2029]', 'g');
 
     put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
+        return NoSqlProviderUtils.guard(() => {
+            return this._remove(itemOrItems);
+        });
+    }
+
+    protected _put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
         let items = NoSqlProviderUtils.arrayify(itemOrItems);
 
         if (items.length === 0) {
@@ -572,8 +593,8 @@ class SqlStore implements NoSqlProvider.DbStore {
         for (let i = 0; i < items.length; i += itemPageSize) {
             const thisPageCount = Math.min(itemPageSize, items.length - i);
             const qmarksValues = _.fill(new Array(thisPageCount), qmarkString);
-            inserts.push(this._trans.internal_nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
-                qmarksValues.join('),(') + ')', args.splice(0, thisPageCount * fields.length)));
+            inserts.push(this._trans.internal_nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') +
+                ') VALUES (' + qmarksValues.join('),(') + ')', args.splice(0, thisPageCount * fields.length)));
         }
 
         return SyncTasks.all(inserts).then(() => {
@@ -624,7 +645,13 @@ class SqlStore implements NoSqlProvider.DbStore {
         });
     }
 
-    remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
+    public remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
+        return NoSqlProviderUtils.guard(() => {
+            return this._remove(keyOrKeys);
+        });
+    }
+
+    protected _remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
         let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
 
         // PERF: This is optimizable, but it's of questionable utility
@@ -643,7 +670,6 @@ class SqlStore implements NoSqlProvider.DbStore {
                     return SyncTasks.all(queries).then(_.noop);
                 });
             }
-
             return this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
         });
 
@@ -664,12 +690,12 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     clearAllData(): SyncTasks.Promise<void> {
-        var queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
-            this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name)).value();
-
-        queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name));
-
-        return SyncTasks.all(queries).then(_.noop);
+        return NoSqlProviderUtils.guard(() => {
+            var queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
+                this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name)).value();
+            queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name));
+            return SyncTasks.all(queries).then(_.noop);
+        });
     }
 }
 
@@ -714,24 +740,31 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName, undefined, reverse, limit, offset);
+        return NoSqlProviderUtils.guard(() => {
+            return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName, undefined, reverse, limit, offset);
+        });
     }
 
     getOnly<T>(key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+        return NoSqlProviderUtils.guard(() => {
+            let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
 
-        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?', [joinedKey],
-            reverse, limit, offset);
+            return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?', [joinedKey],
+                reverse, limit, offset);
+        });
     }
 
     getRange<T>(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
         reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        const { checks, args } = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
-        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '), args, reverse, limit,
-            offset);
+        return NoSqlProviderUtils.guard(() => {
+            const { checks, args } = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+            return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '), args, reverse, limit,
+                offset);
+        });
     }
 
-    private _getRangeChecks(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean) {
+    private _getRangeChecks(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean,
+        highRangeExclusive?: boolean) {
         let checks: string[] = [];
         let args: string[] = [];
         if (keyLowRange !== null && keyLowRange !== undefined) {
@@ -746,33 +779,40 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     countAll(): SyncTasks.Promise<number> {
-        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName).then(result => result[0]['cnt']);
+        return NoSqlProviderUtils.guard(() => {
+            return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName).then(result => result[0]['cnt']);
+        });
     }
 
     countOnly(key: any|any[]): SyncTasks.Promise<number> {
-        let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
-
-        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn
-            + ' = ?', [joinedKey]).then(result => result[0]['cnt']);
+        return NoSqlProviderUtils.guard(() => {
+            let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+            return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn
+                + ' = ?', [joinedKey]).then(result => result[0]['cnt']);
+        });
     }
 
     countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
             : SyncTasks.Promise<number> {
-        const { checks, args } = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
-        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '),
-            args).then(result => result[0]['cnt']);
+        return NoSqlProviderUtils.guard(() => {
+            const { checks, args } = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+            return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '),
+                args).then(result => result[0]['cnt']);
+        });
     }
 
     fullTextSearch<T>(searchPhrase: string): SyncTasks.Promise<T[]> {
-        const terms = FullTextSearchHelpers.breakAndNormalizeSearchPhrase(searchPhrase);
+       return NoSqlProviderUtils.guard(() => {
+            const terms = FullTextSearchHelpers.breakAndNormalizeSearchPhrase(searchPhrase);
 
-        if (this._supportsFTS3) {
-            return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' MATCH ?',
-                [_.map(terms, term => term + '*').join(' ')]);
-        } else {
-            return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' +
-                _.map(terms, term => this._queryColumn + ' LIKE ?').join(' AND '),
-                _.map(terms, term => '%' + FakeFTSJoinToken + term + '%'));
-        }
+            if (this._supportsFTS3) {
+                return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' MATCH ?',
+                    [_.map(terms, term => term + '*').join(' ')]);
+            } else {
+                return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' +
+                    _.map(terms, term => this._queryColumn + ' LIKE ?').join(' AND '),
+                    _.map(terms, term => '%' + FakeFTSJoinToken + term + '%'));
+            }
+        });
     }
 }

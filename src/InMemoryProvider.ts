@@ -88,41 +88,49 @@ class InMemoryStore implements NoSqlProvider.DbStore {
     }
 
     get<T>(key: any | any[]): SyncTasks.Promise<T> {
-        if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected('InMemoryTransaction already closed');
-        }
-        let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._storeData.schema.primaryKeyPath);
-        return SyncTasks.Resolved(this._storeData.data[joinedKey]);
+        return NoSqlProviderUtils.guard(() => {
+            if (!this._trans.internal_isOpen()) {
+                return SyncTasks.Rejected('InMemoryTransaction already closed');
+            }
+            let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._storeData.schema.primaryKeyPath);
+            return SyncTasks.Resolved(this._storeData.data[joinedKey]);
+        });
     }
 
     getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
-        if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected('InMemoryTransaction already closed');
-        }
-        let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeData.schema.primaryKeyPath);
-        return SyncTasks.Resolved(_.compact(_.map(joinedKeys, key => this._storeData.data[key])));
+        return NoSqlProviderUtils.guard(() => {
+            if (!this._trans.internal_isOpen()) {
+                return SyncTasks.Rejected('InMemoryTransaction already closed');
+            }
+            let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeData.schema.primaryKeyPath);
+            return SyncTasks.Resolved(_.compact(_.map(joinedKeys, key => this._storeData.data[key])));
+        });
     }
 
     put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
-        if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
-        }
-        _.each(NoSqlProviderUtils.arrayify(itemOrItems), item => {
-            let pk = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._storeData.schema.primaryKeyPath);
-            this._storeData.data[pk] = item;
+        return NoSqlProviderUtils.guard(() => {
+            if (!this._trans.internal_isOpen()) {
+                return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
+            }
+            _.each(NoSqlProviderUtils.arrayify(itemOrItems), item => {
+                let pk = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._storeData.schema.primaryKeyPath);
+                this._storeData.data[pk] = item;
+            });
+            return SyncTasks.Resolved<void>();
         });
-        return SyncTasks.Resolved<void>();
     }
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
-        if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
-        }
-        let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeData.schema.primaryKeyPath);
-        _.each(joinedKeys, key => {
-            delete this._storeData.data[key];
+        return NoSqlProviderUtils.guard(() => {
+            if (!this._trans.internal_isOpen()) {
+                return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
+            }
+            let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeData.schema.primaryKeyPath);
+            _.each(joinedKeys, key => {
+                delete this._storeData.data[key];
+            });
+            return SyncTasks.Resolved<void>();
         });
-        return SyncTasks.Resolved<void>();
     }
 
     openPrimaryKey(): NoSqlProvider.DbIndex {
@@ -141,11 +149,13 @@ class InMemoryStore implements NoSqlProvider.DbStore {
     }
 
     clearAllData(): SyncTasks.Promise<void> {
-        if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
-        }
-        this._storeData.data = {};
-        return SyncTasks.Resolved<void>();
+        return NoSqlProviderUtils.guard(() => {
+            if (!this._trans.internal_isOpen()) {
+                return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
+            }
+            this._storeData.data = {};
+            return SyncTasks.Resolved<void>();
+        });
     }
 
     internal_getData() {

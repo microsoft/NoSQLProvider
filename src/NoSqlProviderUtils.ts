@@ -7,6 +7,7 @@
  */
 
 import _ = require('lodash');
+import SyncTasks = require('synctasks');
 
 export function isArray(obj: any): boolean {
     return (Object.prototype.toString.call(obj) === '[object Array]');
@@ -44,6 +45,14 @@ export function getKeyForKeypath(obj: any, keyPathRaw: string | string[]): any {
         return values[0];
     } else {
         return values;
+    }
+}
+
+export function guard<T>(func: () => SyncTasks.Promise<T>) : SyncTasks.Promise<T> {
+    try {
+        return func();
+    } catch (e) {
+        return e;
     }
 }
 
