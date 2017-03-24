@@ -73,6 +73,11 @@ export interface DbStore {
 // shortcut accessor functions that get a transaction for you for the one-off queries.
 export interface DbTransaction {
     getStore(storeName: string): DbStore;
+    // This promise will resolve when the transaction commits, or will reject when there's a transaction-level error.
+    getCompletionPromise(): SyncTasks.Promise<void>;
+    // Attempt to abort the transaction (if it hasn't yet completed or aborted).  Completion will be detectable via the
+    // getCompletionPromise promise.
+    abort(): void;
 }
 
 // Abstract base type for a database provider.  Has accessors for opening transactions and one-off accesor helpers.
@@ -93,7 +98,7 @@ export abstract class DbProvider {
     // You must perform all of your actions on the transaction handed to you in the callback block without letting it expire.
     // When the last callback from the last executed action against the DbTransaction is executed, the transaction closes, so be very
     // careful using deferrals/promises that may wait for the main thread to close out before handling your response.
-    abstract openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<DbTransaction>;
+    abstract openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<DbTransaction>;
 
     clearAllData(): SyncTasks.Promise<void> {
         var storeNames = this._schema.stores.map(store => store.name);
@@ -111,7 +116,7 @@ export abstract class DbProvider {
     }
 
     private _getStoreTransaction(storeName: string, readWrite: boolean): SyncTasks.Promise<DbStore> {
-        return this.openTransaction(storeName, readWrite).then(trans => {
+        return this.openTransaction([storeName], readWrite).then(trans => {
             const store = trans.getStore(storeName);
             if (!store) {
                 return SyncTasks.Rejected('Store "' + storeName + '" not found');

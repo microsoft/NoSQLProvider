@@ -54,7 +54,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             }
 
             this._db.changeVersion(this._db.version, this._schema.version.toString(), (t) => {
-                let trans = new SqlProviderBase.SqliteSqlTransaction(t, this._schema, this._verbose, 999, this._supportsFTS3);
+                let trans = new WebSqlTransaction(t, undefined, this._schema, this._verbose, 999, this._supportsFTS3);
 
                 this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => { deferred.resolve(); }, () => { deferred.reject(); });
             }, (err) => {
@@ -62,7 +62,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             });
         } else if (wipeIfExists) {
             // No version change, but wipe anyway
-            this.openTransaction(null, true).then(trans => {
+            this.openTransaction(undefined, true).then(trans => {
                 this._upgradeDb(trans, oldVersion, true).then(() => { deferred.resolve(); }, () => { deferred.reject(); });
             }, (err) => {
                 deferred.reject(err);
@@ -78,13 +78,14 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
         return SyncTasks.Resolved<void>();
     }
 
-    openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
+    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
         const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
 
         let ourTrans: SqlProviderBase.SqliteSqlTransaction = null;
+        let finishDefer = SyncTasks.Defer<void>();
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db,
-            trans => {
-                ourTrans = new SqlProviderBase.SqliteSqlTransaction(trans, this._schema, this._verbose, 999, this._supportsFTS3);
+            (trans: SQLTransaction) => {
+                ourTrans = new WebSqlTransaction(trans, finishDefer.promise(), this._schema, this._verbose, 999, this._supportsFTS3);
                 deferred.resolve(ourTrans);
             }, (err) => {
                 if (ourTrans) {
@@ -92,13 +93,42 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                     // transaction since they won't exit out gracefully for whatever reason.
                     ourTrans.failAllPendingQueries(err);
                     ourTrans.internal_markTransactionClosed();
+                    if (finishDefer) {
+                        finishDefer.reject('WebSqlTransaction Error: ' + err.message);
+                        finishDefer = undefined;
+                    }
                 } else {
                     deferred.reject(err);
                 }
             }, () => {
                 ourTrans.internal_markTransactionClosed();
+                if (finishDefer) {
+                    finishDefer.resolve();
+                    finishDefer = undefined;
+                }
             });
 
         return deferred.promise();
+    }
+}
+
+class WebSqlTransaction extends SqlProviderBase.SqliteSqlTransaction {
+    constructor(protected trans: SQLTransaction,
+                private _completionPromise: SyncTasks.Promise<void>, 
+                schema: NoSqlProvider.DbSchema,
+                verbose: boolean,
+                maxVariables: number,
+                supportsFTS3: boolean) {
+        super(trans, schema, verbose, maxVariables, supportsFTS3);
+    }
+
+    getCompletionPromise(): SyncTasks.Promise<void> {
+        return this._completionPromise;
+    }
+    
+    abort(): void {
+        // The only way to rollback a websql transaction is by forcing an error (which rolls back the trans):
+        // http://stackoverflow.com/questions/16225320/websql-dont-rollback
+        this.runQuery('ERROR ME TO DEATH').catch(() => undefined);
     }
 }

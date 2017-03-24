@@ -12,9 +12,8 @@ import sqlite3 = require('sqlite3');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
-import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 import SqlProviderBase = require('./SqlProviderBase');
-import TransactionLockHelper from './TransactionLockHelper';
+import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
 
 export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase {
     private _db: sqlite3.Database;
@@ -34,29 +33,43 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
 
         this._db = new sqlite3.Database(':memory:');
 
-        this._lockHelper = new TransactionLockHelper(schema);
+        this._lockHelper = new TransactionLockHelper(schema, false);
 
         return this._ourVersionChecker(wipeIfExists);
     }
 
-    openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
-        const intStoreNames = NoSqlProviderUtils.arrayify(storeNames);
-        return this._lockHelper.checkOpenTransaction(intStoreNames, writeNeeded).then(() =>
-            new NodeSqlite3Transaction(this._db, this._lockHelper, intStoreNames, writeNeeded, this._schema, this._verbose,
-            this._supportsFTS3));
+    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
+        if (this._verbose) {
+            console.log('openTransaction Called with Stores: ' + storeNames ? storeNames.join(',') : undefined +
+                ', WriteNeeded: ' + writeNeeded);
+        }
+        return this._lockHelper.openTransaction(storeNames, writeNeeded).then(transToken => {
+            if (this._verbose) {
+                console.log('openTransaction Resolved with Stores: ' + storeNames ? storeNames.join(',') : undefined +
+                    ', WriteNeeded: ' + writeNeeded);
+            }
+            const trans = new NodeSqlite3Transaction(this._db, this._lockHelper, transToken, this._schema, this._verbose,
+                this._supportsFTS3);
+            if (writeNeeded) {
+                return trans.runQuery('BEGIN EXCLUSIVE TRANSACTION').then(ret => trans);
+            }
+            return trans;
+        });
     }
 
     close(): SyncTasks.Promise<void> {
-        let task = SyncTasks.Defer<void>();
-        this._db.close((err) => {
-            this._db = undefined;
-            if (err) {
-                task.reject(err);
-            } else {
-                task.resolve();
-            }
+        return this._lockHelper.closeWhenPossible().then(() => {
+            let task = SyncTasks.Defer<void>();
+            this._db.close((err) => {
+                this._db = undefined;
+                if (err) {
+                    task.reject(err);
+                } else {
+                    task.resolve();
+                }
+            });
+            return task.promise();
         });
-        return task.promise();
     }
 }
 
@@ -64,8 +77,8 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
     private _openTimer: number;
     private _openQueryCount = 0;
 
-    constructor(private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper, private _storeNames: string[],
-            private _exclusive: boolean, schema: NoSqlProvider.DbSchema, verbose: boolean, supportsFTS3: boolean) {
+    constructor(private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper, private _transToken: TransactionToken,
+            schema: NoSqlProvider.DbSchema, verbose: boolean, supportsFTS3: boolean) {
         super(schema, verbose, 999, supportsFTS3);
 
         this._setTimer();
@@ -82,9 +95,39 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
         this._clearTimer();
         this._openTimer = setTimeout(() => {
             this._openTimer = undefined;
-            this.internal_markTransactionClosed();
-            this._lockHelper.transactionComplete(this._storeNames, this._exclusive);
+            
+            if (!this._transToken.exclusive) {
+                this.internal_markTransactionClosed();
+                this._lockHelper.transactionComplete(this._transToken);
+                return;
+            }
+
+            this.runQuery('COMMIT TRANSACTION').then(() => {
+                this._clearTimer();
+                this.internal_markTransactionClosed();
+                this._lockHelper.transactionComplete(this._transToken);
+            });
         }, 0) as any as number;
+    }
+
+    getCompletionPromise(): SyncTasks.Promise<void> {
+        return this._transToken.completionPromise;
+    }
+
+    abort(): void {
+        this._clearTimer();
+        
+        if (!this._transToken.exclusive) {
+            this.internal_markTransactionClosed();
+            this._lockHelper.transactionFailed(this._transToken, 'NodeSqlite3Transaction Aborted');
+            return;
+        }
+        
+        this.runQuery('ROLLBACK TRANSACTION').always(() => {
+            this._clearTimer();
+            this.internal_markTransactionClosed();
+            this._lockHelper.transactionFailed(this._transToken, 'NodeSqlite3Transaction Aborted');
+        });
     }
 
     runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]> {
@@ -110,7 +153,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
             }
 
             if (err) {
-                console.log('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
+                console.error('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
                 deferred.reject(err);
             } else {
                 deferred.resolve(rows);
@@ -122,6 +165,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
         return deferred.promise();
     }
 
+    // Only used by DB migration
     internal_getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (row: any) => void): SyncTasks.Promise<void> {
         const deferred = SyncTasks.Defer<void>();
 
@@ -133,7 +177,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
         stmt.bind.apply(stmt, parameters);
         stmt.each((err, row) => {
             if (err) {
-                console.log('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
+                console.error('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
                 deferred.reject(err);
                 stmt.finalize();
                 return;
@@ -155,7 +199,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
             }
         }, (err, count) => {
             if (err) {
-                console.log('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
+                console.error('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
                 deferred.reject(err);
                 stmt.finalize();
                 return;

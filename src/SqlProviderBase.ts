@@ -46,7 +46,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     }
 
     private _getDbVersion(): SyncTasks.Promise<number> {
-        return this.openTransaction('metadata', true).then((trans: SqlTransaction) => {
+        return this.openTransaction(undefined, true).then((trans: SqlTransaction) => {
               // Create table if needed
             return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then(() => {
                 return trans.runQuery('SELECT value from metadata where name=?', [schemaVersionKey]).then(data => {
@@ -62,9 +62,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     protected _changeDbVersion(oldVersion: number, newVersion: number): SyncTasks.Promise<SqlTransaction> {
         return this.openTransaction(undefined, true).then((trans: SqlTransaction) => {
             return trans.runQuery('INSERT OR REPLACE into metadata (\'name\', \'value\') VALUES (\'' + schemaVersionKey + '\', ?)', [newVersion])
-                .then(() => {
-                    return trans;
-                });
+                .then(() => trans);
         });
     }
 
@@ -337,6 +335,9 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
         this._isOpen = false;
     }
 
+    abstract getCompletionPromise(): SyncTasks.Promise<void>;
+    abstract abort(): void;
+
     abstract runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]>;
 
     abstract internal_getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;
@@ -384,7 +385,7 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
 
 // Generic base transaction for anything that matches the syntax of a SQLTransaction interface for executing sql commands.
 // Conveniently, this works for both WebSql and cordova's Sqlite plugin.
-export class SqliteSqlTransaction extends SqlTransaction {
+export abstract class SqliteSqlTransaction extends SqlTransaction {
     private _pendingQueries: SyncTasks.Deferred<any>[] = [];
 
     constructor(protected _trans: SQLTransaction, schema: NoSqlProvider.DbSchema, verbose: boolean, maxVariables: number,
@@ -434,8 +435,6 @@ export class SqliteSqlTransaction extends SqlTransaction {
                     err = t as any;
                 }
 
-                console.log('Query Error: SQL: ' + sql + ', Error: ' + err.message);
-
                 const index = _.indexOf(this._pendingQueries, deferred);
                 if (index !== -1) {
                     this._pendingQueries.splice(index, 1);
@@ -443,6 +442,9 @@ export class SqliteSqlTransaction extends SqlTransaction {
                 } else {
                     console.error('SQL statement resolved twice (this time with failure)');
                 }
+
+                // Causes a rollback on websql
+                return true;
             });
         });
 
@@ -454,36 +456,29 @@ export class SqliteSqlTransaction extends SqlTransaction {
     }
 
     internal_getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void> {
-        const deferred = SyncTasks.Defer<void>();
-
-        if (this._verbose) {
-            console.log('Query: ' + sql);
-        }
-
-        this._trans.executeSql(sql, parameters, (t, rs) => {
-            for (var i = 0; i < rs.rows.length; i++) {
-                const item = rs.rows.item(i).nsp_data;
+        return this.runQuery(sql, parameters).then(rows => {
+            let err: string;
+            _.each(rows, row => {
+                const item = row.nsp_data;
                 let ret: any;
                 try {
                     ret = JSON.parse(item);
                 } catch (e) {
-                    deferred.reject('Error parsing database entry in getResultsFromQueryWithCallback: ' + JSON.stringify(item));
-                    return;
+                    err = 'Error parsing database entry in getResultsFromQueryWithCallback: ' + JSON.stringify(item);
+                    return false;
                 }
                 try {
                     callback(ret);
                 } catch (e) {
-                    deferred.reject('Exception in callback in getResultsFromQueryWithCallback: ' + JSON.stringify(e));
-                    return;
+                    err = 'Exception in callback in getResultsFromQueryWithCallback: ' + JSON.stringify(e);
+                    return false;
                 }
-            }
-            deferred.resolve();
-        }, (t, err) => {
-            console.log('Query Error: SQL: ' + sql + ', Error: ' + err.message);
-            deferred.reject(err);
-        });
+            });
 
-        return deferred.promise();
+            if (err) {
+                return SyncTasks.Rejected<void>(err);
+            }
+        });
     }
 }
 
@@ -496,12 +491,25 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     get<T>(key: any | any[]): SyncTasks.Promise<T> {
-        let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath);
+        let joinedKey: string;
+        const err = _.attempt(() => {
+            joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath);
+        });
+        if (err) {
+            return SyncTasks.Rejected(err);
+        }
+
         return this._trans.internal_getResultFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
     }
 
     getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
-        let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
+        let joinedKeys: string[];
+        const err = _.attempt(() => {
+            joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
+        });
+        if (err) {
+            return SyncTasks.Rejected(err);
+        }
 
         if (joinedKeys.length === 0) {
             return SyncTasks.Resolved<T[]>([]);
@@ -537,24 +545,29 @@ class SqlStore implements NoSqlProvider.DbStore {
         });
 
         const qmarkString = qmarks.join(',');
-        _.each(<any[]>items, (item) => {
-            let serializedData = JSON.stringify(item);
-            // For now, until an issue with cordova-ios is fixed (https://issues.apache.org/jira/browse/CB-9435), have to replace
-            // \u2028 and 2029 with blanks because otherwise the command boundary with cordova-ios silently eats any strings with them.
-            if (this._replaceUnicode) {
-                serializedData = serializedData.replace(SqlStore._unicodeFixer, '');
-            }
-            args.push(NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath), serializedData);
-
-            _.each(this._schema.indexes, index => {
-                if (index.fullText && !this._supportsFTS3) {
-                    args.push(FakeFTSJoinToken +
-                        FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(FakeFTSJoinToken));
-                } else if (!index.multiEntry) {
-                    args.push(NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath));
+        const err = _.attempt(() => {
+            _.each(<any[]>items, (item) => {
+                let serializedData = JSON.stringify(item);
+                // For now, until an issue with cordova-ios is fixed (https://issues.apache.org/jira/browse/CB-9435), have to replace
+                // \u2028 and 2029 with blanks because otherwise the command boundary with cordova-ios silently eats any strings with them.
+                if (this._replaceUnicode) {
+                    serializedData = serializedData.replace(SqlStore._unicodeFixer, '');
                 }
+                args.push(NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath), serializedData);
+
+                _.each(this._schema.indexes, index => {
+                    if (index.fullText && !this._supportsFTS3) {
+                        args.push(FakeFTSJoinToken +
+                            FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(FakeFTSJoinToken));
+                    } else if (!index.multiEntry) {
+                        args.push(NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath));
+                    }
+                });
             });
         });
+        if (err) {
+            return SyncTasks.Rejected<void>(err);
+        }
 
         // Need to not use too many variables per insert, so batch the insert if needed.
         let inserts: SyncTasks.Promise<void>[] = [];
@@ -572,45 +585,57 @@ class SqlStore implements NoSqlProvider.DbStore {
 
                 // Go through and do followup inserts for multientry indexes
                 _.each(items, item => {
-                    queries.push(this._trans.runQuery('SELECT rowid a FROM ' + this._schema.name + ' WHERE nsp_pk = ?',
-                        [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath)])
-                        .then(rets => {
-                            let rowid = rets[0].a;
+                    let key: string;
+                    const err = _.attempt(() => {
+                        key = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
+                    });
+                    if (err) {
+                        queries.push(SyncTasks.Rejected<void>(err));
+                    }
 
-                            let inserts: SyncTasks.Promise<void>[] = [];
-                            _.each(this._schema.indexes, index => {
-                                let serializedKeys: string[];
+                    queries.push(this._trans.runQuery('SELECT rowid a FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [key]).then(rets => {
+                        let rowid = rets[0].a;
 
-                                if (index.fullText && this._supportsFTS3) {
-                                    // FTS3 terms go in a separate virtual table...
-                                    serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(' ')];
-                                } else if (index.multiEntry) {
-                                    // Have to extract the multiple entries into the alternate table...
-                                    const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
-                                    if (valsRaw) {
+                        let inserts: SyncTasks.Promise<void>[] = [];
+                        _.each(this._schema.indexes, index => {
+                            let serializedKeys: string[];
+
+                            if (index.fullText && this._supportsFTS3) {
+                                // FTS3 terms go in a separate virtual table...
+                                serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(' ')];
+                            } else if (index.multiEntry) {
+                                // Have to extract the multiple entries into the alternate table...
+                                const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
+                                if (valsRaw) {
+                                    const err = _.attempt(() => {
                                         serializedKeys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
                                             NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
+                                    });
+                                    if (err) {
+                                        inserts.push(SyncTasks.Rejected<void>(err));
+                                        return;
                                     }
-                                } else {
-                                    return;
                                 }
+                            } else {
+                                return;
+                            }
 
-                                let valArgs = [], args = [];
-                                _.each(serializedKeys, val => {
-                                    valArgs.push('(?, ?)');
-                                    args.push(val);
-                                    args.push(rowid);
-                                });
-                                inserts.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
-                                        ' WHERE nsp_refrowid = ?', [rowid]).then(() => {
-                                    if (valArgs.length > 0){
-                                        return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
-                                            ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
-                                    }
-                                }));
+                            let valArgs = [], args = [];
+                            _.each(serializedKeys, val => {
+                                valArgs.push('(?, ?)');
+                                args.push(val);
+                                args.push(rowid);
                             });
-                            return SyncTasks.all(inserts).then(_.noop);
-                        }));
+                            inserts.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
+                                    ' WHERE nsp_refrowid = ?', [rowid]).then(() => {
+                                if (valArgs.length > 0){
+                                    return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
+                                        ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
+                                }
+                            }));
+                        });
+                        return SyncTasks.all(inserts).then(_.noop);
+                    }));
                 });
 
                 return SyncTasks.all(queries).then(_.noop);
@@ -619,7 +644,13 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
-        let joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
+        let joinedKeys: string[];
+        const err = _.attempt(() => {
+            joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
+        });
+        if (err) {
+            return SyncTasks.Rejected<void>(err);
+        }
 
         // PERF: This is optimizable, but it's of questionable utility
         var queries = _.map(joinedKeys, joinedKey => {
@@ -720,19 +751,35 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     getOnly<T>(key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+        let joinedKey: string;
+        const err = _.attempt(() => {
+            joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+        });
+        if (err) {
+            return SyncTasks.Rejected(err);
+        }
 
         return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?', [joinedKey],
             reverse, limit, offset);
     }
 
     getRange<T>(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-        reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        const { checks, args } = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
-        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '), args, reverse, limit,
-            offset);
+            reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+        let checks: string;
+        let args: string[];
+        const err = _.attempt(() => {
+            const ret = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+            checks = ret.checks;
+            args = ret.args;
+        });
+        if (err) {
+            return SyncTasks.Rejected(err);
+        }
+        
+        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks, args, reverse, limit, offset);
     }
 
+    // Warning: This function can throw, make sure to trap.
     private _getRangeChecks(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean) {
         let checks: string[] = [];
         let args: string[] = [];
@@ -744,7 +791,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             checks.push(this._queryColumn + (highRangeExclusive ? ' < ' : ' <= ') + '?');
             args.push(NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath));
         }
-        return { checks, args };
+        return { checks: checks.join(' AND '), args };
     }
 
     countAll(): SyncTasks.Promise<number> {
@@ -752,7 +799,13 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     countOnly(key: any|any[]): SyncTasks.Promise<number> {
-        let joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+        let joinedKey: string;
+        const err = _.attempt(() => {
+            joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+        });
+        if (err) {
+            return SyncTasks.Rejected(err);
+        }
 
         return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn
             + ' = ?', [joinedKey]).then(result => result[0]['cnt']);
@@ -760,9 +813,19 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
 
     countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
             : SyncTasks.Promise<number> {
-        const { checks, args } = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
-        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks.join(' AND '),
-            args).then(result => result[0]['cnt']);
+        let checks: string;
+        let args: string[];
+        const err = _.attempt(() => {
+            const ret = this._getRangeChecks(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+            checks = ret.checks;
+            args = ret.args;
+        });
+        if (err) {
+            return SyncTasks.Rejected(err);
+        }
+
+        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks, args)
+            .then(result => result[0]['cnt']);
     }
 
     fullTextSearch<T>(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And)

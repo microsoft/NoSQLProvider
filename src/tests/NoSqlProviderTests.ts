@@ -4,6 +4,7 @@ import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('../NoSqlProvider');
 
+import { CordovaNativeSqliteProvider } from '../CordovaNativeSqliteProvider';
 import { InMemoryProvider } from '../InMemoryProvider';
 import { IndexedDbProvider } from '../IndexedDbProvider';
 import { WebSqlProvider } from '../WebSqlProvider';
@@ -31,6 +32,9 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
         provider = new WebSqlProvider();
     } else if (providerName === 'websqlnofts3') {
         provider = new WebSqlProvider(false);
+    } else if (providerName === 'reactnative') {
+        var reactNativeSqliteProvider = require('react-native-sqlite-storage');
+        provider = new CordovaNativeSqliteProvider(reactNativeSqliteProvider);
     }
     return NoSqlProvider.openListOfProviders([provider], 'test', schema, wipeFirst, false);
 }
@@ -338,13 +342,10 @@ describe('NoSqlProvider', function () {
                                 }
                             ]
                         }, true).then(prov => {
-                            const oldCatchMode = SyncTasks.config.catchExceptions;
-                            SyncTasks.config.catchExceptions = true;
                             return prov.put('test', { id: { x: 'a' }, val: 'b' }).then(() => {
                                 assert(false, 'Shouldn\'t get here');
                             }, (err) => {
                                 // Woot, failed like it's supposed to
-                                SyncTasks.config.catchExceptions = oldCatchMode;
                                 return prov.close();
                             });
                         });
@@ -516,8 +517,16 @@ describe('NoSqlProvider', function () {
                                 }
                             ]
                         }, true).then(prov => {
-                            return prov.openTransaction('test', true).then(trans => {
+                            return prov.openTransaction(['test'], true).then(trans => {
+                                let promise = trans.getCompletionPromise();
+                                let check1 = false;
+                                promise.then(() => {
+                                    check1 = true;
+                                }, err => {
+                                    assert.ok(false, 'Bad');
+                                });
                                 return sleep(200).then(() => {
+                                    assert.ok(check1);
                                     const store = trans.getStore('test');
                                     return store.put({ id: 'abc', a: 'a' });
                                 });
@@ -528,6 +537,38 @@ describe('NoSqlProvider', function () {
                                 // woot
                                 return undefined;
                             }).then(() => {
+                                return prov.close();
+                            });
+                        });
+                    });
+
+                    it('Testing aborting', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        }, true).then(prov => {
+                            let checked = false;
+                            return prov.openTransaction(['test'], true).then(trans => {
+                                let promise = trans.getCompletionPromise();
+                                const store = trans.getStore('test');
+                                return store.put({ id: 'abc', a: 'a' }).then(() => {
+                                    trans.abort();
+                                    return promise.then(() => {
+                                        assert.ok(false, 'Should fail');
+                                    }, err => {
+                                        return prov.get('test', 'abc').then(res => {
+                                            assert.ok(!res);
+                                            checked = true;
+                                        });
+                                    });
+                                });
+                            }).then(() => {
+                                assert.ok(checked);
                                 return prov.close();
                             });
                         });
@@ -546,22 +587,27 @@ describe('NoSqlProvider', function () {
                             return prov.put('test', { id: 'abc', a: 'a' }).then(() => {
                                 let check1 = false, check2 = false;
                                 let started1 = false;
-                                const p1 = prov.openTransaction('test', true).then(trans => {
+                                let closed1 = false;
+                                const p1 = prov.openTransaction(['test'], true).then(trans => {
+                                    trans.getCompletionPromise().then(() => {
+                                        closed1 = true;
+                                    });
                                     started1 = true;
                                     const store = trans.getStore('test');
                                     return store.put({ id: 'abc', a: 'b' }).then(() => {
                                         return store.get<any>('abc').then(val => {
                                             assert.ok(val && val.a === 'b');
+                                            assert.ok(!closed1);
                                             check1 = true;
                                         });
                                     });
                                 });
-                                const p2 = prov.openTransaction('test', false).then(trans => {
-                                    // Can't put the started1 && check1 check here, since indexeddb actually "opens" the transaction, then blocks
-                                    // the get call until the previous write transaction completes...  Technically correct, but wonky behavior.
+                                assert.ok(!closed1);
+                                const p2 = prov.openTransaction(['test'], false).then(trans => {
+                                    assert.ok(closed1);
+                                    assert.ok(started1 && check1);
                                     const store = trans.getStore('test');
                                     return store.get<any>('abc').then(val => {
-                                        assert.ok(started1 && check1);
                                         assert.ok(val && val.a === 'b');
                                         check2 = true;
                                     });

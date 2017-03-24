@@ -47,8 +47,15 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
             return this.getRange<T>(term, upperEnd, false, true);
         });
         return SyncTasks.all(promises).then(results => {
-            const uniquers: _.Dictionary<T>[] = _.map(results, resultSet => _.keyBy(resultSet, item =>
-                NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._primaryKeyPath)));
+            let uniquers: _.Dictionary<T>[];
+
+            const err = _.attempt(() => {
+                uniquers = _.map(results, resultSet => _.keyBy(resultSet, item =>
+                    NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._primaryKeyPath)));
+            });
+            if (err) {
+                return SyncTasks.Rejected(err);
+            }
             
             if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
                 return _.values(_.assign<_.Dictionary<T>>({}, ...uniquers));
