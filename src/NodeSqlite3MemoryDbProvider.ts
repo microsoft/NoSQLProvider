@@ -76,7 +76,6 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
 class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
     private _openTimer: number;
     private _openQueryCount = 0;
-    private _performedQuery = false;
 
     constructor(private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper, private _transToken: TransactionToken,
             schema: NoSqlProvider.DbSchema, verbose: boolean, supportsFTS3: boolean) {
@@ -103,21 +102,11 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
                 return;
             }
 
-            if (this._performedQuery) {
-                this.runQuery('COMMIT TRANSACTION', undefined, true).then(() => {
-                    this._clearTimer();
-                    this.internal_markTransactionClosed();
-                    this._lockHelper.transactionComplete(this._transToken);
-                });
-            } else {
-                this.runQuery('SELECT 1').then(() => {
-                    this.runQuery('COMMIT TRANSACTION', undefined, true).then(() => {
-                        this._clearTimer();
-                        this.internal_markTransactionClosed();
-                        this._lockHelper.transactionComplete(this._transToken);
-                    });
-                });
-            }
+            this.runQuery('COMMIT TRANSACTION').then(() => {
+                this._clearTimer();
+                this.internal_markTransactionClosed();
+                this._lockHelper.transactionComplete(this._transToken);
+            });
         }, 0) as any as number;
     }
 
@@ -134,24 +123,20 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
             return;
         }
         
-        this.runQuery('ROLLBACK TRANSACTION', undefined, true).always(() => {
+        this.runQuery('ROLLBACK TRANSACTION').always(() => {
             this._clearTimer();
             this.internal_markTransactionClosed();
             this._lockHelper.transactionFailed(this._transToken, 'NodeSqlite3Transaction Aborted');
         });
     }
 
-    runQuery(sql: string, parameters?: any[], controlQuery = false): SyncTasks.Promise<any[]> {
+    runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]> {
         if (!this._isTransactionOpen()) {
             return SyncTasks.Rejected('SqliteSqlTransaction already closed');
         }
 
         this._clearTimer();
         this._openQueryCount++;
-
-        if (!controlQuery) {
-            this._performedQuery = true;
-        }
 
         const deferred = SyncTasks.Defer<any[]>();
 
