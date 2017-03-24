@@ -43,7 +43,7 @@ export interface SqlitePlugin {
 }
 
 export interface CordovaTransaction extends SQLTransaction {
-    abort(): void;
+    abort(err?: any): void;
 }
 
 export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
@@ -148,7 +148,7 @@ class CordovaNativeSqliteTransaction extends SqlProviderBase.SqliteSqlTransactio
     }
     
     abort(): void {
-        (this._trans as CordovaTransaction).abort();
+        (this._trans as CordovaTransaction).abort('Manually Aborted');
         this._lockHelper.transactionFailed(this._transToken, 'CordovaNativeSqliteTransaction Aborted');
     }
 
