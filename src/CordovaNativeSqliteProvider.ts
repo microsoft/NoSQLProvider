@@ -148,8 +148,8 @@ class CordovaNativeSqliteTransaction extends SqlProviderBase.SqliteSqlTransactio
     }
     
     abort(): void {
+        // This will wrap through to the transaction error path above.
         (this._trans as CordovaTransaction).abort('Manually Aborted');
-        this._lockHelper.transactionFailed(this._transToken, 'CordovaNativeSqliteTransaction Aborted');
     }
 
     protected _requiresUnicodeReplacement(): boolean {
