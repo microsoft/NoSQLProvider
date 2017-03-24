@@ -4,7 +4,7 @@ import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('../NoSqlProvider');
 
-import { CordovaNativeSqliteProvider } from '../CordovaNativeSqliteProvider';
+// import { CordovaNativeSqliteProvider } from '../CordovaNativeSqliteProvider';
 import { InMemoryProvider } from '../InMemoryProvider';
 import { IndexedDbProvider } from '../IndexedDbProvider';
 import { WebSqlProvider } from '../WebSqlProvider';
@@ -32,9 +32,9 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
         provider = new WebSqlProvider();
     } else if (providerName === 'websqlnofts3') {
         provider = new WebSqlProvider(false);
-    } else if (providerName === 'reactnative') {
-        var reactNativeSqliteProvider = require('react-native-sqlite-storage');
-        provider = new CordovaNativeSqliteProvider(reactNativeSqliteProvider);
+    // } else if (providerName === 'reactnative') {
+    //     var reactNativeSqliteProvider = require('react-native-sqlite-storage');
+    //     provider = new CordovaNativeSqliteProvider(reactNativeSqliteProvider);
     }
     return NoSqlProvider.openListOfProviders([provider], 'test', schema, wipeFirst, false);
 }
