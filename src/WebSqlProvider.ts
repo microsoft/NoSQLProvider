@@ -62,7 +62,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             });
         } else if (wipeIfExists) {
             // No version change, but wipe anyway
-            this.openTransaction(null, true).then(trans => {
+            this.openTransaction(undefined, true).then(trans => {
                 this._upgradeDb(trans, oldVersion, true).then(() => { deferred.resolve(); }, () => { deferred.reject(); });
             }, (err) => {
                 deferred.reject(err);
@@ -78,7 +78,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
         return SyncTasks.Resolved<void>();
     }
 
-    openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
+    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
         const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
 
         let ourTrans: SqlProviderBase.SqliteSqlTransaction = null;
@@ -129,6 +129,6 @@ class WebSqlTransaction extends SqlProviderBase.SqliteSqlTransaction {
     abort(): void {
         // The only way to rollback a websql transaction is by forcing an error (which rolls back the trans):
         // http://stackoverflow.com/questions/16225320/websql-dont-rollback
-        this.runQuery('ERROR ME TO DEATH');
+        this.runQuery('ERROR ME TO DEATH').catch(() => undefined);
     }
 }

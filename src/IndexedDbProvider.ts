@@ -258,17 +258,16 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         return SyncTasks.Resolved<void>();
     }
 
-    openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
-        let storeNamesArr = NoSqlProviderUtils.arrayify(storeNames);
-        let intStoreNames = storeNamesArr;
+    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
+        let intStoreNames = storeNames;
 
         if (this._fakeComplicatedKeys) {
             // Clone the list becuase we're going to add fake store names to it
-            intStoreNames = _.clone(storeNamesArr);
+            intStoreNames = _.clone(storeNames);
 
             // Pull the alternate multientry stores into the transaction as well
             let missingStores: string[] = [];
-            _.each(storeNamesArr, storeName => {
+            _.each(storeNames, storeName => {
                 let storeSchema = _.find(this._schema.stores, s => s.name === storeName);
                 if (!storeSchema) {
                     missingStores.push(storeName);
@@ -287,14 +286,17 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             }
         }
 
-        try {
-            return this._lockHelper.openTransaction(storeNamesArr, writeNeeded).then(transToken => {
-                const trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
-                return new IndexedDbTransaction(trans, this._lockHelper, transToken, this._schema, this._fakeComplicatedKeys);
+        return this._lockHelper.openTransaction(storeNames, writeNeeded).then(transToken => {
+            let trans: IDBTransaction;
+            const err = _.attempt(() => {
+                trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
             });
-        } catch (e) {
-            return SyncTasks.Rejected(e);
-        }
+            if (err) {
+                return SyncTasks.Rejected(err);
+            }
+
+            return new IndexedDbTransaction(trans, this._lockHelper, transToken, this._schema, this._fakeComplicatedKeys);
+        });
     }
 }
 

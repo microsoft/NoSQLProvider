@@ -38,8 +38,8 @@ class TransactionLockHelper {
 
     private _pendingTransactions: PendingTransaction[] = [];
     
-    constructor(schema: NoSqlProvider.DbSchema, private _supportsDiscreteTransactions: boolean) {
-        _.each(schema.stores, store => {
+    constructor(private _schema: NoSqlProvider.DbSchema, private _supportsDiscreteTransactions: boolean) {
+        _.each(this._schema.stores, store => {
             this._exclusiveLocks[store.name] = false;
             this._readOnlyCounts[store.name] = 0;
         });
@@ -67,9 +67,17 @@ class TransactionLockHelper {
             _.some(this._readOnlyCounts, (value) => value > 0);
     }
 
-    openTransaction(storeNames: string[], exclusive: boolean): SyncTasks.Promise<TransactionToken> {
+    openTransaction(storeNames: string[]|undefined, exclusive: boolean): SyncTasks.Promise<TransactionToken> {
+        if (storeNames) {
+            const missingStore = _.find(storeNames, name => !_.some(this._schema.stores, store => name === store.name));
+            if (missingStore) {
+                return SyncTasks.Rejected('Opened a transaction with a store name (' + missingStore + ') not defined in your schema!');
+            }
+        }
+
         const pendingTrans: PendingTransaction = {
-            storeNames,
+            // Undefined means lock all stores
+            storeNames: storeNames || _.map(this._schema.stores, store => store.name),
             exclusive,
             openDefer: SyncTasks.Defer<TransactionToken>()
         };
@@ -124,17 +132,21 @@ class TransactionLockHelper {
     }
 
     private _checkNextTransactions(): void {
+        if (_.some(this._exclusiveLocks, lock => lock) && !this._supportsDiscreteTransactions) {
+            // In these cases, no more transactions will be possible.  Break out early.
+            return;
+        }
+
         for (let i = 0; i < this._pendingTransactions.length; ) {
             const trans = this._pendingTransactions[i];
 
             if (this._closingDefer) {
                 this._pendingTransactions.splice(i, 1);
-                trans.openDefer.reject('Closing Provider');   
+                trans.openDefer.reject('Closing Provider');
                 continue;             
             }
 
-            if (trans.exclusive && !this._supportsDiscreteTransactions && _.some(this._exclusiveLocks, lock => lock) ||
-                    _.some(trans.storeNames, storeName => this._exclusiveLocks[storeName] ||
+            if (_.some(trans.storeNames, storeName => this._exclusiveLocks[storeName] ||
                         (trans.exclusive && this._readOnlyCounts[storeName] > 0))) {
                 i++;
                 continue;

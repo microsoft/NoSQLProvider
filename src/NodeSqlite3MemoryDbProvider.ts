@@ -12,7 +12,6 @@ import sqlite3 = require('sqlite3');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
-import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 import SqlProviderBase = require('./SqlProviderBase');
 import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
 
@@ -39,19 +38,20 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
         return this._ourVersionChecker(wipeIfExists);
     }
 
-    openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
-        const intStoreNames = NoSqlProviderUtils.arrayify(storeNames);
+    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
         if (this._verbose) {
-            console.log('openTransaction Called with Stores: ' + intStoreNames.join(',') + ', WriteNeeded: ' + writeNeeded);
+            console.log('openTransaction Called with Stores: ' + storeNames ? storeNames.join(',') : undefined +
+                ', WriteNeeded: ' + writeNeeded);
         }
-        return this._lockHelper.openTransaction(intStoreNames, writeNeeded).then(transToken => {
+        return this._lockHelper.openTransaction(storeNames, writeNeeded).then(transToken => {
             if (this._verbose) {
-                console.log('openTransaction Resolved for Stores: ' + intStoreNames.join(',') + ', WriteNeeded: ' + writeNeeded);
+                console.log('openTransaction Resolved with Stores: ' + storeNames ? storeNames.join(',') : undefined +
+                    ', WriteNeeded: ' + writeNeeded);
             }
             const trans = new NodeSqlite3Transaction(this._db, this._lockHelper, transToken, this._schema, this._verbose,
                 this._supportsFTS3);
             if (writeNeeded) {
-                return trans.runQuery('BEGIN EXCLUSIVE TRANSACTION', undefined, true).then(ret => trans);
+                return trans.runQuery('BEGIN EXCLUSIVE TRANSACTION').then(ret => trans);
             }
             return trans;
         });

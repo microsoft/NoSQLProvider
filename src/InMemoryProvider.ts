@@ -34,9 +34,8 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
         return SyncTasks.Resolved<void>();
     }
 
-    openTransaction(storeNames: string | string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
-        const intStoreNames = NoSqlProviderUtils.arrayify(storeNames);
-        return this._lockHelper.openTransaction(intStoreNames, writeNeeded).then(token =>
+    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
+        return this._lockHelper.openTransaction(storeNames, writeNeeded).then(token =>
             new InMemoryTransaction(this, this._lockHelper, token));
     }
 

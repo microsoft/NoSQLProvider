@@ -46,7 +46,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     }
 
     private _getDbVersion(): SyncTasks.Promise<number> {
-        return this.openTransaction('metadata', true).then((trans: SqlTransaction) => {
+        return this.openTransaction(undefined, true).then((trans: SqlTransaction) => {
               // Create table if needed
             return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then(() => {
                 return trans.runQuery('SELECT value from metadata where name=?', [schemaVersionKey]).then(data => {
@@ -62,9 +62,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     protected _changeDbVersion(oldVersion: number, newVersion: number): SyncTasks.Promise<SqlTransaction> {
         return this.openTransaction(undefined, true).then((trans: SqlTransaction) => {
             return trans.runQuery('INSERT OR REPLACE into metadata (\'name\', \'value\') VALUES (\'' + schemaVersionKey + '\', ?)', [newVersion])
-                .then(() => {
-                    return trans;
-                });
+                .then(() => trans);
         });
     }
 
@@ -83,7 +81,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     });
                 } else if (wipeIfExists) {
                     // No version change, but wipe anyway
-                    return this.openTransaction('metadata', true).then((trans: SqlTransaction) => {
+                    return this.openTransaction(undefined, true).then((trans: SqlTransaction) => {
                         return this._upgradeDb(trans, oldVersion, true);
                     });
                 }
@@ -437,8 +435,6 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
                     err = t as any;
                 }
 
-                console.log('Query Error: SQL: ' + sql + ', Error: ' + err.message);
-
                 const index = _.indexOf(this._pendingQueries, deferred);
                 if (index !== -1) {
                     this._pendingQueries.splice(index, 1);
@@ -446,6 +442,9 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
                 } else {
                     console.error('SQL statement resolved twice (this time with failure)');
                 }
+
+                // Causes a rollback on websql
+                return true;
             });
         });
 
@@ -457,36 +456,29 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
     }
 
     internal_getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void> {
-        const deferred = SyncTasks.Defer<void>();
-
-        if (this._verbose) {
-            console.log('Query: ' + sql);
-        }
-
-        this._trans.executeSql(sql, parameters, (t, rs) => {
-            for (var i = 0; i < rs.rows.length; i++) {
-                const item = rs.rows.item(i).nsp_data;
+        return this.runQuery(sql, parameters).then(rows => {
+            let err: string;
+            _.each(rows, row => {
+                const item = row.nsp_data;
                 let ret: any;
                 try {
                     ret = JSON.parse(item);
                 } catch (e) {
-                    deferred.reject('Error parsing database entry in getResultsFromQueryWithCallback: ' + JSON.stringify(item));
-                    return;
+                    err = 'Error parsing database entry in getResultsFromQueryWithCallback: ' + JSON.stringify(item);
+                    return false;
                 }
                 try {
                     callback(ret);
                 } catch (e) {
-                    deferred.reject('Exception in callback in getResultsFromQueryWithCallback: ' + JSON.stringify(e));
-                    return;
+                    err = 'Exception in callback in getResultsFromQueryWithCallback: ' + JSON.stringify(e);
+                    return false;
                 }
-            }
-            deferred.resolve();
-        }, (t, err) => {
-            console.log('Query Error: SQL: ' + sql + ', Error: ' + err.message);
-            deferred.reject(err);
-        });
+            });
 
-        return deferred.promise();
+            if (err) {
+                return SyncTasks.Rejected<void>(err);
+            }
+        });
     }
 }
 

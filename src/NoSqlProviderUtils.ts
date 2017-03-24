@@ -59,7 +59,8 @@ export function isCompoundKeyPath(keyPath: string | string[]) {
 export function formListOfKeys(keyOrKeys: any | any[], keyPath: string | string[]): any[] {
     if (isCompoundKeyPath(keyPath)) {
         if (!isArray(keyOrKeys)) {
-            throw new Error('Compound keypath requires compound keys');
+            throw new Error('formListOfKeys called with a compound keypath (' + JSON.stringify(keyPath) +
+                ') but a non-compound keyOrKeys (' + JSON.stringify(keyOrKeys) + ')');
         }
         if (!isArray(keyOrKeys[0])) {
             // Looks like a single compound key, so make it a list of a single key
@@ -130,11 +131,13 @@ export function serializeKeyToString(key: any | any[], keyPath: string | string[
         if (isArray(key)) {
             return _.map(key, k => serializeValueToOrderableString(k)).join(keypathJoinerString);
         } else {
-            throw new Error('Compound keypath requires compound key');
+            throw new Error('serializeKeyToString called with a compound keypath (' + JSON.stringify(keyPath) +
+                ') but a non-compound key (' + JSON.stringify(key) + ')');
         }
     } else {
         if (isArray(key)) {
-            throw new Error('Non-compound keypath requires non-compound key');
+            throw new Error('serializeKeyToString called with a non-compound keypath (' + JSON.stringify(keyPath) +
+                ') but a compound key (' + JSON.stringify(key) + ')');
         } else {
             return serializeValueToOrderableString(key);
         }
