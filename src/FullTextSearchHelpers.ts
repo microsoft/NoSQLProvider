@@ -1,4 +1,4 @@
-﻿ /**
+ /**
  * FullTextSearchHelpers.ts
  * Author: David de Regt
  * Copyright: Microsoft 2017
@@ -33,7 +33,7 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
         this._keyPath = this._indexSchema ? this._indexSchema.keyPath : this._primaryKeyPath;
     }
 
-    fullTextSearch<T>(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And)
+    fullTextSearch<T>(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And, limit?: number)
             : SyncTasks.Promise<T[]> {
         if (!this._indexSchema.fullText) {
             return SyncTasks.Rejected<T[]>('fullTextSearch performed against non-fullText index!');
@@ -46,7 +46,7 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
 
         const promises = _.map(terms, term => {
             const upperEnd = term.substr(0, term.length - 1) + String.fromCharCode(term.charCodeAt(term.length - 1) + 1);
-            return this.getRange<T>(term, upperEnd, false, true);
+            return this.getRange<T>(term, upperEnd, false, true, false, limit);
         });
         return SyncTasks.all(promises).then(results => {
             let uniquers: _.Dictionary<T>[];
@@ -60,12 +60,20 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
             }
             
             if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
-                return _.values(_.assign<_.Dictionary<T>>({}, ...uniquers));
+                const data = _.values(_.assign<_.Dictionary<T>>({}, ...uniquers));
+                if (limit) {
+                    return _.take(data, limit);
+                }
+                return data;
             }
 
             if (resolution === NoSqlProvider.FullTextTermResolution.And) {
                 const [first, ...others] = uniquers;
-                return _.values(_.pickBy<_.Dictionary<T>, _.Dictionary<T>>(first, (value, key) => _.every(others, set => set[key])));
+                const data = _.values(_.pickBy<_.Dictionary<T>, _.Dictionary<T>>(first, (value, key) => _.every(others, set => set[key])));
+                if (limit) {
+                    return _.take(data, limit);
+                }
+                return data;
             }
 
             return SyncTasks.Rejected<T[]>('Undefined full text term resolution type');
