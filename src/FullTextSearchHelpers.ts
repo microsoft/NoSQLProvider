@@ -12,10 +12,12 @@ import SyncTasks = require('synctasks');
 import NoSqlProvider = require('./NoSqlProvider');
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
+const _whitespaceRegexMatch = /\S+/g;
+
 export function breakAndNormalizeSearchPhrase(phrase: string): string[] {
     // Faster than using _.uniq since it's just a pile of strings.
     // Deburr and tolower before using _.words since _.words breaks on CaseChanges.
-    return _.keys(_.mapKeys(_.words(_.deburr(phrase).toLowerCase())));
+    return _.keys(_.mapKeys(_.words(_.deburr(phrase).toLowerCase(), _whitespaceRegexMatch)));
 }
 
 export function getFullTextIndexWordsForItem(keyPath: string, item: any): string[] {
