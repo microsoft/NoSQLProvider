@@ -52,7 +52,7 @@ export interface DbIndex {
     countOnly(key: any|any[]): SyncTasks.Promise<number>;
     countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
         : SyncTasks.Promise<number>;
-    fullTextSearch<T>(searchPhrase: string, resolution?: FullTextTermResolution): SyncTasks.Promise<T[]>;
+    fullTextSearch<T>(searchPhrase: string, resolution?: FullTextTermResolution, limit?: number): SyncTasks.Promise<T[]>;
 }
 
 // Interface type describing a database store opened for accessing.  Get commands at this level work against the primary keypath
