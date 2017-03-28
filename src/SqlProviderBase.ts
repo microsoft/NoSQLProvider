@@ -775,7 +775,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         if (err) {
             return SyncTasks.Rejected(err);
         }
-        
+
         return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks, args, reverse, limit, offset);
     }
 
@@ -828,21 +828,21 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             .then(result => result[0]['cnt']);
     }
 
-    fullTextSearch<T>(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And)
+    fullTextSearch<T>(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And, limit?: number)
             : SyncTasks.Promise<T[]> {
         const terms = FullTextSearchHelpers.breakAndNormalizeSearchPhrase(searchPhrase);
 
         if (this._supportsFTS3) {
             if (resolution === NoSqlProvider.FullTextTermResolution.And) {
                 return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' MATCH ?',
-                    [_.map(terms, term => term + '*').join(' ')]);
+                    [_.map(terms, term => term + '*').join(' ')], false, limit);
             } else if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
                 // SQLite FTS3 doesn't support OR queries so we have to hack it...
                 const baseQueries = _.map(terms, term => 'SELECT * FROM ' + this._indexTableName + ' WHERE nsp_key MATCH ?');
                 const joinedQuery = 'SELECT * FROM (SELECT DISTINCT * FROM (' + baseQueries.join(' UNION ALL ') + ')) mi LEFT JOIN ' +
                     this._rawTableName + ' t ON mi.nsp_refrowid = t.rowid';
                 const args = _.map(terms, term => term + '*');
-                return this._handleQuery<T>(joinedQuery, args);
+                return this._handleQuery<T>(joinedQuery, args, false, limit);
             } else {
                 return SyncTasks.Rejected<T[]>('fullTextSearch called with invalid term resolution mode');
             }

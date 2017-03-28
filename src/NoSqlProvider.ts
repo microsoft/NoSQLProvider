@@ -201,7 +201,7 @@ export abstract class DbProvider {
     }
 
     fullTextSearch<T>(storeName: string, indexName: string, searchPhrase: string,
-            resolution: FullTextTermResolution = FullTextTermResolution.And): SyncTasks.Promise<T[]> {
+            resolution: FullTextTermResolution = FullTextTermResolution.And, limit?: number): SyncTasks.Promise<T[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.fullTextSearch(searchPhrase, resolution);
         });
