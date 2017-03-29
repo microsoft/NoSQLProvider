@@ -1020,51 +1020,50 @@ describe('NoSqlProvider', function () {
                         });
                     });
 
-                    // Does not work, need fixing.
-                    // it('Adding new FTS index', () => {
-                    //     return openProvider(provName, {
-                    //         version: 1,
-                    //         stores: [
-                    //             {
-                    //                 name: 'test',
-                    //                 primaryKeyPath: 'id'
-                    //             }
-                    //         ]
-                    //     }, true).then(prov => {
-                    //         return prov.put('test', { id: 'abc', content: 'ghi' }).then(() => {
-                    //             return prov.close();
-                    //         });
-                    //     }).then(() => {
-                    //         return openProvider(provName, {
-                    //             version: 2,
-                    //             stores: [
-                    //                 {
-                    //                     name: 'test',
-                    //                     primaryKeyPath: 'id',
-                    //                     indexes: [
-                    //                         {
-                    //                             name: 'a',
-                    //                             keyPath: 'content',
-                    //                             fullText: true
-                    //                         }
-                    //                     ]
-                    //                 }
-                    //             ]
-                    //         }, false).then(prov => {
-                    //             const p1 = prov.get<any>('test', 'abc').then(item => {
-                    //                 assert.ok(item);
-                    //                 assert.equal(item.id, 'abc');
-                    //             });
-                    //             const p2 = prov.fullTextSearch<any>('test', 'a', 'ghi').then(items => {
-                    //                 assert.equal(items.length, 1);
-                    //                 assert.equal(items[0].id, 'abc');
-                    //             });
-                    //             return SyncTasks.all([p1, p2]).then(() => {
-                    //                 return prov.close();
-                    //             });
-                    //         });
-                    //     });
-                    // });
+                    it('Adding new FTS index', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', content: 'ghi' }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [
+                                            {
+                                                name: 'a',
+                                                keyPath: 'content',
+                                                fullText: true
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                const p1 = prov.get<any>('test', 'abc').then(item => {
+                                    assert.ok(item);
+                                    assert.equal(item.id, 'abc');
+                                });
+                                const p2 = prov.fullTextSearch<any>('test', 'a', 'ghi').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                return SyncTasks.all([p1, p2]).then(() => {
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
 
                     it('Removing FTS index', () => {
                         return openProvider(provName, {

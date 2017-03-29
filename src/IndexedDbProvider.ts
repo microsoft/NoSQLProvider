@@ -96,6 +96,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         dbOpen.onupgradeneeded = (event) => {
             const db: IDBDatabase = dbOpen.result;
             const target = <IDBOpenDBRequest>(event.currentTarget || event.target);
+            const trans = target.transaction;
 
             if (schema.lastUsableVersion && event.oldVersion < schema.lastUsableVersion) {
                 // Clear all stores if it's past the usable version
@@ -126,7 +127,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                     // Any is to fix a lib.d.ts issue in TS 2.0.3 - it doesn't realize that keypaths can be compound for some reason...
                     store = db.createObjectStore(storeSchema.name, { keyPath: primaryKeyPath } as any);
                 } else {
-                    store = target.transaction.objectStore(storeSchema.name);
+                    store = trans.objectStore(storeSchema.name);
                     migrateData = true;
 
                     // Check for any indexes no longer in the schema or have been changed
@@ -162,6 +163,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                 }
 
                 // Check any indexes in the schema that need to be created
+                let needsMigrate = false;
                 _.each(storeSchema.indexes, indexSchema => {
                     if (!_.includes(store.indexNames, indexSchema.name)) {
                         const keyPath = indexSchema.keyPath;
@@ -177,35 +179,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                                     indexStore.createIndex('refkey', 'refkey');
 
                                     if (migrateData) {
-                                        // Walk every element in the store and re-put it to fill out the new index.
-                                        const cursorReq = store.openCursor();
-                                        let thisIndexPutters: SyncTasks.Promise<void>[] = [];
-                                        migrationPutters.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
-                                            const err = _.attempt(() => {
-                                                const item = removeFullTextMetadataAndReturn(storeSchema, cursor.value);
-
-                                                // Get each value of the multientry and put it into the index store
-                                                const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item,
-                                                    <string>indexSchema.keyPath);
-                                                // It might be an array of multiple entries, so just always go with array-based logic
-                                                const vals = NoSqlProviderUtils.arrayify(valsRaw);
-
-                                                const refKey = NoSqlProviderUtils.getSerializedKeyForKeypath(item,
-                                                    storeSchema.primaryKeyPath);
-
-                                                // After nuking the existing entries, add the new ones
-                                                _.each(vals, val => {
-                                                    const indexObj = {
-                                                        key: val,
-                                                        refkey: refKey
-                                                    };
-                                                    thisIndexPutters.push(IndexedDbProvider.WrapRequest<void>(indexStore.put(indexObj)));
-                                                });
-                                            });
-                                            if (err) {
-                                                thisIndexPutters.push(SyncTasks.Rejected<void>(err));
-                                            }
-                                        }).then(() => SyncTasks.all(thisIndexPutters).then(_.noop)));
+                                        needsMigrate = true;
                                     }
                                 }
                             } else if (NoSqlProviderUtils.isCompoundKeyPath(keyPath)) {
@@ -223,6 +197,10 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                                 unique: false,
                                 multiEntry: true
                             });
+
+                            if (migrateData) {
+                                needsMigrate = true;
+                            }
                         } else {
                             store.createIndex(indexSchema.name, keyPath, {
                                 unique: indexSchema.unique,
@@ -231,6 +209,26 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                         }
                     }
                 });
+
+                if (needsMigrate) {
+                    // Walk every element in the store and re-put it to fill out the new index.
+                    const fakeToken = { storeNames: [ storeSchema.name ], exclusive: false, completionPromise: undefined};
+                    const iTrans = new IndexedDbTransaction(trans, undefined, fakeToken, schema, this._fakeComplicatedKeys);
+                    const tStore = iTrans.getStore(storeSchema.name);
+
+                    const cursorReq = store.openCursor();
+                    let thisIndexPutters: SyncTasks.Promise<void>[] = [];
+                    migrationPutters.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
+                        const err = _.attempt(() => {
+                            const item = removeFullTextMetadataAndReturn(storeSchema, cursor.value);
+
+                            thisIndexPutters.push(tStore.put(item));
+                        });
+                        if (err) {
+                            thisIndexPutters.push(SyncTasks.Rejected<void>(err));
+                        }
+                    }).then(() => SyncTasks.all(thisIndexPutters).then(_.noop)));
+                }
             });
         };
 
@@ -304,21 +302,23 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
     private _stores: IDBObjectStore[];
 
-    constructor(private _trans: IDBTransaction, private _lockHelper: TransactionLockHelper, private _transToken: TransactionToken,
+    constructor(private _trans: IDBTransaction, lockHelper: TransactionLockHelper|undefined, private _transToken: TransactionToken,
             private _schema: NoSqlProvider.DbSchema, private _fakeComplicatedKeys: boolean) {
         this._stores = _.map(this._transToken.storeNames, storeName => this._trans.objectStore(storeName));
 
-        this._trans.oncomplete = () => {
-            this._lockHelper.transactionComplete(this._transToken);
-        };
+        if (lockHelper) {
+            this._trans.oncomplete = () => {
+                lockHelper.transactionComplete(this._transToken);
+            };
 
-        this._trans.onerror = (err: ErrorEvent) => {
-            this._lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction OnError: ' + err.message);
-        };
+            this._trans.onerror = (err: ErrorEvent) => {
+                lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction OnError: ' + err.message);
+            };
 
-        this._trans.onabort = (err) => {
-            this._lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction Aborted');
-        };
+            this._trans.onabort = (err) => {
+                lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction Aborted');
+            };
+        }
     }
 
     getStore(storeName: string): NoSqlProvider.DbStore {
