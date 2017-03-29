@@ -1,11 +1,10 @@
 ﻿/**
- * NodeSqlite3MemoryDbProvider.ts
+ * NodeSqlite3DbProvider.ts
  * Author: David de Regt
  * Copyright: Microsoft 2015
  *
- * NoSqlProvider provider setup for NodeJs to use an in-memory sqlite3-based provider.
- * Largely only used for unit tests.
- * Doesn't support actually running BEGIN/COMMIT TRANSACTION queries for transactions, only fakes it with the LockHelper.
+ * NoSqlProvider provider setup for NodeJs to use a sqlite3-based provider.
+ * Can pass :memory: to the dbName for it to use an in-memory sqlite instance that's blown away each close() call.
  */
 
 import sqlite3 = require('sqlite3');
@@ -15,7 +14,7 @@ import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
 
-export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase {
+export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBase {
     private _db: sqlite3.Database;
 
     private _lockHelper: TransactionLockHelper;
@@ -31,7 +30,7 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
             sqlite3.verbose();
         }
 
-        this._db = new sqlite3.Database(':memory:');
+        this._db = new sqlite3.Database(dbName);
 
         this._lockHelper = new TransactionLockHelper(schema, false);
 
@@ -40,12 +39,12 @@ export class NodeSqlite3MemoryDbProvider extends SqlProviderBase.SqlProviderBase
 
     openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
         if (this._verbose) {
-            console.log('openTransaction Called with Stores: ' + storeNames ? storeNames.join(',') : undefined +
+            console.log('openTransaction Called with Stores: ' + (storeNames ? storeNames.join(',') : undefined) +
                 ', WriteNeeded: ' + writeNeeded);
         }
         return this._lockHelper.openTransaction(storeNames, writeNeeded).then(transToken => {
             if (this._verbose) {
-                console.log('openTransaction Resolved with Stores: ' + storeNames ? storeNames.join(',') : undefined +
+                console.log('openTransaction Resolved with Stores: ' + (storeNames ? storeNames.join(',') : undefined) +
                     ', WriteNeeded: ' + writeNeeded);
             }
             const trans = new NodeSqlite3Transaction(this._db, this._lockHelper, transToken, this._schema, this._verbose,
@@ -141,7 +140,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
         const deferred = SyncTasks.Defer<any[]>();
 
         if (this._verbose) {
-            console.log('Query: ' + sql);
+            console.log('Query: ' + sql + (parameters ? ', Args: ' + JSON.stringify(parameters) : ''));
         }
 
         var stmt = this._db.prepare(sql);
@@ -159,52 +158,6 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
                 deferred.resolve(rows);
             }
 
-            stmt.finalize();
-        });
-
-        return deferred.promise();
-    }
-
-    // Only used by DB migration
-    internal_getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (row: any) => void): SyncTasks.Promise<void> {
-        const deferred = SyncTasks.Defer<void>();
-
-        if (this._verbose) {
-            console.log('Query: ' + sql);
-        }
-
-        var stmt = this._db.prepare(sql);
-        stmt.bind.apply(stmt, parameters);
-        stmt.each((err, row) => {
-            if (err) {
-                console.error('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
-                deferred.reject(err);
-                stmt.finalize();
-                return;
-            }
-
-            const item = row.nsp_data;
-            let ret: any;
-            try {
-                ret = JSON.parse(item);
-            } catch (e) {
-                deferred.reject('Error parsing database entry in getResultsFromQueryWithCallback: ' + JSON.stringify(item));
-                return;
-            }
-            try {
-                callback(ret);
-            } catch (e) {
-                deferred.reject('Exception in callback in getResultsFromQueryWithCallback: ' + JSON.stringify(e));
-                return;
-            }
-        }, (err, count) => {
-            if (err) {
-                console.error('Query Error: SQL: ' + sql + ', Error: ' + err.toString());
-                deferred.reject(err);
-                stmt.finalize();
-                return;
-            }
-            deferred.resolve();
             stmt.finalize();
         });
 

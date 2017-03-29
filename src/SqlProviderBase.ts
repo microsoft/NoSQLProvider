@@ -115,7 +115,11 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             return;
                         }
                         // Ignore FTS-generated side tables
-                        if (tableName.indexOf('_i_content') > 0 || tableName.indexOf('_i_segments') > 0 || tableName.indexOf('_i_segdir') > 0) {
+                        const endsIn = (str, checkstr) => {
+                            const i = str.indexOf(checkstr);
+                            return i !== -1 && i === str.length - checkstr.length;
+                        };
+                        if (endsIn(tableName, '_content') || endsIn(tableName, '_segments') || endsIn(tableName, '_segdir')) {
                             return;
                         }
                         if (row['type'] === 'table') {
@@ -138,7 +142,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     });
 
                     // Check each table!
-                    var dropQueries: SyncTasks.Promise<any>[] = [];
+                    let dropQueries: SyncTasks.Promise<any>[] = [];
                     if (wipeAnyway || (this._schema.lastUsableVersion && oldVersion < this._schema.lastUsableVersion)) {
                         // Clear all stores if it's past the usable version
                         if (!wipeAnyway) {
@@ -185,13 +189,13 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     }
 
                     return SyncTasks.all(dropQueries).then(() => {
-                        var tableQueries = [];
+                        let tableQueries = [];
 
                         // Go over each store and see what needs changing
                         _.each(this._schema.stores, storeSchema => {
-                            var indexMaker = () => {
+                            const indexMaker = () => {
                                 let metaQueries: SyncTasks.Promise<any>[] = [];
-                                var indexQueries = _.map(storeSchema.indexes, index => {
+                                const indexQueries = _.map(storeSchema.indexes, index => {
                                     const indexIdentifier = getIndexIdentifier(storeSchema, index);
 
                                     // Store meta for the index
@@ -223,30 +227,28 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     }
                                 });
 
-                                return SyncTasks.all(indexQueries).then(() => {
-
-                                });
+                                return SyncTasks.all(indexQueries);
                             };
 
                             // Form SQL statement for table creation
-                            var fieldList = [];
+                            let fieldList = [];
 
                             fieldList.push('nsp_pk TEXT PRIMARY KEY');
 
                             fieldList.push('nsp_data TEXT');
 
-                            var nonMultiIndexes = _.filter(storeSchema.indexes || [], index => !index.multiEntry);
-                            var indexColumns = _.map(nonMultiIndexes, index => 'nsp_i_' + index.name + ' TEXT');
+                            const nonMultiIndexes = _.filter(storeSchema.indexes || [], index => !index.multiEntry);
+                            const indexColumns = _.map(nonMultiIndexes, index => 'nsp_i_' + index.name + ' TEXT');
                             fieldList = fieldList.concat(indexColumns);
                             const tableMakerSql = 'CREATE TABLE ' + storeSchema.name + ' (' + fieldList.join(', ') + ')';
 
-                            var tableMaker = () => {
+                            const tableMaker = () => {
                                 // Create the table
                                 return trans.runQuery(tableMakerSql)
                                     .then(indexMaker);
                             };
 
-                            var needsMigration = () => {
+                            const needsMigration = () => {
                                 // Check if sql used to create the base table has changed
                                 if (tableSqlStatements[storeSchema.name] !== tableMakerSql) {
                                     return true;
@@ -289,16 +291,12 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 // Migrate the data over using our existing put functions (since it will do the right things with the indexes)
                                 // and delete the temp table.
                                 let migrator = () => {
-                                    var store = trans.getStore(storeSchema.name);
-                                    var objs = [];
-                                    return trans.internal_getResultsFromQueryWithCallback('SELECT nsp_data FROM temp_' + storeSchema.name, undefined,
-                                        (obj) => {
-                                            objs.push(obj);
-                                        }).then(() => {
-                                            return store.put(objs).then(() => {
-                                                return trans.runQuery('DROP TABLE temp_' + storeSchema.name);
-                                            });
+                                    let store = trans.getStore(storeSchema.name);
+                                    return trans.internal_getResultsFromQuery('SELECT nsp_data FROM temp_' + storeSchema.name).then(objs => {
+                                        return store.put(objs).then(() => {
+                                            return trans.runQuery('DROP TABLE temp_' + storeSchema.name);
                                         });
+                                    });
                                 };
 
                                 tableQueries.push(nukeIndexesAndRename.then(tableMaker).then(migrator));
@@ -321,10 +319,13 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
     private _isOpen = true;
 
     constructor(
-        protected _schema: NoSqlProvider.DbSchema,
-        protected _verbose: boolean,
-        protected _maxVariables: number,
-        private _supportsFTS3: boolean) {
+            protected _schema: NoSqlProvider.DbSchema,
+            protected _verbose: boolean,
+            protected _maxVariables: number,
+            private _supportsFTS3: boolean) {
+        if (this._verbose) {
+            console.log('Opening Transaction');
+        }
     }
 
     protected _isTransactionOpen(): boolean {
@@ -332,6 +333,9 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
     }
 
     internal_markTransactionClosed(): void {
+        if (this._verbose) {
+            console.log('Marking Transaction Closed');
+        }
         this._isOpen = false;
     }
 
@@ -339,8 +343,6 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
     abstract abort(): void;
 
     abstract runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]>;
-
-    abstract internal_getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void>;
 
     internal_getMaxVariables(): number {
         return this._maxVariables;
@@ -352,8 +354,8 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
 
     internal_getResultsFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T[]> {
         return this.runQuery(sql, parameters).then(rows => {
-            var rets: T[] = [];
-            for (var i = 0; i < rows.length; i++) {
+            let rets: T[] = [];
+            for (let i = 0; i < rows.length; i++) {
                 try {
                     rets.push(JSON.parse(rows[i].nsp_data));
                 } catch (e) {
@@ -370,7 +372,7 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
     }
 
     getStore(storeName: string): NoSqlProvider.DbStore {
-        var storeSchema = _.find(this._schema.stores, store => store.name === storeName);
+        const storeSchema = _.find(this._schema.stores, store => store.name === storeName);
         if (!storeSchema) {
             return undefined;
         }
@@ -420,8 +422,8 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
             this._trans.executeSql(sql, parameters, (t, rs) => {
                 const index = _.indexOf(this._pendingQueries, deferred);
                 if (index !== -1) {
-                    var rows = [];
-                    for (var i = 0; i < rs.rows.length; i++) {
+                    let rows = [];
+                    for (let  i = 0; i < rs.rows.length; i++) {
                         rows.push(rs.rows.item(i));
                     }
                     this._pendingQueries.splice(index, 1);
@@ -453,32 +455,6 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
         }
 
         return deferred.promise();
-    }
-
-    internal_getResultsFromQueryWithCallback(sql: string, parameters: any[], callback: (obj: any) => void): SyncTasks.Promise<void> {
-        return this.runQuery(sql, parameters).then(rows => {
-            let err: string;
-            _.each(rows, row => {
-                const item = row.nsp_data;
-                let ret: any;
-                try {
-                    ret = JSON.parse(item);
-                } catch (e) {
-                    err = 'Error parsing database entry in getResultsFromQueryWithCallback: ' + JSON.stringify(item);
-                    return false;
-                }
-                try {
-                    callback(ret);
-                } catch (e) {
-                    err = 'Exception in callback in getResultsFromQueryWithCallback: ' + JSON.stringify(e);
-                    return false;
-                }
-            });
-
-            if (err) {
-                return SyncTasks.Rejected<void>(err);
-            }
-        });
     }
 }
 
@@ -515,10 +491,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             return SyncTasks.Resolved<T[]>([]);
         }
 
-        var qmarks: string[] = Array(joinedKeys.length);
-        for (let i = 0; i < joinedKeys.length; i++) {
-            qmarks[i] = '?';
-        }
+        let qmarks = _.map(joinedKeys, k => '?');
 
         return this._trans.internal_getResultsFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk IN (' +
             qmarks.join(',') + ')', joinedKeys);
@@ -533,9 +506,9 @@ class SqlStore implements NoSqlProvider.DbStore {
             return SyncTasks.Resolved<void>();
         }
 
-        var fields: string[] = ['nsp_pk', 'nsp_data'];
-        var qmarks: string[] = ['?', '?'];
-        var args: any[] = [];
+        let fields: string[] = ['nsp_pk', 'nsp_data'];
+        let qmarks: string[] = ['?', '?'];
+        let args: any[] = [];
 
         _.each(this._schema.indexes, index => {
             if (!index.multiEntry || (index.fullText && !this._supportsFTS3)) {
@@ -653,7 +626,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         }
 
         // PERF: This is optimizable, but it's of questionable utility
-        var queries = _.map(joinedKeys, joinedKey => {
+        const queries = _.map(joinedKeys, joinedKey => {
             if (_.some(this._schema.indexes, index => index.multiEntry)) {
                 // If there's any multientry indexes, we have to do the more complicated version...
                 return this._trans.runQuery('SELECT rowid a FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]).then(rets => {
@@ -661,7 +634,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                         return undefined;
                     }
 
-                    var queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
+                    let queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
                         this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
                             ' WHERE nsp_refrowid = ?', [rets[0].a])).value();
                     queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + ' WHERE rowid = ?', [rets[0].a]));
@@ -689,7 +662,7 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     clearAllData(): SyncTasks.Promise<void> {
-        var queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
+        let queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
             this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name)).value();
 
         queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name));

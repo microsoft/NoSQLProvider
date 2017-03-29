@@ -14,14 +14,24 @@ import NoSqlProviderUtils = require('../NoSqlProviderUtils');
 // Don't trap exceptions so we immediately see them with a stack trace
 SyncTasks.config.catchExceptions = false;
 
+let cleanupFile = false;
+
 function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipeFirst: boolean) {
     let provider: NoSqlProvider.DbProvider;
     if (providerName === 'sqlite3memory') {
-        var NSPNodeSqlite3MemoryDbProvider = require('../NodeSqlite3MemoryDbProvider');
-        provider = new NSPNodeSqlite3MemoryDbProvider.NodeSqlite3MemoryDbProvider();
+        const NSPNodeSqlite3DbProvider = require('../NodeSqlite3DbProvider');
+        provider = new NSPNodeSqlite3DbProvider.default();
     } else if (providerName === 'sqlite3memorynofts3') {
-        var NSPNodeSqlite3MemoryDbProvider = require('../NodeSqlite3MemoryDbProvider');
-        provider = new NSPNodeSqlite3MemoryDbProvider.NodeSqlite3MemoryDbProvider(false);
+        const NSPNodeSqlite3DbProvider = require('../NodeSqlite3DbProvider');
+        provider = new NSPNodeSqlite3DbProvider.default(false);
+    } else if (providerName === 'sqlite3disk') {
+        cleanupFile = true;
+        const NSPNodeSqlite3DbProvider = require('../NodeSqlite3DbProvider');
+        provider = new NSPNodeSqlite3DbProvider.default();
+    } else if (providerName === 'sqlite3disknofts3') {
+        cleanupFile = true;
+        const NSPNodeSqlite3DbProvider = require('../NodeSqlite3DbProvider');
+        provider = new NSPNodeSqlite3DbProvider.default(false);
     } else if (providerName === 'memory') {
         provider = new InMemoryProvider();
     } else if (providerName === 'indexeddb') {
@@ -36,7 +46,8 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
     //     var reactNativeSqliteProvider = require('react-native-sqlite-storage');
     //     provider = new CordovaNativeSqliteProvider(reactNativeSqliteProvider);
     }
-    return NoSqlProvider.openListOfProviders([provider], 'test', schema, wipeFirst, false);
+    const dbName = providerName.indexOf('sqlite3memory') !== -1 ? ':memory:' : 'test';
+    return NoSqlProvider.openListOfProviders([provider], dbName, schema, wipeFirst, false);
 }
 
 function sleep(timeMs: number): SyncTasks.Promise<void> {
@@ -47,8 +58,15 @@ function sleep(timeMs: number): SyncTasks.Promise<void> {
 
 describe('NoSqlProvider', function () {
     //this.timeout(60000);
+    after(() => {
+        if (cleanupFile) {
+            var fs = require('fs');
+            fs.unlink('test');
+        }
+    });
 
-    let provsToTest = typeof window === 'undefined' ? ['sqlite3memory', 'sqlite3memorynofts3', 'memory'] : NoSqlProviderUtils.isIE() ? ['indexeddb', 'memory'] : ['indexeddb', 'indexeddbfakekeys', 'websql', 'websqlnofts3', 'memory'];
+    const provsToTest = typeof window === 'undefined' ? ['sqlite3memory', 'sqlite3memorynofts3', 'sqlite3disk', 'sqlite3disknofts3', 'memory'] :
+        (NoSqlProviderUtils.isIE() ? ['indexeddb', 'memory'] : ['indexeddb', 'indexeddbfakekeys', 'websql', 'websqlnofts3', 'memory']);
 
     it('Number/value/type sorting', () => {
         const pairsToTest = [
@@ -91,239 +109,237 @@ describe('NoSqlProvider', function () {
 
     provsToTest.forEach(provName => {
         describe('Provider: ' + provName, () => {
-            if (provName.indexOf('nofts3') === -1) {
-                describe('Data Manipulation', () => {
-                    // Setter should set the testable parameter on the first param to the value in the second param, and third param to the
-                    // second index column for compound indexes.
-                    var tester = (prov: NoSqlProvider.DbProvider, indexName: string, compound: boolean,
-                        setter: (obj: any, indexval1: string, indexval2: string) => void) => {
-                        var putters = [1, 2, 3, 4, 5].map(v => {
-                            var obj: any = { val: 'val' + v };
-                            if (indexName) {
-                                obj.id = 'id' + v;
+            describe('Data Manipulation', () => {
+                // Setter should set the testable parameter on the first param to the value in the second param, and third param to the
+                // second index column for compound indexes.
+                var tester = (prov: NoSqlProvider.DbProvider, indexName: string, compound: boolean,
+                    setter: (obj: any, indexval1: string, indexval2: string) => void) => {
+                    var putters = [1, 2, 3, 4, 5].map(v => {
+                        var obj: any = { val: 'val' + v };
+                        if (indexName) {
+                            obj.id = 'id' + v;
+                        }
+                        setter(obj, 'indexa' + v, 'indexb' + v);
+                        return prov.put('test', obj);
+                    });
+
+                    return SyncTasks.all(putters).then(rets => {
+                        let formIndex = (i: number, i2: number = i): string | string[] => {
+                            if (compound) {
+                                return ['indexa' + i, 'indexb' + i2];
+                            } else {
+                                return 'indexa' + i;
                             }
-                            setter(obj, 'indexa' + v, 'indexb' + v);
-                            return prov.put('test', obj);
+                        };
+
+                        let t1 = prov.getAll<any>('test', indexName).then(ret => {
+                            assert.equal(ret.length, 5, 'getAll');
+                            [1, 2, 3, 4, 5].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
-                        return SyncTasks.all(putters).then(rets => {
-                            let formIndex = (i: number, i2: number = i): string | string[] => {
-                                if (compound) {
-                                    return ['indexa' + i, 'indexb' + i2];
-                                } else {
-                                    return 'indexa' + i;
-                                }
-                            };
+                        let t1count = prov.countAll('test', indexName).then(ret => {
+                            assert.equal(ret, 5, 'countAll');
+                        });
 
-                            let t1 = prov.getAll<any>('test', indexName).then(ret => {
-                                assert.equal(ret.length, 5, 'getAll');
-                                [1, 2, 3, 4, 5].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
+                        let t1b = prov.getAll<any>('test', indexName, false, 3).then(ret => {
+                            assert.equal(ret.length, 3, 'getAll lim3');
+                            [1, 2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
+                        });
+
+                        let t1c = prov.getAll<any>('test', indexName, false, 3, 1).then(ret => {
+                            assert.equal(ret.length, 3, 'getAll lim3 off1');
+                            [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
+                        });
+
+                        let t2 = prov.getOnly<any>('test', indexName, formIndex(3)).then(ret => {
+                            assert.equal(ret.length, 1, 'getOnly');
+                            assert.equal(ret[0].val, 'val3');
+                        });
+
+                        let t2count = prov.countOnly('test', indexName, formIndex(3)).then(ret => {
+                            assert.equal(ret, 1, 'countOnly');
+                        });
+
+                        let t3 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4)).then(ret => {
+                            assert.equal(ret.length, 3, 'getRange++');
+                            [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                        });
+
+                        let t3count = prov.countRange('test', indexName, formIndex(2), formIndex(4)).then(ret => {
+                            assert.equal(ret, 3, 'countRange++');
+                        });
+
+                        let t3b = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 1).then(ret => {
+                                assert.equal(ret.length, 1, 'getRange++ lim1');
+                                [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                            let t1count = prov.countAll('test', indexName).then(ret => {
-                                assert.equal(ret, 5, 'countAll');
+                        let t3b2 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, true, 1).then(ret => {
+                                assert.equal(ret.length, 1, 'getRange++ lim1 rev');
+                                [4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                            let t1b = prov.getAll<any>('test', indexName, false, 3).then(ret => {
-                                assert.equal(ret.length, 3, 'getAll lim3');
-                                [1, 2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
-                            });
-
-                            let t1c = prov.getAll<any>('test', indexName, false, 3, 1).then(ret => {
-                                assert.equal(ret.length, 3, 'getAll lim3 off1');
-                                [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
-                            });
-
-                            let t2 = prov.getOnly<any>('test', indexName, formIndex(3)).then(ret => {
-                                assert.equal(ret.length, 1, 'getOnly');
-                                assert.equal(ret[0].val, 'val3');
-                            });
-
-                            let t2count = prov.countOnly('test', indexName, formIndex(3)).then(ret => {
-                                assert.equal(ret, 1, 'countOnly');
-                            });
-
-                            let t3 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4)).then(ret => {
-                                assert.equal(ret.length, 3, 'getRange++');
-                                [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                            });
-
-                            let t3count = prov.countRange('test', indexName, formIndex(2), formIndex(4)).then(ret => {
-                                assert.equal(ret, 3, 'countRange++');
-                            });
-
-                            let t3b = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 1).then(ret => {
-                                    assert.equal(ret.length, 1, 'getRange++ lim1');
-                                    [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                                });
-
-                            let t3b2 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, true, 1).then(ret => {
-                                    assert.equal(ret.length, 1, 'getRange++ lim1 rev');
-                                    [4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                                });
-
-                            let t3c = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 1, 1).then(ret => {
-                                    assert.equal(ret.length, 1, 'getRange++ lim1 off1');
-                                    [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                                });
-
-                            let t3d = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 2, 1).then(ret => {
-                                    assert.equal(ret.length, 2, 'getRange++ lim2 off1');
-                                    [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                                });
-
-                            let t3d2 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1).then(ret => {
-                                    assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
-                                    assert.equal(ret[0].val, 'val3');
-                                    [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                                });
-
-                            let t4 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), true, false).then(ret => {
-                                assert.equal(ret.length, 2, 'getRange-+');
-                                [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                            });
-
-                            let t4count = prov.countRange('test', indexName, formIndex(2), formIndex(4), true, false).then(ret => {
-                                assert.equal(ret, 2, 'countRange-+');
-                            });
-
-                            let t5 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, true).then(ret => {
-                                assert.equal(ret.length, 2, 'getRange+-');
-                                [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                            });
-
-                            let t5count = prov.countRange('test', indexName, formIndex(2), formIndex(4), false, true).then(ret => {
-                                assert.equal(ret, 2, 'countRange+-');
-                            });
-
-                            let t6 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), true, true).then(ret => {
-                                assert.equal(ret.length, 1, 'getRange--');
+                        let t3c = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 1, 1).then(ret => {
+                                assert.equal(ret.length, 1, 'getRange++ lim1 off1');
                                 [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                            let t6count = prov.countRange('test', indexName, formIndex(2), formIndex(4), true, true).then(ret => {
-                                assert.equal(ret, 1, 'countRange--');
+                        let t3d = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 2, 1).then(ret => {
+                                assert.equal(ret.length, 2, 'getRange++ lim2 off1');
+                                [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                            return SyncTasks.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3c, t3d, t3d2, t4, t4count, t5, t5count, t6, t6count]).then(() => {
-                                if (compound) {
-                                    let tt1 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3))
-                                        .then(ret => {
-                                            assert.equal(ret.length, 2, 'getRange2++');
-                                            [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                                        });
-
-                                    let tt1count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
-                                        .then(ret => {
-                                            assert.equal(ret, 2, 'countRange2++');
-                                        });
-
-                                    let tt2 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
-                                        .then(ret => {
-                                            assert.equal(ret.length, 2, 'getRange2+-');
-                                            [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                                        });
-
-                                    let tt2count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
-                                        .then(ret => {
-                                            assert.equal(ret, 2, 'countRange2+-');
-                                        });
-
-                                    let tt3 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
-                                        .then(ret => {
-                                            assert.equal(ret.length, 1, 'getRange2-+');
-                                            [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                                        });
-
-                                    let tt3count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
-                                        .then(ret => {
-                                            assert.equal(ret, 1, 'countRange2-+');
-                                        });
-
-                                    return SyncTasks.all([tt1, tt1count, tt2, tt2count, tt3, tt3count]).then(() => {
-                                        return prov.close();
-                                    });
-                                } else {
-                                    return prov.close();
-                                }
+                        let t3d2 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1).then(ret => {
+                                assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
+                                assert.equal(ret[0].val, 'val3');
+                                [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
+
+                        let t4 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), true, false).then(ret => {
+                            assert.equal(ret.length, 2, 'getRange-+');
+                            [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
-                    };
 
-                    it('Simple primary key put/get/getAll', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: 'id'
-                                }
-                            ]
-                        }, true).then(prov => {
-                            return prov.put('test', { id: 'a', val: 'b' }).then(() => {
-                                return prov.get<any>('test', 'a').then(ret => {
-                                    assert.equal(ret.val, 'b');
+                        let t4count = prov.countRange('test', indexName, formIndex(2), formIndex(4), true, false).then(ret => {
+                            assert.equal(ret, 2, 'countRange-+');
+                        });
 
-                                    return prov.getAll<any>('test').then(ret2 => {
-                                        assert.equal(ret2.length, 1);
-                                        assert.equal(ret2[0].val, 'b');
+                        let t5 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, true).then(ret => {
+                            assert.equal(ret.length, 2, 'getRange+-');
+                            [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                        });
 
-                                        return prov.close();
+                        let t5count = prov.countRange('test', indexName, formIndex(2), formIndex(4), false, true).then(ret => {
+                            assert.equal(ret, 2, 'countRange+-');
+                        });
+
+                        let t6 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), true, true).then(ret => {
+                            assert.equal(ret.length, 1, 'getRange--');
+                            [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                        });
+
+                        let t6count = prov.countRange('test', indexName, formIndex(2), formIndex(4), true, true).then(ret => {
+                            assert.equal(ret, 1, 'countRange--');
+                        });
+
+                        return SyncTasks.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3c, t3d, t3d2, t4, t4count, t5, t5count, t6, t6count]).then(() => {
+                            if (compound) {
+                                let tt1 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3))
+                                    .then(ret => {
+                                        assert.equal(ret.length, 2, 'getRange2++');
+                                        [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
+
+                                let tt1count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
+                                    .then(ret => {
+                                        assert.equal(ret, 2, 'countRange2++');
+                                    });
+
+                                let tt2 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
+                                    .then(ret => {
+                                        assert.equal(ret.length, 2, 'getRange2+-');
+                                        [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                    });
+
+                                let tt2count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
+                                    .then(ret => {
+                                        assert.equal(ret, 2, 'countRange2+-');
+                                    });
+
+                                let tt3 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
+                                    .then(ret => {
+                                        assert.equal(ret.length, 1, 'getRange2-+');
+                                        [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                    });
+
+                                let tt3count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
+                                    .then(ret => {
+                                        assert.equal(ret, 1, 'countRange2-+');
+                                    });
+
+                                return SyncTasks.all([tt1, tt1count, tt2, tt2count, tt3, tt3count]).then(() => {
+                                    return prov.close();
+                                });
+                            } else {
+                                return prov.close();
+                            }
+                        });
+                    });
+                };
+
+                it('Simple primary key put/get/getAll', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', { id: 'a', val: 'b' }).then(() => {
+                            return prov.get<any>('test', 'a').then(ret => {
+                                assert.equal(ret.val, 'b');
+
+                                return prov.getAll<any>('test').then(ret2 => {
+                                    assert.equal(ret2.length, 1);
+                                    assert.equal(ret2[0].val, 'b');
+
+                                    return prov.close();
                                 });
                             });
                         });
                     });
+                });
 
-                    it('Empty gets/puts', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: 'id'
-                                }
-                            ]
-                        }, true).then(prov => {
-                            return prov.put('test', []).then(() => {
-                                return prov.getAll('test').then(rets => {
+                it('Empty gets/puts', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', []).then(() => {
+                            return prov.getAll('test').then(rets => {
+                                assert(!!rets);
+                                assert.equal(rets.length, 0);
+                                return prov.getMultiple<any>('test', []).then(rets => {
                                     assert(!!rets);
                                     assert.equal(rets.length, 0);
-                                    return prov.getMultiple<any>('test', []).then(rets => {
-                                        assert(!!rets);
-                                        assert.equal(rets.length, 0);
-                                        return prov.close();
-                                    });
+                                    return prov.close();
                                 });
                             });
                         });
                     });
+                });
 
-                    it('Removing items', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: 'id'
-                                }
-                            ]
-                        }, true).then(prov => {
-                            return prov.put('test', [1, 2, 3, 4, 5].map(i => { return { id: 'a' + i }; })).then(() => {
-                                return prov.getAll('test').then(rets => {
-                                    assert(!!rets);
-                                    assert.equal(rets.length, 5);
-                                    return prov.remove('test', 'a1').then(() => {
-                                        return prov.getAll('test').then(rets => {
-                                            assert(!!rets);
-                                            assert.equal(rets.length, 4);
-                                            return prov.remove('test', ['a3', 'a4', 'a2']).then(() => {
-                                                return prov.getAll<any>('test').then(rets => {
-                                                    assert(!!rets);
-                                                    assert.equal(rets.length, 1);
-                                                    assert.equal(rets[0].id, 'a5');
-                                                    return prov.close();
-                                                });
+                it('Removing items', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', [1, 2, 3, 4, 5].map(i => { return { id: 'a' + i }; })).then(() => {
+                            return prov.getAll('test').then(rets => {
+                                assert(!!rets);
+                                assert.equal(rets.length, 5);
+                                return prov.remove('test', 'a1').then(() => {
+                                    return prov.getAll('test').then(rets => {
+                                        assert(!!rets);
+                                        assert.equal(rets.length, 4);
+                                        return prov.remove('test', ['a3', 'a4', 'a2']).then(() => {
+                                            return prov.getAll<any>('test').then(rets => {
+                                                assert(!!rets);
+                                                assert.equal(rets.length, 1);
+                                                assert.equal(rets[0].id, 'a5');
+                                                return prov.close();
                                             });
                                         });
                                     });
@@ -331,176 +347,176 @@ describe('NoSqlProvider', function () {
                             });
                         });
                     });
+                });
 
-                    it('Invalid Key Type', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: 'id'
-                                }
-                            ]
-                        }, true).then(prov => {
-                            return prov.put('test', { id: { x: 'a' }, val: 'b' }).then(() => {
-                                assert(false, 'Shouldn\'t get here');
-                            }, (err) => {
-                                // Woot, failed like it's supposed to
-                                return prov.close();
+                it('Invalid Key Type', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', { id: { x: 'a' }, val: 'b' }).then(() => {
+                            assert(false, 'Shouldn\'t get here');
+                        }, (err) => {
+                            // Woot, failed like it's supposed to
+                            return prov.close();
+                        });
+                    });
+                });
+
+                it('Primary Key Basic KeyPath', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return tester(prov, undefined, false, (obj, v) => { obj.id = v; });
+                    });
+                });
+
+                it('Simple index put/get, getAll, getOnly, and getRange', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id',
+                                indexes: [
+                                    {
+                                        name: 'index',
+                                        keyPath: 'a'
+                                    }
+                                ]
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return tester(prov, 'index', false, (obj, v) => { obj.a = v; });
+                    });
+                });
+
+                it('Multipart primary key basic test', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'a.b'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return tester(prov, undefined, false, (obj, v) => { obj.a = { b: v }; });
+                    });
+                });
+
+                it('Multipart index basic test', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id',
+                                indexes: [
+                                    {
+                                        name: 'index',
+                                        keyPath: 'a.b'
+                                    }
+                                ]
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return tester(prov, 'index', false, (obj, v) => { obj.a = { b: v }; });
+                    });
+                });
+
+                it('Compound primary key basic test', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: ['a', 'b']
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return tester(prov, undefined, true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
+                    });
+                });
+
+                it('Compound index basic test', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id',
+                                indexes: [
+                                    {
+                                        name: 'index',
+                                        keyPath: ['a', 'b']
+                                    }
+                                ]
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return tester(prov, 'index', true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
+                    });
+                });
+
+                it('MultiEntry multipart indexed tests', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id',
+                                indexes: [
+                                    {
+                                        name: 'key',
+                                        multiEntry: true,
+                                        keyPath: 'k.k'
+                                    }
+                                ]
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
+                        // Insert data without multi-entry key defined
+                        .then(() => prov.put('test', { id: 'c', val: 'd', k: [] }))
+                        .then(() => prov.put('test', { id: 'e', val: 'f' }))
+                        .then(() => {
+                            var g1 = prov.get<any>('test', 'a').then(ret => {
+                                assert.equal(ret.val, 'b');
                             });
-                        });
-                    });
-
-                    it('Primary Key Basic KeyPath', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: 'id'
-                                }
-                            ]
-                        }, true).then(prov => {
-                            return tester(prov, undefined, false, (obj, v) => { obj.id = v; });
-                        });
-                    });
-
-                    it('Simple index put/get, getAll, getOnly, and getRange', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: 'id',
-                                    indexes: [
-                                        {
-                                            name: 'index',
-                                            keyPath: 'a'
-                                        }
-                                    ]
-                                }
-                            ]
-                        }, true).then(prov => {
-                            return tester(prov, 'index', false, (obj, v) => { obj.a = v; });
-                        });
-                    });
-
-                    it('Multipart primary key basic test', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: 'a.b'
-                                }
-                            ]
-                        }, true).then(prov => {
-                            return tester(prov, undefined, false, (obj, v) => { obj.a = { b: v }; });
-                        });
-                    });
-
-                    it('Multipart index basic test', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: 'id',
-                                    indexes: [
-                                        {
-                                            name: 'index',
-                                            keyPath: 'a.b'
-                                        }
-                                    ]
-                                }
-                            ]
-                        }, true).then(prov => {
-                            return tester(prov, 'index', false, (obj, v) => { obj.a = { b: v }; });
-                        });
-                    });
-
-                    it('Compound primary key basic test', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: ['a', 'b']
-                                }
-                            ]
-                        }, true).then(prov => {
-                            return tester(prov, undefined, true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
-                        });
-                    });
-
-                    it('Compound index basic test', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: 'id',
-                                    indexes: [
-                                        {
-                                            name: 'index',
-                                            keyPath: ['a', 'b']
-                                        }
-                                    ]
-                                }
-                            ]
-                        }, true).then(prov => {
-                            return tester(prov, 'index', true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
-                        });
-                    });
-
-                    it('MultiEntry multipart indexed tests', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: 'id',
-                                    indexes: [
-                                        {
-                                            name: 'key',
-                                            multiEntry: true,
-                                            keyPath: 'k.k'
-                                        }
-                                    ]
-                                }
-                            ]
-                        }, true).then(prov => {
-                            return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
-                            // Insert data without multi-entry key defined
-                            .then(() => prov.put('test', { id: 'c', val: 'd', k: [] }))
-                            .then(() => prov.put('test', { id: 'e', val: 'f' }))
-                            .then(() => {
-                                var g1 = prov.get<any>('test', 'a').then(ret => {
-                                    assert.equal(ret.val, 'b');
-                                });
-                                var g2 = prov.getAll<any>('test', 'key').then(ret => {
-                                    assert.equal(ret.length, 4);
-                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
-                                });
-                                var g2b = prov.getAll<any>('test', 'key', false, 2).then(ret => {
-                                    assert.equal(ret.length, 2);
-                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
-                                });
-                                var g2c = prov.getAll<any>('test', 'key', false, 2, 1).then(ret => {
-                                    assert.equal(ret.length, 2);
-                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
-                                });
-                                var g3 = prov.getOnly<any>('test', 'key', 'x').then(ret => {
-                                    assert.equal(ret.length, 1);
-                                    assert.equal(ret[0].val, 'b');
-                                });
-                                var g4 = prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
-                                    assert.equal(ret.length, 2);
-                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
-                                });
-                                return SyncTasks.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
-                                    return prov.close();
-                                });
+                            var g2 = prov.getAll<any>('test', 'key').then(ret => {
+                                assert.equal(ret.length, 4);
+                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            });
+                            var g2b = prov.getAll<any>('test', 'key', false, 2).then(ret => {
+                                assert.equal(ret.length, 2);
+                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            });
+                            var g2c = prov.getAll<any>('test', 'key', false, 2, 1).then(ret => {
+                                assert.equal(ret.length, 2);
+                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            });
+                            var g3 = prov.getOnly<any>('test', 'key', 'x').then(ret => {
+                                assert.equal(ret.length, 1);
+                                assert.equal(ret[0].val, 'b');
+                            });
+                            var g4 = prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                                assert.equal(ret.length, 2);
+                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            });
+                            return SyncTasks.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
+                                return prov.close();
                             });
                         });
                     });
@@ -621,9 +637,9 @@ describe('NoSqlProvider', function () {
                         });
                     });
                 });
-            }
+            });
 
-            if (provName !== 'memory' && provName.indexOf('sqlite3memory') === -1) {
+            if (provName.indexOf('memory') === -1) {
                 describe('Schema Upgrades', () => {
                     it('Opening an older DB version', () => {
                         return openProvider(provName, {
@@ -941,6 +957,159 @@ describe('NoSqlProvider', function () {
                                     assert.equal(items.length, 0);
                                 });
                                 return SyncTasks.all([p1, p2, p3]).then(() => {
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
+                    it('Adding new FTS store', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc' }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    },
+                                    {
+                                        name: 'test2',
+                                        primaryKeyPath: 'id',
+                                        indexes: [
+                                            {
+                                                name: 'a',
+                                                keyPath: 'content',
+                                                fullText: true
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                return prov.put('test2', { id: 'def', content: 'ghi' }).then(() => {
+                                    const p1 = prov.get<any>('test', 'abc').then(item => {
+                                        assert.ok(item);
+                                        assert.equal(item.id, 'abc');
+                                    });
+                                    const p2 = prov.get<any>('test2', 'abc').then(item => {
+                                        assert.ok(!item);
+                                    });
+                                    const p3 = prov.get<any>('test2', 'def').then(item => {
+                                        assert.ok(item);
+                                    });
+                                    const p4 = prov.fullTextSearch<any>('test2', 'a', 'ghi').then(items => {
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'def');
+                                    });
+                                    return SyncTasks.all([p1, p2, p3, p4]).then(() => {
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+                    });
+
+                    // Does not work, need fixing.
+                    // it('Adding new FTS index', () => {
+                    //     return openProvider(provName, {
+                    //         version: 1,
+                    //         stores: [
+                    //             {
+                    //                 name: 'test',
+                    //                 primaryKeyPath: 'id'
+                    //             }
+                    //         ]
+                    //     }, true).then(prov => {
+                    //         return prov.put('test', { id: 'abc', content: 'ghi' }).then(() => {
+                    //             return prov.close();
+                    //         });
+                    //     }).then(() => {
+                    //         return openProvider(provName, {
+                    //             version: 2,
+                    //             stores: [
+                    //                 {
+                    //                     name: 'test',
+                    //                     primaryKeyPath: 'id',
+                    //                     indexes: [
+                    //                         {
+                    //                             name: 'a',
+                    //                             keyPath: 'content',
+                    //                             fullText: true
+                    //                         }
+                    //                     ]
+                    //                 }
+                    //             ]
+                    //         }, false).then(prov => {
+                    //             const p1 = prov.get<any>('test', 'abc').then(item => {
+                    //                 assert.ok(item);
+                    //                 assert.equal(item.id, 'abc');
+                    //             });
+                    //             const p2 = prov.fullTextSearch<any>('test', 'a', 'ghi').then(items => {
+                    //                 assert.equal(items.length, 1);
+                    //                 assert.equal(items[0].id, 'abc');
+                    //             });
+                    //             return SyncTasks.all([p1, p2]).then(() => {
+                    //                 return prov.close();
+                    //             });
+                    //         });
+                    //     });
+                    // });
+
+                    it('Removing FTS index', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [
+                                        {
+                                            name: 'a',
+                                            keyPath: 'content',
+                                            fullText: true
+                                        }
+                                    ]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', content: 'ghi' }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                const p1 = prov.get<any>('test', 'abc').then(item => {
+                                    assert.ok(item);
+                                    assert.equal(item.id, 'abc');
+                                    assert.equal(item.content, 'ghi');
+                                });
+                                const p2 = prov.fullTextSearch<any>('test', 'a', 'ghi').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                }).then(() => {
+                                    assert.ok(false, 'should not work');
+                                }, err => {
+                                    return SyncTasks.Resolved();
+                                });
+                                return SyncTasks.all([p1, p2]).then(() => {
                                     return prov.close();
                                 });
                             });
