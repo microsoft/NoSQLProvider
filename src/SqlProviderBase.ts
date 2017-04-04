@@ -211,16 +211,16 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                             throw new Error('Can\'t use multiEntry and compound keys');
                                         } else {
                                             return trans.runQuery('CREATE TABLE ' + indexIdentifier +
-                                                ' (nsp_key TEXT, nsp_refrowid INTEGER)').then(() => {
+                                                ' (nsp_key TEXT, nsp_refpk TEXT)').then(() => {
                                                     return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') + 'INDEX ' +
-                                                        indexIdentifier + '_pi ON ' + indexIdentifier + ' (nsp_key, nsp_refrowid)');
+                                                        indexIdentifier + '_pi ON ' + indexIdentifier + ' (nsp_key, nsp_refpk)');
                                                 });
                                         }
                                     } else if (index.fullText && this._supportsFTS3) {
                                         // If FTS3 isn't supported, we'll make a normal column and use LIKE to seek over it, so the
                                         // fallback below works fine.
                                         return trans.runQuery('CREATE VIRTUAL TABLE ' + indexIdentifier +
-                                            ' USING FTS3(nsp_key TEXT, nsp_refrowid INTEGER)');
+                                            ' USING FTS3(nsp_key TEXT, nsp_refpk TEXT)');
                                     } else {
                                         return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') + 'INDEX ' + indexIdentifier +
                                             ' ON ' + storeSchema.name + ' (nsp_i_' + index.name + ')');
@@ -234,7 +234,6 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             let fieldList = [];
 
                             fieldList.push('nsp_pk TEXT PRIMARY KEY');
-
                             fieldList.push('nsp_data TEXT');
 
                             const nonMultiIndexes = _.filter(storeSchema.indexes || [], index => !index.multiEntry);
@@ -566,49 +565,45 @@ class SqlStore implements NoSqlProvider.DbStore {
                         queries.push(SyncTasks.Rejected<void>(err));
                     }
 
-                    queries.push(this._trans.runQuery('SELECT rowid a FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [key]).then(rets => {
-                        let rowid = rets[0].a;
+                    let inserts: SyncTasks.Promise<void>[] = [];
+                    _.each(this._schema.indexes, index => {
+                        let serializedKeys: string[];
 
-                        let inserts: SyncTasks.Promise<void>[] = [];
-                        _.each(this._schema.indexes, index => {
-                            let serializedKeys: string[];
-
-                            if (index.fullText && this._supportsFTS3) {
-                                // FTS3 terms go in a separate virtual table...
-                                serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(' ')];
-                            } else if (index.multiEntry) {
-                                // Have to extract the multiple entries into the alternate table...
-                                const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
-                                if (valsRaw) {
-                                    const err = _.attempt(() => {
-                                        serializedKeys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
-                                            NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
-                                    });
-                                    if (err) {
-                                        inserts.push(SyncTasks.Rejected<void>(err));
-                                        return;
-                                    }
+                        if (index.fullText && this._supportsFTS3) {
+                            // FTS3 terms go in a separate virtual table...
+                            serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(' ')];
+                        } else if (index.multiEntry) {
+                            // Have to extract the multiple entries into the alternate table...
+                            const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
+                            if (valsRaw) {
+                                const err = _.attempt(() => {
+                                    serializedKeys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
+                                        NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
+                                });
+                                if (err) {
+                                    inserts.push(SyncTasks.Rejected<void>(err));
+                                    return;
                                 }
-                            } else {
-                                return;
                             }
+                        } else {
+                            return;
+                        }
 
-                            let valArgs = [], args = [];
-                            _.each(serializedKeys, val => {
-                                valArgs.push('(?, ?)');
-                                args.push(val);
-                                args.push(rowid);
-                            });
-                            inserts.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
-                                    ' WHERE nsp_refrowid = ?', [rowid]).then(() => {
-                                if (valArgs.length > 0){
-                                    return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
-                                        ' (nsp_key, nsp_refrowid) VALUES ' + valArgs.join(','), args);
-                                }
-                            }));
+                        let valArgs = [], args = [];
+                        _.each(serializedKeys, val => {
+                            valArgs.push('(?, ?)');
+                            args.push(val);
+                            args.push(key);
                         });
-                        return SyncTasks.all(inserts).then(_.noop);
-                    }));
+                        inserts.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
+                                ' WHERE nsp_refpk = ?', [key]).then(() => {
+                            if (valArgs.length > 0){
+                                return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
+                                    ' (nsp_key, nsp_refpk) VALUES ' + valArgs.join(','), args);
+                            }
+                        }));
+                    });
+                    return SyncTasks.all(inserts).then(_.noop);
                 });
 
                 return SyncTasks.all(queries).then(_.noop);
@@ -629,17 +624,11 @@ class SqlStore implements NoSqlProvider.DbStore {
         const queries = _.map(joinedKeys, joinedKey => {
             if (_.some(this._schema.indexes, index => index.multiEntry)) {
                 // If there's any multientry indexes, we have to do the more complicated version...
-                return this._trans.runQuery('SELECT rowid a FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]).then(rets => {
-                    if (rets.length === 0) {
-                        return undefined;
-                    }
-
-                    let queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
-                        this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
-                            ' WHERE nsp_refrowid = ?', [rets[0].a])).value();
-                    queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + ' WHERE rowid = ?', [rets[0].a]));
-                    return SyncTasks.all(queries).then(_.noop);
-                });
+                let queries = _.chain(this._schema.indexes).filter(index => index.multiEntry).map(index =>
+                    this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
+                        ' WHERE nsp_refpk = ?', [joinedKey])).value();
+                queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]));
+                return SyncTasks.all(queries).then(_.noop);
             }
 
             return this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
@@ -692,7 +681,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         } else {
             if (indexSchema.multiEntry || (indexSchema.fullText && this._supportsFTS3)) {
                 this._tableName = storeSchema.name + '_' + indexSchema.name + ' mi LEFT JOIN ' + storeSchema.name +
-                ' ON mi.nsp_refrowid = ' + storeSchema.name + '.rowid';
+                ' ON mi.nsp_refpk = ' + storeSchema.name + '.nsp_pk';
                 this._rawTableName = storeSchema.name;
                 this._indexTableName = storeSchema.name + '_' + indexSchema.name;
                 this._queryColumn = 'mi.nsp_key';
@@ -813,7 +802,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
                 // SQLite FTS3 doesn't support OR queries so we have to hack it...
                 const baseQueries = _.map(terms, term => 'SELECT * FROM ' + this._indexTableName + ' WHERE nsp_key MATCH ?');
                 const joinedQuery = 'SELECT * FROM (SELECT DISTINCT * FROM (' + baseQueries.join(' UNION ALL ') + ')) mi LEFT JOIN ' +
-                    this._rawTableName + ' t ON mi.nsp_refrowid = t.rowid';
+                    this._rawTableName + ' t ON mi.nsp_refpk = t.nsp_pk';
                 const args = _.map(terms, term => term + '*');
                 return this._handleQuery<T>(joinedQuery, args, false, limit);
             } else {
