@@ -1134,7 +1134,8 @@ describe('NoSqlProvider', function () {
                 }, true).then(prov => {
                     return prov.put('test', [
                             { id: 'a1', txt: 'the quick brown fox jumps over the lăzy dog who is a bro with brows' },
-                            { id: 'a2', txt: 'bob likes his dog' }]).then(() => {
+                            { id: 'a2', txt: 'bob likes his dog' },
+                            { id: 'a3', txt: 'tes>ter'}]).then(() => {
                         const p1 = prov.fullTextSearch<any>('test', 'i', 'brown').then(res => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
@@ -1209,8 +1210,29 @@ describe('NoSqlProvider', function () {
                         const p20 = prov.fullTextSearch<any>('test', 'i', 'foxers nopers', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 0);
                         });
+                        const p21 = prov.fullTextSearch<any>('test', 'i', 'fox)', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 1);
+                        });
+                        const p22 = prov.fullTextSearch<any>('test', 'i', 'fox*', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 1);
+                        });
+                        const p23 = prov.fullTextSearch<any>('test', 'i', 'fox* fox( <fox>', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 1);
+                        });
+                        const p24 = prov.fullTextSearch<any>('test', 'i', 'f)ox', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 0);
+                        });
+                        const p25 = prov.fullTextSearch<any>('test', 'i', 'fo*x', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 0);
+                        });
+                        const p26 = prov.fullTextSearch<any>('test', 'i', 'tes>ter', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 1);
+                        });
+                        const p27 = prov.fullTextSearch<any>('test', 'i', 'f*x', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 0);
+                        });
 
-                        return SyncTasks.all([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20]).then(() => {
+                        return SyncTasks.all([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21, p22, p23, p24, p25, p26, p27]).then(() => {
                             return prov.close();
                         });
                     });

@@ -14,10 +14,18 @@ import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 const _whitespaceRegexMatch = /\S+/g;
 
+// Ignore all special characters
+const sqlCompatRegex = /[^a-z\d]+$|^[^a-z\d]+/gi;
+
+function sqlCompat(value: string): string {
+    return value.replace(sqlCompatRegex, '');
+}
+
 export function breakAndNormalizeSearchPhrase(phrase: string): string[] {
+
     // Faster than using _.uniq since it's just a pile of strings.
     // Deburr and tolower before using _.words since _.words breaks on CaseChanges.
-    return _.keys(_.mapKeys(_.words(_.deburr(phrase).toLowerCase(), _whitespaceRegexMatch)));
+    return _.map(_.mapKeys(_.words(_.deburr(phrase).toLowerCase(), _whitespaceRegexMatch)), (value, key) => sqlCompat(key));
 }
 
 export function getFullTextIndexWordsForItem(keyPath: string, item: any): string[] {
@@ -58,7 +66,7 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
             if (err) {
                 return SyncTasks.Rejected(err);
             }
-            
+
             if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
                 const data = _.values(_.assign<_.Dictionary<T>>({}, ...uniquers));
                 if (limit) {
