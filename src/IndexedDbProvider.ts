@@ -440,7 +440,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                                     keys = _.map(keys, val => NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
                                 }
 
-                                // We need to reference the PK of the actual row we're using here, so calculate the actual PK -- if it's 
+                                // We need to reference the PK of the actual row we're using here, so calculate the actual PK -- if it's
                                 // compound, we're already faking complicated keys, so we know to serialize it to a string.  If not, use the
                                 // raw value.
                                 refKey = NoSqlProviderUtils.getKeyForKeypath(item, this._schema.primaryKeyPath);
@@ -525,7 +525,14 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 
                             let refKey: string;
                             const err = _.attempt(() => {
-                                refKey = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
+
+                                // We need to reference the PK of the actual row we're using here, so calculate the actual PK -- if it's
+                                // compound, we're already faking complicated keys, so we know to serialize it to a string.  If not, use the
+                                // raw value.
+                                refKey = NoSqlProviderUtils.getKeyForKeypath(item, this._schema.primaryKeyPath);
+                                if (_.isArray(this._schema.primaryKeyPath)) {
+                                    refKey = NoSqlProviderUtils.serializeKeyToString(refKey, this._schema.primaryKeyPath);
+                                }
                             });
                             if (err) {
                                 return SyncTasks.Rejected<void>(err);
@@ -639,7 +646,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
         let keyRange: any;
         const err = _.attempt(() => {
-            keyRange = this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);                
+            keyRange = this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (err) {
             return SyncTasks.Rejected(err);
@@ -674,7 +681,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         if (err) {
             return SyncTasks.Rejected(err);
         }
-        
+
         const req = this._store.count(keyRange);
         return this._countRequest(req);
     }
@@ -683,7 +690,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             : SyncTasks.Promise<number> {
         let keyRange: any;
         const err = _.attempt(() => {
-            keyRange = this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);                
+            keyRange = this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (err) {
             return SyncTasks.Rejected(err);

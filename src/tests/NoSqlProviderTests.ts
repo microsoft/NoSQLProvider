@@ -522,6 +522,162 @@ describe('NoSqlProvider', function () {
                     });
                 });
 
+                it('MultiEntry multipart indexed - update index', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id',
+                                indexes: [
+                                    {
+                                        name: 'key',
+                                        multiEntry: true,
+                                        keyPath: 'k.k'
+                                    }
+                                ]
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
+                        .then(() => {
+                            return prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                                assert.equal(ret.length, 2);
+                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            });
+                        })
+                        .then(() => {
+                            return prov.put('test', { id: 'a', val: 'b', k: { k: ['z'] } });
+                        })
+                        .then(() => {
+                            return prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                                assert.equal(ret.length, 0);
+                            });
+                        })
+                        .then(() => {
+                            return prov.getRange<any>('test', 'key', 'x', 'z', false, false).then(ret => {
+                                assert.equal(ret.length, 1);
+                                assert.equal(ret[0].val, 'b');
+                            });
+                        })
+                        .then(() => {
+                            return prov.remove('test', 'a');
+                        })
+                        .then(() => {
+                            return prov.getRange<any>('test', 'key', 'x', 'z', false, false).then(ret => {
+                                assert.equal(ret.length, 0);
+                            });
+                        })
+                        .then(() => {
+                            return prov.close();
+                        });
+                    });
+                });
+
+                it('MultiEntry multipart indexed tests - Compound Key', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: ['id', 'id2'],
+                                indexes: [
+                                    {
+                                        name: 'key',
+                                        multiEntry: true,
+                                        keyPath: 'k.k'
+                                    }
+                                ]
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', { id: 'a', id2:'1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
+                        // Insert data without multi-entry key defined
+                        .then(() => prov.put('test', { id: 'c', id2:'2', val: 'd', k: [] }))
+                        .then(() => prov.put('test', { id: 'e', id2:'3', val: 'f' }))
+                        .then(() => {
+                            var g1 = prov.get<any>('test', ['a', '1']).then(ret => {
+                                assert.equal(ret.val, 'b');
+                            });
+                            var g2 = prov.getAll<any>('test', 'key').then(ret => {
+                                assert.equal(ret.length, 4);
+                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            });
+                            var g2b = prov.getAll<any>('test', 'key', false, 2).then(ret => {
+                                assert.equal(ret.length, 2);
+                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            });
+                            var g2c = prov.getAll<any>('test', 'key', false, 2, 1).then(ret => {
+                                assert.equal(ret.length, 2);
+                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            });
+                            var g3 = prov.getOnly<any>('test', 'key', 'x').then(ret => {
+                                assert.equal(ret.length, 1);
+                                assert.equal(ret[0].val, 'b');
+                            });
+                            var g4 = prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                                assert.equal(ret.length, 2);
+                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            });
+                            return SyncTasks.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
+                                return prov.close();
+                            });
+                        });
+                    });
+                });
+
+                it('MultiEntry multipart indexed - update index - Compound', () => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: ['id', 'id2'],
+                                indexes: [
+                                    {
+                                        name: 'key',
+                                        multiEntry: true,
+                                        keyPath: 'k.k'
+                                    }
+                                ]
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', { id: 'a', id2:'1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
+                        .then(() => {
+                            return prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                                assert.equal(ret.length, 2);
+                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            });
+                        })
+                        .then(() => {
+                            return prov.put('test', { id: 'a', id2:'1', val: 'b', k: { k: ['z'] } });
+                        })
+                        .then(() => {
+                            return prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                                assert.equal(ret.length, 0);
+                            });
+                        })
+                        .then(() => {
+                            return prov.getRange<any>('test', 'key', 'x', 'z', false, false).then(ret => {
+                                assert.equal(ret.length, 1);
+                                assert.equal(ret[0].val, 'b');
+                            });
+                        })
+                        .then(() => {
+                            return prov.remove('test', ['a', '1']);
+                        })
+                        .then(() => {
+                            return prov.getRange<any>('test', 'key', 'x', 'z', false, false).then(ret => {
+                                assert.equal(ret.length, 0);
+                            });
+                        })
+                        .then(() => {
+                            return prov.close();
+                        });
+                    });
+                });
+
                 describe('Transaction Semantics', () => {
                     it('Testing transaction expiration', () => {
                         return openProvider(provName, {
