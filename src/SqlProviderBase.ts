@@ -376,7 +376,7 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
             return undefined;
         }
 
-        return new SqlStore(this, storeSchema, this._requiresUnicodeReplacement(), this._supportsFTS3);
+        return new SqlStore(this, storeSchema, this._requiresUnicodeReplacement(), this._supportsFTS3, this._verbose);
     }
 
     protected _requiresUnicodeReplacement(): boolean {
@@ -413,8 +413,9 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
         const deferred = SyncTasks.Defer<any[]>();
         this._pendingQueries.push(deferred);
 
+        let startTime: number;
         if (this._verbose) {
-            console.log('Query: ' + sql);
+            startTime = Date.now();
         }
 
         const errRet = _.attempt(() => {
@@ -453,7 +454,13 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
             deferred.reject(errRet);
         }
 
-        return deferred.promise();
+        let promise = deferred.promise();
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlTransaction RunQuery: (' + (Date.now() - startTime) + 'ms): SQL: ' + sql);
+            });
+        }
+        return promise;
     }
 }
 
@@ -461,7 +468,7 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
 // glue for index/compound key support.
 class SqlStore implements NoSqlProvider.DbStore {
     constructor(private _trans: SqlTransaction, private _schema: NoSqlProvider.StoreSchema, private _replaceUnicode: boolean,
-            private _supportsFTS3: boolean) {
+            private _supportsFTS3: boolean, private _verbose: boolean) {
         // Empty
     }
 
@@ -474,7 +481,18 @@ class SqlStore implements NoSqlProvider.DbStore {
             return SyncTasks.Rejected(err);
         }
 
-        return this._trans.internal_getResultFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
+        let startTime: number;
+        if (this._verbose) {
+            startTime = Date.now();
+        }
+
+        let promise = this._trans.internal_getResultFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlStore (' + this._schema.name + ') get: (' + (Date.now() - startTime) + 'ms)');
+            });
+        }
+        return promise;
     }
 
     getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
@@ -490,10 +508,21 @@ class SqlStore implements NoSqlProvider.DbStore {
             return SyncTasks.Resolved<T[]>([]);
         }
 
+        let startTime: number;
+        if (this._verbose) {
+            startTime = Date.now();
+        }
+
         let qmarks = _.map(joinedKeys, k => '?');
 
-        return this._trans.internal_getResultsFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk IN (' +
+        let promise = this._trans.internal_getResultsFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk IN (' +
             qmarks.join(',') + ')', joinedKeys);
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlStore (' + this._schema.name + ') getMultiple: (' + (Date.now() - startTime) + 'ms): Count: ' + joinedKeys.length);
+            });
+        }
+        return promise;
     }
 
     private static _unicodeFixer = new RegExp('[\u2028\u2029]', 'g');
@@ -503,6 +532,11 @@ class SqlStore implements NoSqlProvider.DbStore {
 
         if (items.length === 0) {
             return SyncTasks.Resolved<void>();
+        }
+
+        let startTime: number;
+        if (this._verbose) {
+            startTime = Date.now();
         }
 
         let fields: string[] = ['nsp_pk', 'nsp_data'];
@@ -551,7 +585,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                 qmarksValues.join('),(') + ')', args.splice(0, thisPageCount * fields.length)));
         }
 
-        return SyncTasks.all(inserts).then(() => {
+        let promise = SyncTasks.all(inserts).then(() => {
             if (_.some(this._schema.indexes, index => index.multiEntry || (index.fullText && this._supportsFTS3))) {
                 let queries: SyncTasks.Promise<void>[] = [];
 
@@ -609,6 +643,12 @@ class SqlStore implements NoSqlProvider.DbStore {
                 return SyncTasks.all(queries).then(_.noop);
             }
         });
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlStore (' + this._schema.name + ') put: (' + (Date.now() - startTime) + 'ms): Count: ' + items.length);
+            });
+        }
+        return promise;
     }
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
@@ -618,6 +658,11 @@ class SqlStore implements NoSqlProvider.DbStore {
         });
         if (err) {
             return SyncTasks.Rejected<void>(err);
+        }
+
+        let startTime: number;
+        if (this._verbose) {
+            startTime = Date.now();
         }
 
         // PERF: This is optimizable, but it's of questionable utility
@@ -634,7 +679,13 @@ class SqlStore implements NoSqlProvider.DbStore {
             return this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
         });
 
-        return SyncTasks.all(queries).then(_.noop);
+        let promise = SyncTasks.all(queries).then(_.noop);
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlStore (' + this._schema.name + ') remove: (' + (Date.now() - startTime) + 'ms): Count: ' + joinedKeys.length);
+            });
+        }
+        return promise;
     }
 
     openIndex(indexName: string): NoSqlProvider.DbIndex {
@@ -643,11 +694,11 @@ class SqlStore implements NoSqlProvider.DbStore {
             return undefined;
         }
 
-        return new SqlStoreIndex(this._trans, this._schema, indexSchema, this._supportsFTS3);
+        return new SqlStoreIndex(this._trans, this._schema, indexSchema, this._supportsFTS3, this._verbose);
     }
 
     openPrimaryKey(): NoSqlProvider.DbIndex {
-        return new SqlStoreIndex(this._trans, this._schema, undefined, this._supportsFTS3);
+        return new SqlStoreIndex(this._trans, this._schema, undefined, this._supportsFTS3, this._verbose);
     }
 
     clearAllData(): SyncTasks.Promise<void> {
@@ -670,7 +721,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     private _keyPath: string | string[];
 
     constructor(protected _trans: SqlTransaction, storeSchema: NoSqlProvider.StoreSchema, indexSchema: NoSqlProvider.IndexSchema,
-            private _supportsFTS3: boolean) {
+            private _supportsFTS3: boolean, private _verbose: boolean) {
         if (!indexSchema) {
             // Going against the PK of the store
             this._tableName = storeSchema.name;
@@ -709,7 +760,18 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName, undefined, reverse, limit, offset);
+        let startTime: number;
+        if (this._verbose) {
+            startTime = Date.now();
+        }
+
+        let promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName, undefined, reverse, limit, offset);
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getAll: (' + (Date.now() - startTime) + 'ms)');
+            });
+        }
+        return promise;
     }
 
     getOnly<T>(key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
@@ -721,8 +783,19 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             return SyncTasks.Rejected(err);
         }
 
-        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?', [joinedKey],
+        let startTime: number;
+        if (this._verbose) {
+            startTime = Date.now();
+        }
+
+        let promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?', [joinedKey],
             reverse, limit, offset);
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getOnly: (' + (Date.now() - startTime) + 'ms)');
+            });
+        }
+        return promise;
     }
 
     getRange<T>(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
@@ -738,7 +811,18 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             return SyncTasks.Rejected(err);
         }
 
-        return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks, args, reverse, limit, offset);
+        let startTime: number;
+        if (this._verbose) {
+            startTime = Date.now();
+        }
+
+        let promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks, args, reverse, limit, offset);
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getRange: (' + (Date.now() - startTime) + 'ms)');
+            });
+        }
+        return promise;
     }
 
     // Warning: This function can throw, make sure to trap.
@@ -757,7 +841,18 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     countAll(): SyncTasks.Promise<number> {
-        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName).then(result => result[0]['cnt']);
+        let startTime: number;
+        if (this._verbose) {
+            startTime = Date.now();
+        }
+
+        let promise = this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName).then(result => result[0]['cnt']);
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countAll: (' + (Date.now() - startTime) + 'ms)');
+            });
+        }
+        return promise;
     }
 
     countOnly(key: any|any[]): SyncTasks.Promise<number> {
@@ -769,8 +864,19 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             return SyncTasks.Rejected(err);
         }
 
-        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn
+        let startTime: number;
+        if (this._verbose) {
+            startTime = Date.now();
+        }
+
+        let promise = this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn
             + ' = ?', [joinedKey]).then(result => result[0]['cnt']);
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countOnly: (' + (Date.now() - startTime) + 'ms)');
+            });
+        }
+        return promise;
     }
 
     countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
@@ -786,17 +892,34 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             return SyncTasks.Rejected(err);
         }
 
-        return this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks, args)
+        let startTime: number;
+        if (this._verbose) {
+            startTime = Date.now();
+        }
+
+        let promise = this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks, args)
             .then(result => result[0]['cnt']);
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countOnly: (' + (Date.now() - startTime) + 'ms)');
+            });
+        }
+        return promise;
     }
 
     fullTextSearch<T>(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And, limit?: number)
             : SyncTasks.Promise<T[]> {
+        let startTime: number;
+        if (this._verbose) {
+            startTime = Date.now();
+        }
+
         const terms = FullTextSearchHelpers.breakAndNormalizeSearchPhrase(searchPhrase);
 
+        let promise: SyncTasks.Promise<T[]>;
         if (this._supportsFTS3) {
             if (resolution === NoSqlProvider.FullTextTermResolution.And) {
-                return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' MATCH ?',
+                promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' MATCH ?',
                     [_.map(terms, term => term + '*').join(' ')], false, limit);
             } else if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
                 // SQLite FTS3 doesn't support OR queries so we have to hack it...
@@ -804,7 +927,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
                 const joinedQuery = 'SELECT * FROM (SELECT DISTINCT * FROM (' + baseQueries.join(' UNION ALL ') + ')) mi LEFT JOIN ' +
                     this._rawTableName + ' t ON mi.nsp_refpk = t.nsp_pk';
                 const args = _.map(terms, term => term + '*');
-                return this._handleQuery<T>(joinedQuery, args, false, limit);
+                promise = this._handleQuery<T>(joinedQuery, args, false, limit);
             } else {
                 return SyncTasks.Rejected<T[]>('fullTextSearch called with invalid term resolution mode');
             }
@@ -818,9 +941,15 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
                 return SyncTasks.Rejected<T[]>('fullTextSearch called with invalid term resolution mode');
             }
 
-            return this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' +
+            promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' +
                 _.map(terms, term => this._queryColumn + ' LIKE ?').join(joinTerm),
                 _.map(terms, term => '%' + FakeFTSJoinToken + term + '%'));
         }
+        if (this._verbose) {
+            promise = promise.finally(() => {
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') fullTextSearch: (' + (Date.now() - startTime) + 'ms)');
+            });
+        }
+        return promise;
     }
 }
