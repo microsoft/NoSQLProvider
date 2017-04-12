@@ -580,79 +580,74 @@ class SqlStore implements NoSqlProvider.DbStore {
         }
 
         // Need to not use too many variables per insert, so batch the insert if needed.
-        let inserts: SyncTasks.Promise<void>[] = [];
+        let queries: SyncTasks.Promise<void>[] = [];
         const itemPageSize = Math.floor(this._trans.internal_getMaxVariables() / fields.length);
         for (let i = 0; i < items.length; i += itemPageSize) {
             const thisPageCount = Math.min(itemPageSize, items.length - i);
             const qmarksValues = _.fill(new Array(thisPageCount), qmarkString);
-            inserts.push(this._trans.internal_nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
+            queries.push(this._trans.internal_nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') + ') VALUES (' +
                 qmarksValues.join('),(') + ')', args.splice(0, thisPageCount * fields.length)));
         }
 
-        let promise = SyncTasks.all(inserts).then(() => {
-            if (_.some(this._schema.indexes, index => index.multiEntry || (index.fullText && this._supportsFTS3))) {
-                let queries: SyncTasks.Promise<void>[] = [];
+        // Also prepare mulltiEntry and FullText indexes
+        if (_.some(this._schema.indexes, index => index.multiEntry || (index.fullText && this._supportsFTS3))) {
+            _.each(items, item => {
+                let key: string;
+                const err = _.attempt(() => {
+                    key = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
+                });
+                if (err) {
+                    queries.push(SyncTasks.Rejected<void>(err));
+                    return;
+                }
 
-                // Go through and do followup inserts for multientry indexes
-                _.each(items, item => {
-                    let key: string;
-                    const err = _.attempt(() => {
-                        key = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
-                    });
-                    if (err) {
-                        queries.push(SyncTasks.Rejected<void>(err));
+                _.each(this._schema.indexes, index => {
+                    let serializedKeys: string[];
+
+                    if (index.fullText && this._supportsFTS3) {
+                        // FTS3 terms go in a separate virtual table...
+                        serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(' ')];
+                    } else if (index.multiEntry) {
+                        // Have to extract the multiple entries into the alternate table...
+                        const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
+                        if (valsRaw) {
+                            const err = _.attempt(() => {
+                                serializedKeys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
+                                    NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
+                            });
+                            if (err) {
+                                queries.push(SyncTasks.Rejected<void>(err));
+                                return;
+                            }
+                        }
+                    } else {
+                        return;
                     }
 
-                    let inserts: SyncTasks.Promise<void>[] = [];
-                    _.each(this._schema.indexes, index => {
-                        let serializedKeys: string[];
-
-                        if (index.fullText && this._supportsFTS3) {
-                            // FTS3 terms go in a separate virtual table...
-                            serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(' ')];
-                        } else if (index.multiEntry) {
-                            // Have to extract the multiple entries into the alternate table...
-                            const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
-                            if (valsRaw) {
-                                const err = _.attempt(() => {
-                                    serializedKeys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
-                                        NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
-                                });
-                                if (err) {
-                                    inserts.push(SyncTasks.Rejected<void>(err));
-                                    return;
-                                }
-                            }
-                        } else {
-                            return;
-                        }
-
-                        let valArgs = [], args = [];
-                        _.each(serializedKeys, val => {
-                            valArgs.push('(?, ?)');
-                            args.push(val);
-                            args.push(key);
-                        });
-                        inserts.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
-                                ' WHERE nsp_refpk = ?', [key]).then(() => {
-                            if (valArgs.length > 0){
-                                return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
-                                    ' (nsp_key, nsp_refpk) VALUES ' + valArgs.join(','), args);
-                            }
-                        }));
+                    let valArgs = [], args = [];
+                    _.each(serializedKeys, val => {
+                        valArgs.push('(?, ?)');
+                        args.push(val);
+                        args.push(key);
                     });
-                    return SyncTasks.all(inserts).then(_.noop);
+                    queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
+                            ' WHERE nsp_refpk = ?', [key]).then(() => {
+                        if (valArgs.length > 0){
+                            return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
+                                ' (nsp_key, nsp_refpk) VALUES ' + valArgs.join(','), args);
+                        }
+                    }));
                 });
+            });
+        }
 
-                return SyncTasks.all(queries).then(_.noop);
-            }
-        });
+        let promise = SyncTasks.all(queries);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStore (' + this._schema.name + ') put: (' + (Date.now() - startTime) + 'ms): Count: ' + items.length);
             });
         }
-        return promise;
+        return promise.then(_.noop);
     }
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
