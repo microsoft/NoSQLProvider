@@ -379,6 +379,10 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
         return new SqlStore(this, storeSchema, this._requiresUnicodeReplacement(), this._supportsFTS3, this._verbose);
     }
 
+    markCompleted(): void {
+        // noop
+    }
+
     protected _requiresUnicodeReplacement(): boolean {
         return false;
     }

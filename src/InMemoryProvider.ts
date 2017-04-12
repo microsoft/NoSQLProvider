@@ -84,6 +84,10 @@ class InMemoryTransaction implements NoSqlProvider.DbTransaction {
         this._lockHelper.transactionFailed(this._transToken, 'InMemoryTransaction Aborted');
     }
 
+    markCompleted(): void {
+        // noop
+    }
+
     getStore(storeName: string): NoSqlProvider.DbStore {
         if (!_.includes(NoSqlProviderUtils.arrayify(this._transToken.storeNames), storeName)) {
             throw new Error('Store not found in transaction-scoped store list: ' + storeName);
