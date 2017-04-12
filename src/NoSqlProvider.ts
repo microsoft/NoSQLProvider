@@ -78,6 +78,9 @@ export interface DbTransaction {
     // Attempt to abort the transaction (if it hasn't yet completed or aborted).  Completion will be detectable via the
     // getCompletionPromise promise.
     abort(): void;
+    // This method is noop for most of implementations
+    // react-native implementation could use this as an opportunity to finish transactions without additional bridge delay
+    markCompleted(): void;
 }
 
 // Abstract base type for a database provider.  Has accessors for opening transactions and one-off accesor helpers.

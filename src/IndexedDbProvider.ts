@@ -349,6 +349,10 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
         // This will wrap through the onAbort above
         this._trans.abort();
     }
+    
+    markCompleted(): void {
+        // noop
+    }
 }
 
 function removeFullTextMetadataAndReturn<T>(schema: NoSqlProvider.StoreSchema, val: T): T {
