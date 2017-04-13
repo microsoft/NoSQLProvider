@@ -382,25 +382,28 @@ describe('NoSqlProvider', function () {
                     });
                 });
 
-                it('Simple index put/get, getAll, getOnly, and getRange', () => {
-                    return openProvider(provName, {
-                        version: 1,
-                        stores: [
-                            {
-                                name: 'test',
-                                primaryKeyPath: 'id',
-                                indexes: [
-                                    {
-                                        name: 'index',
-                                        keyPath: 'a'
-                                    }
-                                ]
-                            }
-                        ]
-                    }, true).then(prov => {
-                        return tester(prov, 'index', false, (obj, v) => { obj.a = v; });
+                for (let i = 0; i <= 1; i++) {
+                    it('Simple index put/get, getAll, getOnly, and getRange' + (i === 0 ? '' : ' (includeData)'), () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [
+                                        {
+                                            name: 'index',
+                                            keyPath: 'a',
+                                            includeDataInIndex: i === 1
+                                        }
+                                    ]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return tester(prov, 'index', false, (obj, v) => { obj.a = v; });
+                        });
                     });
-                });
+                }
 
                 it('Multipart primary key basic test', () => {
                     return openProvider(provName, {
@@ -470,57 +473,60 @@ describe('NoSqlProvider', function () {
                     });
                 });
 
-                it('MultiEntry multipart indexed tests', () => {
-                    return openProvider(provName, {
-                        version: 1,
-                        stores: [
-                            {
-                                name: 'test',
-                                primaryKeyPath: 'id',
-                                indexes: [
-                                    {
-                                        name: 'key',
-                                        multiEntry: true,
-                                        keyPath: 'k.k'
-                                    }
-                                ]
-                            }
-                        ]
-                    }, true).then(prov => {
-                        return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
-                        // Insert data without multi-entry key defined
-                        .then(() => prov.put('test', { id: 'c', val: 'd', k: [] }))
-                        .then(() => prov.put('test', { id: 'e', val: 'f' }))
-                        .then(() => {
-                            var g1 = prov.get<any>('test', 'a').then(ret => {
-                                assert.equal(ret.val, 'b');
-                            });
-                            var g2 = prov.getAll<any>('test', 'key').then(ret => {
-                                assert.equal(ret.length, 4);
-                                ret.forEach(r => { assert.equal(r.val, 'b'); });
-                            });
-                            var g2b = prov.getAll<any>('test', 'key', false, 2).then(ret => {
-                                assert.equal(ret.length, 2);
-                                ret.forEach(r => { assert.equal(r.val, 'b'); });
-                            });
-                            var g2c = prov.getAll<any>('test', 'key', false, 2, 1).then(ret => {
-                                assert.equal(ret.length, 2);
-                                ret.forEach(r => { assert.equal(r.val, 'b'); });
-                            });
-                            var g3 = prov.getOnly<any>('test', 'key', 'x').then(ret => {
-                                assert.equal(ret.length, 1);
-                                assert.equal(ret[0].val, 'b');
-                            });
-                            var g4 = prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
-                                assert.equal(ret.length, 2);
-                                ret.forEach(r => { assert.equal(r.val, 'b'); });
-                            });
-                            return SyncTasks.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
-                                return prov.close();
+                for (let i = 0; i <= 1; i++) {
+                    it('MultiEntry multipart indexed tests' + (i === 0 ? '' : ' (includeData)'), () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [
+                                        {
+                                            name: 'key',
+                                            multiEntry: true,
+                                            keyPath: 'k.k',
+                                            includeDataInIndex: i === 1
+                                        }
+                                    ]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
+                            // Insert data without multi-entry key defined
+                            .then(() => prov.put('test', { id: 'c', val: 'd', k: [] }))
+                            .then(() => prov.put('test', { id: 'e', val: 'f' }))
+                            .then(() => {
+                                var g1 = prov.get<any>('test', 'a').then(ret => {
+                                    assert.equal(ret.val, 'b');
+                                });
+                                var g2 = prov.getAll<any>('test', 'key').then(ret => {
+                                    assert.equal(ret.length, 4);
+                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                });
+                                var g2b = prov.getAll<any>('test', 'key', false, 2).then(ret => {
+                                    assert.equal(ret.length, 2);
+                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                });
+                                var g2c = prov.getAll<any>('test', 'key', false, 2, 1).then(ret => {
+                                    assert.equal(ret.length, 2);
+                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                });
+                                var g3 = prov.getOnly<any>('test', 'key', 'x').then(ret => {
+                                    assert.equal(ret.length, 1);
+                                    assert.equal(ret[0].val, 'b');
+                                });
+                                var g4 = prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                                    assert.equal(ret.length, 2);
+                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                });
+                                return SyncTasks.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
+                                    return prov.close();
+                                });
                             });
                         });
                     });
-                });
+                }
 
                 it('MultiEntry multipart indexed - update index', () => {
                     return openProvider(provName, {
@@ -1032,6 +1038,114 @@ describe('NoSqlProvider', function () {
                         });
                     });
 
+                    it('Add multiEntry index', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', tt: ['a', 'b'] }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt',
+                                            multiEntry: true
+                                        }]
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p1b = prov.getOnly<any>('test', 'ind1', 'b').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                    assert.equal(items.length, 0);
+                                });
+                                return SyncTasks.all([p1, p1b, p2, p3]).then(() => {
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
+                    it('Changing multiEntry index', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [{
+                                        name: 'ind1',
+                                        keyPath: 'tt',
+                                        multiEntry: true
+                                    }]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', tt: ['x', 'y'], ttb: ['a', 'b'] }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'ttb',
+                                            multiEntry: true
+                                        }]
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p1b = prov.getOnly<any>('test', 'ind1', 'b').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p1c = prov.getOnly<any>('test', 'ind1', 'x').then(items => {
+                                    assert.equal(items.length, 0);
+                                });
+                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                    assert.equal(items.length, 0);
+                                });
+                                return SyncTasks.all([p1, p1b, p1c, p2, p3]).then(() => {
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
                     it('Removing old index', () => {
                         return openProvider(provName, {
                             version: 1,
@@ -1113,6 +1227,224 @@ describe('NoSqlProvider', function () {
                                     assert.equal(items.length, 0);
                                 });
                                 return SyncTasks.all([p1, p2, p3]).then(() => {
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
+                    it('Change non-multientry index to includeDataInIndex', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [{
+                                        name: 'ind1',
+                                        keyPath: 'tt'
+                                    }]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', tt: 'a' }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt',
+                                            includeDataInIndex: true
+                                        }]
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                    assert.equal(items[0].tt, 'a');
+                                });
+                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                    assert.equal(items[0].tt, 'a');
+                                });
+                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                    assert.equal(items.length, 0);
+                                });
+                                return SyncTasks.all([p1, p2, p3]).then(() => {
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
+                    it('Change non-multientry index from includeDataInIndex', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [{
+                                        name: 'ind1',
+                                        keyPath: 'tt',
+                                        includeDataInIndex: true
+                                    }]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', tt: 'a' }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt',
+                                            includeDataInIndex: false
+                                        }]
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                    assert.equal(items[0].tt, 'a');
+                                });
+                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                    assert.equal(items[0].tt, 'a');
+                                });
+                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                    assert.equal(items.length, 0);
+                                });
+                                return SyncTasks.all([p1, p2, p3]).then(() => {
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
+                    it('Change multientry index to includeDataInIndex', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [{
+                                        name: 'ind1',
+                                        keyPath: 'tt',
+                                        multiEntry: true
+                                    }]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', tt: ['a', 'b'] }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt',
+                                            multiEntry: true,
+                                            includeDataInIndex: true
+                                        }]
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p1b = prov.getOnly<any>('test', 'ind1', 'b').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                    assert.equal(items.length, 0);
+                                });
+                                return SyncTasks.all([p1, p1b, p2, p3]).then(() => {
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    });
+
+                    it('Change multientry index from includeDataInIndex', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [{
+                                        name: 'ind1',
+                                        keyPath: 'tt',
+                                        multiEntry: true,
+                                        includeDataInIndex: true
+                                    }]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', { id: 'abc', tt: ['a', 'b'] }).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt',
+                                            multiEntry: true,
+                                            includeDataInIndex: false
+                                        }]
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p1b = prov.getOnly<any>('test', 'ind1', 'b').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                    assert.equal(items.length, 1);
+                                    assert.equal(items[0].id, 'abc');
+                                });
+                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                    assert.equal(items.length, 0);
+                                });
+                                return SyncTasks.all([p1, p1b, p2, p3]).then(() => {
                                     return prov.close();
                                 });
                             });

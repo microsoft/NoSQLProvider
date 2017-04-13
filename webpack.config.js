@@ -16,7 +16,7 @@ var webpackConfig = {
         extensions: ['', '.ts', '.js']
     },
     
-    externals: [ 'sqlite3', 'indexeddb-js' ],
+    externals: [ 'sqlite3', 'indexeddb-js', 'fs' ],
     
     module: {
         loaders: [{

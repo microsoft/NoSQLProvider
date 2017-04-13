@@ -106,6 +106,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                 .then(rows => {
                     let tableNames: string[] = [];
                     let indexNames: { [table: string]: string[] } = {};
+                    let indexTables: { [table: string]: string[] } = {};
                     let tableSqlStatements: { [table: string]: string } = {};
 
                     _.each(rows, row => {
@@ -124,10 +125,24 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         }
                         if (row['type'] === 'table') {
                             tableNames.push(row['name']);
-                            if (!indexNames[row['name']]) {
-                                indexNames[row['name']] = [];
-                            }
                             tableSqlStatements[row['name']] = row['sql'];
+
+                            const nameSplit = row['name'].split('_');
+                            if (nameSplit.length === 1) {
+                                if (!indexNames[row['name']]) {
+                                    indexNames[row['name']] = [];
+                                }
+                                if (!indexTables[row['name']]) {
+                                    indexTables[row['name']] = [];
+                                }
+                            } else {
+                                const tableName = nameSplit[0];
+                                if (indexTables[tableName]) {
+                                    indexTables[tableName].push(nameSplit[1]);
+                                } else {
+                                    indexTables[tableName] = [nameSplit[1]];
+                                }
+                            }
                         }
                         if (row['type'] === 'index') {
                             if (row['name'].substring(0, 17) === 'sqlite_autoindex_') {
@@ -162,7 +177,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         _.each(this._schema.stores, store => {
                             tableNamesNeeded.push(store.name);
                             _.each(store.indexes, index => {
-                                if (index.multiEntry) {
+                                if (index.multiEntry || (index.fullText && this._supportsFTS3)) {
                                     tableNamesNeeded.push(getIndexIdentifier(store, index));
                                 }
                             });
@@ -208,12 +223,13 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     // Go over each index and see if we need to create an index or a table for a multiEntry index
                                     if (index.multiEntry) {
                                         if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
-                                            throw new Error('Can\'t use multiEntry and compound keys');
+                                            return SyncTasks.Rejected('Can\'t use multiEntry and compound keys');
                                         } else {
-                                            return trans.runQuery('CREATE TABLE ' + indexIdentifier +
-                                                ' (nsp_key TEXT, nsp_refpk TEXT)').then(() => {
+                                            return trans.runQuery('CREATE TABLE ' + indexIdentifier + ' (nsp_key TEXT, nsp_refpk TEXT' +
+                                                (index.includeDataInIndex ? ', nsp_data TEXT' : '') + ')').then(() => {
                                                     return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') + 'INDEX ' +
-                                                        indexIdentifier + '_pi ON ' + indexIdentifier + ' (nsp_key, nsp_refpk)');
+                                                        indexIdentifier + '_pi ON ' + indexIdentifier + ' (nsp_key, nsp_refpk' +
+                                                        (index.includeDataInIndex ? ', nsp_data' : '') + ')');
                                                 });
                                         }
                                     } else if (index.fullText && this._supportsFTS3) {
@@ -223,7 +239,8 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                             ' USING FTS3(nsp_key TEXT, nsp_refpk TEXT)');
                                     } else {
                                         return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') + 'INDEX ' + indexIdentifier +
-                                            ' ON ' + storeSchema.name + ' (nsp_i_' + index.name + ')');
+                                            ' ON ' + storeSchema.name + ' (nsp_i_' + index.name +
+                                            (index.includeDataInIndex ? ', nsp_data' : '') + ')');
                                     }
                                 });
 
@@ -279,10 +296,13 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             const tableRequiresMigration = tableExists && needsMigration();
 
                             if (tableExists && tableRequiresMigration) {
-                                // Nuke old indexes on the original table (since they don't change names and we don't need them anymore)
-                                let nukeIndexesAndRename = SyncTasks.all(_.map(indexNames[storeSchema.name], indexName =>
-                                    trans.runQuery('DROP INDEX ' + indexName)
-                                )).then(() => {
+                                // Nuke old indexes on the original table (since they don't change names and we don't need them anymore).
+                                // Also new old multientry/FTS tables (if they still exist after the purge above.)
+                                let indexDroppers: SyncTasks.Promise<any[]>[] = _.map(indexNames[storeSchema.name], indexName =>
+                                    trans.runQuery('DROP INDEX ' + indexName)).concat(_.map(indexTables[storeSchema.name], tableName => 
+                                    trans.runQuery('DROP TABLE IF EXISTS ' + storeSchema.name + '_' + tableName)));
+
+                                let nukeIndexesAndRename = SyncTasks.all(indexDroppers).then(() => {
                                     // Then rename the table to a temp_[name] table so we can migrate the data out of it
                                     return trans.runQuery('ALTER TABLE ' + storeSchema.name + ' RENAME TO temp_' + storeSchema.name);
                                 });
@@ -546,6 +566,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         let fields: string[] = ['nsp_pk', 'nsp_data'];
         let qmarks: string[] = ['?', '?'];
         let args: any[] = [];
+        let datas: string[];
 
         _.each(this._schema.indexes, index => {
             if (!index.multiEntry || (index.fullText && !this._supportsFTS3)) {
@@ -556,7 +577,7 @@ class SqlStore implements NoSqlProvider.DbStore {
 
         const qmarkString = qmarks.join(',');
         const err = _.attempt(() => {
-            _.each(<any[]>items, (item) => {
+            datas = _.map(<any[]>items, (item) => {
                 let serializedData = JSON.stringify(item);
                 // For now, until an issue with cordova-ios is fixed (https://issues.apache.org/jira/browse/CB-9435), have to replace
                 // \u2028 and 2029 with blanks because otherwise the command boundary with cordova-ios silently eats any strings with them.
@@ -573,6 +594,8 @@ class SqlStore implements NoSqlProvider.DbStore {
                         args.push(NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath));
                     }
                 });
+
+                return serializedData;
             });
         });
         if (err) {
@@ -591,7 +614,7 @@ class SqlStore implements NoSqlProvider.DbStore {
 
         // Also prepare mulltiEntry and FullText indexes
         if (_.some(this._schema.indexes, index => index.multiEntry || (index.fullText && this._supportsFTS3))) {
-            _.each(items, item => {
+            _.each(items, (item, itemIndex) => {
                 let key: string;
                 const err = _.attempt(() => {
                     key = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
@@ -624,17 +647,21 @@ class SqlStore implements NoSqlProvider.DbStore {
                         return;
                     }
 
-                    let valArgs = [], args = [];
+                    let valArgs = [], insertArgs = [];
                     _.each(serializedKeys, val => {
-                        valArgs.push('(?, ?)');
-                        args.push(val);
-                        args.push(key);
+                        valArgs.push(index.includeDataInIndex ? '(?, ?, ?)' : '(?, ?)');
+                        insertArgs.push(val);
+                        insertArgs.push(key);
+                        if (index.includeDataInIndex) {
+                            insertArgs.push(datas[itemIndex]);
+                        }
                     });
                     queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
                             ' WHERE nsp_refpk = ?', [key]).then(() => {
                         if (valArgs.length > 0){
                             return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
-                                ' (nsp_key, nsp_refpk) VALUES ' + valArgs.join(','), args);
+                                ' (nsp_key, nsp_refpk' + (index.includeDataInIndex ? ', nsp_data' : '') + ') VALUES ' +
+                                valArgs.join(','), insertArgs);
                         }
                     }));
                 });
@@ -729,9 +756,14 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             this._queryColumn = 'nsp_pk';
             this._keyPath = storeSchema.primaryKeyPath;
         } else {
-            if (indexSchema.multiEntry || (indexSchema.fullText && this._supportsFTS3)) {
+            if (indexSchema.multiEntry && indexSchema.includeDataInIndex) {
+                this._tableName = storeSchema.name + '_' + indexSchema.name;
+                this._rawTableName = storeSchema.name;
+                this._indexTableName = storeSchema.name + '_' + indexSchema.name;
+                this._queryColumn = 'nsp_key';
+            } else if (indexSchema.multiEntry || (indexSchema.fullText && this._supportsFTS3)) {
                 this._tableName = storeSchema.name + '_' + indexSchema.name + ' mi LEFT JOIN ' + storeSchema.name +
-                ' ON mi.nsp_refpk = ' + storeSchema.name + '.nsp_pk';
+                    ' ON mi.nsp_refpk = ' + storeSchema.name + '.nsp_pk';
                 this._rawTableName = storeSchema.name;
                 this._indexTableName = storeSchema.name + '_' + indexSchema.name;
                 this._queryColumn = 'mi.nsp_key';

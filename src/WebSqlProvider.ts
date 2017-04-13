@@ -53,19 +53,29 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                 wipeIfExists = true;
             }
 
+            let errorDetail: string;
             this._db.changeVersion(this._db.version, this._schema.version.toString(), (t) => {
                 let trans = new WebSqlTransaction(t, undefined, this._schema, this._verbose, 999, this._supportsFTS3);
 
-                this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => { deferred.resolve(); }, () => { deferred.reject(); });
+                this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => {
+                    deferred.resolve();
+                }, err => {
+                    errorDetail = err && err.message ? err.message : err.toString();
+                });
             }, (err) => {
-                deferred.reject(err);
+                deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
             });
         } else if (wipeIfExists) {
             // No version change, but wipe anyway
+            let errorDetail: string;
             this.openTransaction(undefined, true).then(trans => {
-                this._upgradeDb(trans, oldVersion, true).then(() => { deferred.resolve(); }, () => { deferred.reject(); });
+                this._upgradeDb(trans, oldVersion, true).then(() => {
+                    deferred.resolve();
+                }, err => {
+                    errorDetail = err && err.message ? err.message : err.toString();
+                });
             }, (err) => {
-                deferred.reject(err);
+                deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
             });
         } else {
             deferred.resolve();
