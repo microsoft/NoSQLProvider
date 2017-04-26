@@ -260,9 +260,9 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             fieldList.push('nsp_pk TEXT PRIMARY KEY');
                             fieldList.push('nsp_data TEXT');
 
-                            const nonMultiIndexes = _.filter(storeSchema.indexes, index =>
+                            const columnBasedIndexes = _.filter(storeSchema.indexes, index =>
                                 !indexUsesSeparateTable(index, this._supportsFTS3));
-                            const indexColumns = _.map(nonMultiIndexes, index => 'nsp_i_' + index.name + ' TEXT');
+                            const indexColumns = _.map(columnBasedIndexes, index => 'nsp_i_' + index.name + ' TEXT');
                             fieldList = fieldList.concat(indexColumns);
                             const tableMakerSql = 'CREATE TABLE ' + storeSchema.name + ' (' + fieldList.join(', ') + ')';
 
@@ -602,7 +602,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                     if (indexUsesSeparateTable(index, this._supportsFTS3)) {
                         return;
                     }
-                    
+
                     if (index.fullText && !this._supportsFTS3) {
                         args.push(FakeFTSJoinToken +
                             FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(FakeFTSJoinToken));
