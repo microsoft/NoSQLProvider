@@ -1038,6 +1038,44 @@ describe('NoSqlProvider', function () {
                         });
                     });
 
+                    if (provName.indexOf('indexeddb') !== 0) {
+                        // This migration works on indexeddb because we don't check the types and the browsers silently accept it but just
+                        // neglect to index the field...
+                        it('Add index to boolean field should fail', () => {
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, true).then(prov => {
+                                return prov.put('test', { id: 'abc', tt: true }).then(() => {
+                                    return prov.close();
+                                });
+                            }).then(() => {
+                                return openProvider(provName, {
+                                    version: 2,
+                                    stores: [
+                                        {
+                                            name: 'test',
+                                            primaryKeyPath: 'id',
+                                            indexes: [{
+                                                name: 'ind1',
+                                                keyPath: 'tt'
+                                            }]
+                                        }
+                                    ]
+                                }, false).then(() => {
+                                    return SyncTasks.Rejected('Should not work');
+                                }, err => {
+                                    return SyncTasks.Resolved();
+                                });
+                            });
+                        });
+                    }
+
                     it('Add multiEntry index', () => {
                         return openProvider(provName, {
                             version: 1,

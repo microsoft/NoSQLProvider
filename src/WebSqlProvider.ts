@@ -61,6 +61,8 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                     deferred.resolve();
                 }, err => {
                     errorDetail = err && err.message ? err.message : err.toString();
+                    // Got a promise error.  Force the transaction to abort.
+                    trans.abort();
                 });
             }, (err) => {
                 deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
@@ -73,6 +75,8 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                     deferred.resolve();
                 }, err => {
                     errorDetail = err && err.message ? err.message : err.toString();
+                    // Got a promise error.  Force the transaction to abort.
+                    trans.abort();
                 });
             }, (err) => {
                 deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
