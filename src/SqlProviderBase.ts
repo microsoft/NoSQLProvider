@@ -34,6 +34,9 @@ function indexUsesSeparateTable(indexSchema: NoSqlProvider.IndexSchema, supports
 
 const FakeFTSJoinToken = '^$^';
 
+// Limit LIMIT numbers to a reasonable size to not break queries.
+const LimitMax = Math.pow(2, 32);
+
 export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     constructor(protected _supportsFTS3: boolean) {
         super();
@@ -800,6 +803,13 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         sql += ' ORDER BY ' + this._queryColumn + (reverse ? ' DESC' : ' ASC');
 
         if (limit) {
+            if (limit > LimitMax) {
+                if (this._verbose) {
+                    console.warn('Limit exceeded in _handleQuery (' + limit + ')');
+                }
+
+                limit = LimitMax;
+            }
             sql += ' LIMIT ' + limit.toString();
         }
         if (offset) {
