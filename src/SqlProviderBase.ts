@@ -423,6 +423,34 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
     }
 }
 
+export interface SQLError {
+    code: number;
+    message: string;
+}
+
+export interface SQLResultSet {
+    insertId: number;
+    rowsAffected: number;
+    rows: SQLResultSetRowList;
+}
+
+export interface SQLResultSetRowList {
+    length: number;
+    item(index: number): any;
+}
+
+export interface SQLStatementCallback {
+    (transaction: SQLTransaction, resultSet: SQLResultSet): void;
+}
+
+export interface SQLStatementErrorCallback {
+    (transaction: SQLTransaction, error: SQLError): void;
+}
+
+export interface SQLTransaction {
+    executeSql(sqlStatement: string, args?: any[], callback?: SQLStatementCallback, errorCallback?: SQLStatementErrorCallback): void;
+}
+
 // Generic base transaction for anything that matches the syntax of a SQLTransaction interface for executing sql commands.
 // Conveniently, this works for both WebSql and cordova's Sqlite plugin.
 export abstract class SqliteSqlTransaction extends SqlTransaction {
