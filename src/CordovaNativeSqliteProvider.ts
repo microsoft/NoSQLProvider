@@ -129,7 +129,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
                 this._lockHelper.transactionComplete(transToken);
             });
             return deferred.promise();
-        });    
+        });
     }
 }
 
@@ -147,7 +147,7 @@ class CordovaNativeSqliteTransaction extends SqlProviderBase.SqliteSqlTransactio
     getCompletionPromise(): SyncTasks.Promise<void> {
         return this._transToken.completionPromise;
     }
-    
+
     abort(): void {
         // This will wrap through to the transaction error path above.
         (this._trans as CordovaTransaction).abort('Manually Aborted');

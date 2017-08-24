@@ -312,11 +312,13 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
             };
 
             this._trans.onerror = () => {
-                lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction OnError: ' + this._trans.error ? this._trans.error.message : undefined);
+                lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction OnError: ' +
+                    this._trans.error ? this._trans.error.message : undefined);
             };
 
             this._trans.onabort = () => {
-                lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction Aborted, Error: ' + this._trans.error ? this._trans.error.message : undefined);
+                lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction Aborted, Error: ' +
+                    this._trans.error ? this._trans.error.message : undefined);
             };
         }
     }
@@ -349,7 +351,7 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
         // This will wrap through the onAbort above
         this._trans.abort();
     }
-    
+
     markCompleted(): void {
         // noop
     }

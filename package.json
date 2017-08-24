@@ -21,7 +21,7 @@
     "sqlite3": "^3.0.9",
     "ts-loader": "2.0.3",
     "tslint": "4.5.1",
-    "typescript": "2.2.2",
+    "typescript": "2.4.2",
     "webpack": "^1.0.0"
   },
   "repository": {
