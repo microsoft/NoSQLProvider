@@ -747,6 +747,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         // Partition the parameters
         var arrayOfParams: Array<Array<String>> = [[]];
         var totalLength = 0;
+        var totalItems = 0;
         var partitionIndex = 0;
         joinedKeys.forEach(joinedKey => {
 
@@ -756,11 +757,14 @@ class SqlStore implements NoSqlProvider.DbStore {
             // Accumulate the length
             totalLength += joinedKey.length + 2;
 
+            totalItems++;
+
             // Make sure we don't exceed the following sqlite limits, if so go to the next partition
             let didReachSqlStatementLimit = totalLength > (SQLITE_MAX_SQL_LENGTH_IN_BYTES - 200);
-            let didExceedMaxVariableCount = this._trans.internal_getMaxVariables();
+            let didExceedMaxVariableCount = totalItems >= this._trans.internal_getMaxVariables();
             if (didReachSqlStatementLimit || didExceedMaxVariableCount) {
                 totalLength = 0;
+                totalItems = 0;
                 partitionIndex++;
                 arrayOfParams.push(new Array<String>());
             }
