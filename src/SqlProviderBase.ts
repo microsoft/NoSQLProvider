@@ -756,9 +756,10 @@ class SqlStore implements NoSqlProvider.DbStore {
             // Accumulate the length
             totalLength += joinedKey.length + 2;
 
-            // Make sure we don't exceed the max sql statement limit, if so go to the next partition
+            // Make sure we don't exceed the following sqlite limits, if so go to the next partition
             let didReachSqlStatementLimit = totalLength > (SQLITE_MAX_SQL_LENGTH_IN_BYTES - 200);
-            if (didReachSqlStatementLimit) {
+            let didExceedMaxVariableCount = this._trans.internal_getMaxVariables();
+            if (didReachSqlStatementLimit || didExceedMaxVariableCount) {
                 totalLength = 0;
                 partitionIndex++;
                 arrayOfParams.push(new Array<String>());
