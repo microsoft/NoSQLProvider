@@ -738,17 +738,51 @@ class SqlStore implements NoSqlProvider.DbStore {
             startTime = Date.now();
         }
 
-        // PERF: This is optimizable, but it's of questionable utility
-        const queries = _.map(joinedKeys, joinedKey => {
+        // This was taked from the sqlite documentation
+        const SQLITE_MAX_SQL_LENGTH_IN_BYTES = 1000000;
+
+        // Partition the parameters
+        var arrayOfParams: Array<Array<String>> = [[]];
+        var totalLength = 0;
+        var partitionIndex = 0;
+        joinedKeys.forEach(joinedKey => {
+
+            // Append the new item to the current partition
+            arrayOfParams[partitionIndex].push(joinedKey);
+
+            // Accumulate the length
+            totalLength += joinedKey.length + 2;
+
+            // Make sure we don't exceed the max sql statement limit, if so go to the next partition
+            let didReachSqlStatementLimit = totalLength > (SQLITE_MAX_SQL_LENGTH_IN_BYTES - 200);
+            if (didReachSqlStatementLimit) {
+                totalLength = 0;
+                partitionIndex++;
+                arrayOfParams.push(new Array<String>());
+            }
+        });
+
+        const queries = _.map(arrayOfParams, params => {
             let queries: SyncTasks.Promise<void>[] = [];
+
+            // Generate as many '?' as there are params
+            var sqlPart = '';
+            _.map(params, param => {
+                if (sqlPart.length > 0) {
+                    sqlPart += ',';
+                }
+                sqlPart += '?'
+            });
+
             _.each(this._schema.indexes, index => {
                 if (indexUsesSeparateTable(index, this._supportsFTS3)) {
                     queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
-                        ' WHERE nsp_refpk = ?', [joinedKey]));
+                        ' WHERE nsp_refpk IN (' + sqlPart + ')', params));
                 }
             });
 
-            queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]));
+            queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name +
+                ' WHERE nsp_pk IN (' + sqlPart + ')', params));
 
             return SyncTasks.all(queries).then(_.noop);
         });
