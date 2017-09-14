@@ -101,7 +101,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             (trans: SQLTransaction) => {
                 ourTrans = new WebSqlTransaction(trans, finishDefer.promise(), this._schema, this._verbose, 999, this._supportsFTS3);
                 deferred.resolve(ourTrans);
-            }, (err) => {
+            }, (err: SQLError) => {
                 if (ourTrans) {
                     // Got an error from inside the transaction.  Error out all pending queries on the 
                     // transaction since they won't exit out gracefully for whatever reason.

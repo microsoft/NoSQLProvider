@@ -41,9 +41,9 @@ interface SQLTransactionErrorCallback {
 interface Database {
     version: string;
 
-    changeVersion(oldVersion: string, newVersion: string, callback?: SQLTransactionCallback, errorCallback?: SQLTransactionErrorCallback, successCallback?: SQLVoidCallback);
-    transaction(callback?: SQLTransactionCallback, errorCallback?: SQLTransactionErrorCallback, successCallback?: SQLVoidCallback);
-    readTransaction(callback?: SQLTransactionCallback, errorCallback?: SQLTransactionErrorCallback, successCallback?: SQLVoidCallback);
+    changeVersion(oldVersion: string, newVersion: string, callback?: SQLTransactionCallback, errorCallback?: SQLTransactionErrorCallback, successCallback?: SQLVoidCallback): void;
+    transaction(callback?: SQLTransactionCallback, errorCallback?: SQLTransactionErrorCallback, successCallback?: SQLVoidCallback): void;
+    readTransaction(callback?: SQLTransactionCallback, errorCallback?: SQLTransactionErrorCallback, successCallback?: SQLVoidCallback): void;
 }
 
 interface SQLStatementCallback {
@@ -55,7 +55,7 @@ interface SQLStatementErrorCallback {
 }
 
 interface SQLTransaction {
-    executeSql(sqlStatement: string, arguments?: any[], callback?: SQLStatementCallback, errorCallback?: SQLStatementErrorCallback);
+    executeSql(sqlStatement: string, arguments?: any[], callback?: SQLStatementCallback, errorCallback?: SQLStatementErrorCallback): void;
 }
 
 declare enum SQLErrors {

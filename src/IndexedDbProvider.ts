@@ -212,7 +212,11 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
                 if (needsMigrate) {
                     // Walk every element in the store and re-put it to fill out the new index.
-                    const fakeToken = { storeNames: [ storeSchema.name ], exclusive: false, completionPromise: undefined};
+                    const fakeToken: TransactionToken = {
+                        storeNames: [ storeSchema.name ],
+                        exclusive: false,
+                        completionPromise: undefined
+                    };
                     const iTrans = new IndexedDbTransaction(trans, undefined, fakeToken, schema, this._fakeComplicatedKeys);
                     const tStore = iTrans.getStore(storeSchema.name);
 
@@ -220,7 +224,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                     let thisIndexPutters: SyncTasks.Promise<void>[] = [];
                     migrationPutters.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
                         const err = _.attempt(() => {
-                            const item = removeFullTextMetadataAndReturn(storeSchema, cursor.value);
+                            const item = removeFullTextMetadataAndReturn(storeSchema, (cursor as any).value);
 
                             thisIndexPutters.push(tStore.put(item));
                         });
@@ -313,12 +317,12 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
 
             this._trans.onerror = () => {
                 lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction OnError: ' +
-                    this._trans.error ? this._trans.error.message : undefined);
+                    (this._trans.error ? this._trans.error.message : undefined));
             };
 
             this._trans.onabort = () => {
                 lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction Aborted, Error: ' +
-                    this._trans.error ? this._trans.error.message : undefined);
+                    (this._trans.error ? this._trans.error.message : undefined));
             };
         }
     }
@@ -359,9 +363,10 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
 
 function removeFullTextMetadataAndReturn<T>(schema: NoSqlProvider.StoreSchema, val: T): T {
     if (val) {
+        // We have full text index fields as real fields on the result, so nuke them before returning them to the caller.
         _.each(schema.indexes, index => {
             if (index.fullText) {
-                delete val[IndexPrefix + index.name];
+                delete (val as any)[IndexPrefix + index.name];
             }
         });
     }
@@ -454,6 +459,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                                     refKey = NoSqlProviderUtils.serializeKeyToString(refKey, this._schema.primaryKeyPath);
                                 }
                             });
+
                             if (err) {
                                 errToReport = err;
                                 return false;
@@ -478,6 +484,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                         } else if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
                             item[IndexPrefix + index.name] = NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath);
                         }
+                        return true;
                     });
                 } else {
                     _.each(this._schema.indexes, index => {
@@ -554,6 +561,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                         promises.push(IndexedDbProvider.WrapRequest<void>(this._store['delete'](key)));
                         return SyncTasks.all(promises).then(_.noop);
                     }
+                    return undefined;
                 });
             }
 
@@ -709,7 +717,8 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     static getFromCursorRequest<T>(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
         let outList: any[] = [];
         return this.iterateOverCursorRequest(req, cursor => {
-            outList.push(cursor.value);
+            // Typings on cursor are wrong...
+            outList.push((cursor as any).value);
         }, limit, offset).then(() => {
             return outList;
         });
@@ -728,7 +737,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         return deferred.promise();
     }
 
-    static iterateOverCursorRequest(req: IDBRequest, func: (IDBCursor) => void, limit?: number, offset?: number): SyncTasks.Promise<void> {
+    static iterateOverCursorRequest(req: IDBRequest, func: (cursor: IDBCursor) => void, limit?: number, offset?: number): SyncTasks.Promise<void> {
         const deferred = SyncTasks.Defer<void>();
 
         let count = 0;

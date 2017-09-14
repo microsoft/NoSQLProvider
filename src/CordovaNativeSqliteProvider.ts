@@ -38,7 +38,7 @@ export interface SqliteDatabase {
 
 export interface SqlitePlugin {
     openDatabase(dbInfo: SqlitePluginDbParams, success?: Function, error?: Function): SqliteDatabase;
-    deleteDatabase(dbInfo: SqlitePluginDbParams, successCallback?: Function, errorCallback?: Function);
+    deleteDatabase(dbInfo: SqlitePluginDbParams, successCallback?: Function, errorCallback?: Function): void;
     sqliteFeatures: { isSQLitePlugin: boolean };
 }
 
@@ -78,7 +78,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
         const task = SyncTasks.Defer<void>();
         this._db = this._plugin.openDatabase(dbParams, () => {
             task.resolve();
-        }, err => {
+        }, (err: any) => {
             task.reject('Couldn\'t open database: ' + dbName + ', error: ' + JSON.stringify(err));
         });
 
@@ -96,7 +96,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             this._db.close(() => {
                 this._db = null;
                 def.resolve();
-            }, err => {
+            }, (err: any) => {
                 def.reject(err);
             });
             return def.promise();

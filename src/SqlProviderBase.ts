@@ -95,6 +95,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         return this._upgradeDb(trans, oldVersion, true);
                     });
                 }
+                return undefined;
             });
     }
 
@@ -126,7 +127,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             return;
                         }
                         // Ignore FTS-generated side tables
-                        const endsIn = (str, checkstr) => {
+                        const endsIn = (str: string, checkstr: string) => {
                             const i = str.indexOf(checkstr);
                             return i !== -1 && i === str.length - checkstr.length;
                         };
@@ -214,7 +215,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     }
 
                     return SyncTasks.all(dropQueries).then(() => {
-                        let tableQueries = [];
+                        let tableQueries: SyncTasks.Promise<any>[] = [];
 
                         // Go over each store and see what needs changing
                         _.each(this._schema.stores, storeSchema => {
@@ -254,7 +255,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     }
                                 });
 
-                                return SyncTasks.all(indexQueries);
+                                return SyncTasks.all(indexQueries.concat(metaQueries));
                             };
 
                             // Form SQL statement for table creation
@@ -694,7 +695,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                         return;
                     }
 
-                    let valArgs = [], insertArgs = [];
+                    let valArgs: string[] = [], insertArgs: string[] = [];
                     _.each(serializedKeys, val => {
                         valArgs.push(index.includeDataInIndex ? '(?, ?, ?)' : '(?, ?)');
                         insertArgs.push(val);
@@ -704,12 +705,14 @@ class SqlStore implements NoSqlProvider.DbStore {
                         }
                     });
                     queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
-                            ' WHERE nsp_refpk = ?', [key]).then(() => {
-                        if (valArgs.length > 0){
+                            ' WHERE nsp_refpk = ?', [key])
+                    .then(() => {
+                        if (valArgs.length > 0) {
                             return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
                                 ' (nsp_key, nsp_refpk' + (index.includeDataInIndex ? ', nsp_data' : '') + ') VALUES ' +
                                 valArgs.join(','), insertArgs);
                         }
+                        return undefined;
                     }));
                 });
             });
