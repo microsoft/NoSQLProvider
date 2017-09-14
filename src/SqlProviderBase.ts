@@ -696,7 +696,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                     }
 
                     let valArgs: string[] = [], insertArgs: string[] = [];
-                    _.each(serializedKeys!!!, val => {
+                    _.each(serializedKeys, val => {
                         valArgs.push(index.includeDataInIndex ? '(?, ?, ?)' : '(?, ?)');
                         insertArgs.push(val);
                         insertArgs.push(key);
