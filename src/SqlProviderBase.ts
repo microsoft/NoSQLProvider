@@ -771,13 +771,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             let queries: SyncTasks.Promise<void>[] = [];
 
             // Generate as many '?' as there are params
-            var sqlPart = '';
-            _.map(params, param => {
-                if (sqlPart.length > 0) {
-                    sqlPart += ',';
-                }
-                sqlPart += '?'
-            });
+            let sqlPart = Array.apply(null, new Array(params.length)).map(()=> '?').join(',');
 
             _.each(this._schema.indexes, index => {
                 if (indexUsesSeparateTable(index, this._supportsFTS3)) {
