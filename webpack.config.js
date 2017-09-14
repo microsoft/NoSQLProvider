@@ -8,22 +8,22 @@ var webpackConfig = {
         filename: './NoSQLProviderTestsPack.js',
     },
 
+    externals: [ 'sqlite3', 'indexeddb-js', 'fs' ],
+    
     resolve: {
-        root: [
+        modules: [
             path.resolve('./src'),
             path.resolve('./node_modules')
         ],
-        extensions: ['', '.ts', '.js']
+        extensions: ['.ts', '.tsx', '.js']
     },
     
-    externals: [ 'sqlite3', 'indexeddb-js', 'fs' ],
-    
     module: {
-        loaders: [{
+        rules: [{
             // Compile TS.
             test: /\.tsx?$/, 
             exclude: /node_modules/,
-            loader: 'ts-loader'
+            loader: 'awesome-typescript-loader'
         }]
     }  
 };

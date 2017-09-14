@@ -4,8 +4,17 @@
         "noResolve": false,
         "module": "commonjs",
         "target": "es5",
+        "outDir": "dist/",
+        "typeRoots": [
+            "node_modules/@types"
+        ],
+        "noImplicitAny": true,
+        "noImplicitReturns": true,
+        "noImplicitThis": true,
         "noUnusedLocals": true,
-        "outDir": "dist/"
+        "forceConsistentCasingInFileNames": true,
+        
+        "strictNullChecks": false
     },
 
     "filesGlob": [
