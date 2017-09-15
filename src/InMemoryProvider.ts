@@ -50,7 +50,7 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
 
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
 class InMemoryTransaction implements NoSqlProvider.DbTransaction {
-    private _openTimer: number;
+    private _openTimer: number|undefined;
 
     private _stores: _.Dictionary<InMemoryStore> = {};
 
@@ -80,7 +80,11 @@ class InMemoryTransaction implements NoSqlProvider.DbTransaction {
         });
         this._stores = {};
 
-        clearTimeout(this._openTimer);
+        if (this._openTimer) {
+            clearTimeout(this._openTimer);
+            this._openTimer = undefined;
+        }
+
         this._lockHelper.transactionFailed(this._transToken, 'InMemoryTransaction Aborted');
     }
 
@@ -161,7 +165,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return SyncTasks.Rejected(err);
         }
 
-        return SyncTasks.Resolved(this._mergedData[joinedKey]);
+        return SyncTasks.Resolved(this._mergedData[joinedKey!!!]);
     }
 
     getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
@@ -177,7 +181,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return SyncTasks.Rejected(err);
         }
 
-        return SyncTasks.Resolved(_.compact(_.map(joinedKeys, key => this._mergedData[key])));
+        return SyncTasks.Resolved(_.compact(_.map(joinedKeys!!!, key => this._mergedData[key])));
     }
 
     put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
@@ -187,9 +191,9 @@ class InMemoryStore implements NoSqlProvider.DbStore {
         this._checkDataClone();
         const err = _.attempt(() => {
             _.each(NoSqlProviderUtils.arrayify(itemOrItems), item => {
-                let pk = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._storeSchema.primaryKeyPath);
+                let pk = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._storeSchema.primaryKeyPath)!!!;
 
-                this._pendingCommitDataChanges[pk] = item;
+                this._pendingCommitDataChanges!!![pk] = item;
                 this._mergedData[pk] = item;
             });
         });
@@ -213,8 +217,8 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return SyncTasks.Rejected<void>(err);
         }
 
-        _.each(joinedKeys, key => {
-            this._pendingCommitDataChanges[key] = undefined;
+        _.each(joinedKeys!!!, key => {
+            this._pendingCommitDataChanges!!![key] = undefined;
             delete this._mergedData[key];
         });
         return SyncTasks.Resolved<void>();
@@ -228,7 +232,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
     openIndex(indexName: string): NoSqlProvider.DbIndex {
         let indexSchema = _.find(this._storeSchema.indexes, idx => idx.name === indexName);
         if (!indexSchema) {
-            return undefined;
+            throw 'Index not found: ' + indexName;
         }
 
         this._checkDataClone();
@@ -241,7 +245,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
         }
         this._checkDataClone();
         _.each(this._mergedData, (val, key) => {
-            this._pendingCommitDataChanges[key] = undefined;
+            this._pendingCommitDataChanges!!![key] = undefined;
         });
         this._mergedData = {};
         return SyncTasks.Resolved<void>();
@@ -250,8 +254,8 @@ class InMemoryStore implements NoSqlProvider.DbStore {
 
 // Note: Currently maintains nothing interesting -- rebuilds the results every time from scratch.  Scales like crap.
 class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
-    constructor(private _trans: InMemoryTransaction, private _mergedData: _.Dictionary<any>, indexSchema: NoSqlProvider.IndexSchema,
-            primaryKeyPath: string | string[]) {
+    constructor(private _trans: InMemoryTransaction, private _mergedData: _.Dictionary<any>,
+            indexSchema: NoSqlProvider.IndexSchema|undefined, primaryKeyPath: string | string[]) {
         super(indexSchema, primaryKeyPath);
     }
 
@@ -266,11 +270,11 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         let data: _.Dictionary<any> = {};
         _.each(this._mergedData, item => {
             // Each item may be non-unique so store as an array of items for each key
-            let keys: string[];
-            if (this._indexSchema.fullText) {
+            let keys: string[]|undefined;
+            if (this._indexSchema!!!.fullText) {
                 keys = _.map(FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>this._keyPath, item), val =>
                     NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
-            } else if (this._indexSchema.multiEntry) {
+            } else if (this._indexSchema!!!.multiEntry) {
                 // Have to extract the multiple entries into this alternate table...
                 const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>this._keyPath);
                 if (valsRaw) {
@@ -278,7 +282,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
                         NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
                 }
             } else {
-                keys = [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._keyPath)];
+                keys = [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._keyPath)!!!];
             }
 
             _.each(keys, key => {
@@ -305,8 +309,8 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             return SyncTasks.Rejected(err);
         }
 
-        const sortedKeys = _.keys(data).sort();
-        return this._returnResultsFromKeys(data, sortedKeys, reverse, limit, offset);
+        const sortedKeys = _.keys(data!!!).sort();
+        return this._returnResultsFromKeys(data!!!, sortedKeys, reverse, limit, offset);
     }
 
     getOnly<T>(key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
@@ -329,7 +333,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             return SyncTasks.Rejected(err);
         }
 
-        return this._returnResultsFromKeys(data, sortedKeys, reverse, limit, offset);
+        return this._returnResultsFromKeys(data!!!, sortedKeys!!!, reverse, limit, offset);
     }
 
     // Warning: This function can throw, make sure to trap.
@@ -369,7 +373,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         if (err) {
             return SyncTasks.Rejected(err);
         }
-        return SyncTasks.Resolved(_.keys(data).length);
+        return SyncTasks.Resolved(_.keys(data!!!).length);
     }
 
     countOnly(key: any|any[]): SyncTasks.Promise<number> {
@@ -391,6 +395,6 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             return SyncTasks.Rejected(err);
         }
 
-        return SyncTasks.Resolved(keys.length);
+        return SyncTasks.Resolved(keys!!!.length);
     }
 }

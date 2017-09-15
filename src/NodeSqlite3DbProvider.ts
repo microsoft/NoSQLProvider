@@ -15,7 +15,7 @@ import SqlProviderBase = require('./SqlProviderBase');
 import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
 
 export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBase {
-    private _db: sqlite3.Database;
+    private _db: sqlite3.Database|undefined;
 
     private _lockHelper: TransactionLockHelper;
 
@@ -38,6 +38,9 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBa
     }
 
     openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
+        if (!this._db) {
+            return SyncTasks.Rejected('Can\'t openTransaction on a closed database');
+        }
         if (this._verbose) {
             console.log('openTransaction Called with Stores: ' + (storeNames ? storeNames.join(',') : undefined) +
                 ', WriteNeeded: ' + writeNeeded);
@@ -47,7 +50,7 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBa
                 console.log('openTransaction Resolved with Stores: ' + (storeNames ? storeNames.join(',') : undefined) +
                     ', WriteNeeded: ' + writeNeeded);
             }
-            const trans = new NodeSqlite3Transaction(this._db, this._lockHelper, transToken, this._schema, this._verbose,
+            const trans = new NodeSqlite3Transaction(this._db!!!, this._lockHelper, transToken, this._schema, this._verbose,
                 this._supportsFTS3);
             if (writeNeeded) {
                 return trans.runQuery('BEGIN EXCLUSIVE TRANSACTION').then(ret => trans);
@@ -57,9 +60,12 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBa
     }
 
     close(): SyncTasks.Promise<void> {
+        if (!this._db) {
+            return SyncTasks.Rejected('Database already closed');
+        }
         return this._lockHelper.closeWhenPossible().then(() => {
             let task = SyncTasks.Defer<void>();
-            this._db.close((err) => {
+            this._db!!!.close((err) => {
                 this._db = undefined;
                 if (err) {
                     task.reject(err);
@@ -73,7 +79,7 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBa
 }
 
 class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
-    private _openTimer: number;
+    private _openTimer: number|undefined;
     private _openQueryCount = 0;
 
     constructor(private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper, private _transToken: TransactionToken,

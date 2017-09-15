@@ -10,6 +10,7 @@
  * be required piecemeal.
  */
 
+import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
 // Schema type describing an index for a store.
@@ -59,7 +60,7 @@ export interface DbIndex {
 // Interface type describing a database store opened for accessing.  Get commands at this level work against the primary keypath
 // of the store.
 export interface DbStore {
-    get<T>(key: any|any[]): SyncTasks.Promise<T>;
+    get<T>(key: any|any[]): SyncTasks.Promise<T|undefined>;
     getMultiple<T>(keyOrKeys: any|any[]): SyncTasks.Promise<T[]>;
     put(itemOrItems: any|any[]): SyncTasks.Promise<void>;
     remove(keyOrKeys: any|any[]): SyncTasks.Promise<void>;
@@ -94,7 +95,7 @@ export abstract class DbProvider {
         // virtual call
         this._schema = schema;
         this._verbose = verbose;
-        return undefined;
+        return undefined!!!;
     }
 
     abstract close(): SyncTasks.Promise<void>;
@@ -102,14 +103,18 @@ export abstract class DbProvider {
     // You must perform all of your actions on the transaction handed to you in the callback block without letting it expire.
     // When the last callback from the last executed action against the DbTransaction is executed, the transaction closes, so be very
     // careful using deferrals/promises that may wait for the main thread to close out before handling your response.
-    abstract openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<DbTransaction>;
+    // Undefined for storeNames means ALL stores.
+    abstract openTransaction(storeNames: string[]|undefined, writeNeeded: boolean): SyncTasks.Promise<DbTransaction>;
 
     clearAllData(): SyncTasks.Promise<void> {
         var storeNames = this._schema.stores.map(store => store.name);
 
         return this.openTransaction(storeNames, true).then(trans => {
             const clearers = storeNames.map(storeName => {
-                const store = trans.getStore(storeName);
+                let store: DbStore|undefined;
+                _.attempt(() => {
+                    store = trans.getStore(storeName);
+                });
                 if (!store) {
                     return SyncTasks.Rejected<void>('Store "' + storeName + '" not found');
                 }
@@ -121,7 +126,10 @@ export abstract class DbProvider {
 
     private _getStoreTransaction(storeName: string, readWrite: boolean): SyncTasks.Promise<DbStore> {
         return this.openTransaction([storeName], readWrite).then(trans => {
-            const store = trans.getStore(storeName);
+            let store: DbStore|undefined;
+            _.attempt(() => {
+                store = trans.getStore(storeName);
+            });
             if (!store) {
                 return SyncTasks.Rejected('Store "' + storeName + '" not found');
             }
@@ -130,7 +138,7 @@ export abstract class DbProvider {
     }
 
     // Shortcut functions
-    get<T>(storeName: string, key: any|any[]): SyncTasks.Promise<T> {
+    get<T>(storeName: string, key: any|any[]): SyncTasks.Promise<T|undefined> {
         return this._getStoreTransaction(storeName, false).then(store => {
             return store.get<T>(key);
         });
@@ -154,9 +162,12 @@ export abstract class DbProvider {
         });
     }
 
-    private _getStoreIndexTransaction(storeName: string, readWrite: boolean, indexName: string): SyncTasks.Promise<DbIndex> {
+    private _getStoreIndexTransaction(storeName: string, readWrite: boolean, indexName: string|undefined): SyncTasks.Promise<DbIndex> {
         return this._getStoreTransaction(storeName, readWrite).then(store => {
-            const index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            let index: DbIndex|undefined;
+            _.attempt(() => {
+                index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            });
             if (!index) {
                 return SyncTasks.Rejected('Index "' + indexName + '" not found');
             }
@@ -164,20 +175,20 @@ export abstract class DbProvider {
         });
     }
 
-    getAll<T>(storeName: string, indexName?: string, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    getAll<T>(storeName: string, indexName: string|undefined, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.getAll<T>(reverse, limit, offset);
         });
     }
 
-    getOnly<T>(storeName: string, indexName: string, key: any|any[], reverse?: boolean, limit?: number, offset?: number)
+    getOnly<T>(storeName: string, indexName: string|undefined, key: any|any[], reverse?: boolean, limit?: number, offset?: number)
             : SyncTasks.Promise<T[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.getOnly<T>(key, reverse, limit, offset);
         });
     }
 
-    getRange<T>(storeName: string, indexName: string, keyLowRange: any|any[], keyHighRange: any|any[],
+    getRange<T>(storeName: string, indexName: string|undefined, keyLowRange: any|any[], keyHighRange: any|any[],
         lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverse?: boolean, limit?: number, offset?: number)
             : SyncTasks.Promise<T[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
@@ -185,19 +196,19 @@ export abstract class DbProvider {
         });
     }
 
-    countAll(storeName: string, indexName?: string): SyncTasks.Promise<number> {
+    countAll(storeName: string, indexName: string|undefined): SyncTasks.Promise<number> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.countAll();
         });
     }
 
-    countOnly(storeName: string, indexName: string, key: any|any[]): SyncTasks.Promise<number> {
+    countOnly(storeName: string, indexName: string|undefined, key: any|any[]): SyncTasks.Promise<number> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.countOnly(key);
         });
     }
 
-    countRange(storeName: string, indexName: string, keyLowRange: any|any[], keyHighRange: any|any[],
+    countRange(storeName: string, indexName: string|undefined, keyLowRange: any|any[], keyHighRange: any|any[],
             lowRangeExclusive?: boolean, highRangeExclusive?: boolean): SyncTasks.Promise<number> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.countRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);

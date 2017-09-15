@@ -45,6 +45,8 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
     // } else if (providerName === 'reactnative') {
     //     var reactNativeSqliteProvider = require('react-native-sqlite-storage');
     //     provider = new CordovaNativeSqliteProvider(reactNativeSqliteProvider);
+    } else {
+        throw 'Provider not found for name: ' + providerName;
     }
     const dbName = providerName.indexOf('sqlite3memory') !== -1 ? ':memory:' : 'test';
     return NoSqlProvider.openListOfProviders([provider], dbName, schema, wipeFirst, false);
@@ -112,7 +114,7 @@ describe('NoSqlProvider', function () {
             describe('Data Manipulation', () => {
                 // Setter should set the testable parameter on the first param to the value in the second param, and third param to the
                 // second index column for compound indexes.
-                var tester = (prov: NoSqlProvider.DbProvider, indexName: string, compound: boolean,
+                var tester = (prov: NoSqlProvider.DbProvider, indexName: string|undefined, compound: boolean,
                     setter: (obj: any, indexval1: string, indexval2: string) => void) => {
                     var putters = [1, 2, 3, 4, 5].map(v => {
                         var obj: any = { val: 'val' + v };
@@ -281,7 +283,7 @@ describe('NoSqlProvider', function () {
                             return prov.get<any>('test', 'a').then(ret => {
                                 assert.equal(ret.val, 'b');
 
-                                return prov.getAll<any>('test').then(ret2 => {
+                                return prov.getAll<any>('test', undefined).then(ret2 => {
                                     assert.equal(ret2.length, 1);
                                     assert.equal(ret2[0].val, 'b');
 
@@ -303,7 +305,7 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return prov.put('test', []).then(() => {
-                            return prov.getAll('test').then(rets => {
+                            return prov.getAll('test', undefined).then(rets => {
                                 assert(!!rets);
                                 assert.equal(rets.length, 0);
                                 return prov.getMultiple<any>('test', []).then(rets => {
@@ -327,15 +329,15 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return prov.put('test', [1, 2, 3, 4, 5].map(i => { return { id: 'a' + i }; })).then(() => {
-                            return prov.getAll('test').then(rets => {
+                            return prov.getAll('test', undefined).then(rets => {
                                 assert(!!rets);
                                 assert.equal(rets.length, 5);
                                 return prov.remove('test', 'a1').then(() => {
-                                    return prov.getAll('test').then(rets => {
+                                    return prov.getAll('test', undefined).then(rets => {
                                         assert(!!rets);
                                         assert.equal(rets.length, 4);
                                         return prov.remove('test', ['a3', 'a4', 'a2']).then(() => {
-                                            return prov.getAll<any>('test').then(rets => {
+                                            return prov.getAll<any>('test', undefined).then(rets => {
                                                 assert(!!rets);
                                                 assert.equal(rets.length, 1);
                                                 assert.equal(rets[0].id, 'a5');
