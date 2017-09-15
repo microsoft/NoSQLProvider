@@ -535,6 +535,10 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
 // DbStore implementation for the SQL-based DbProviders.  Implements the getters/setters against the transaction object and all of the
 // glue for index/compound key support.
 class SqlStore implements NoSqlProvider.DbStore {
+
+    // This was taked from the sqlite documentation
+    private readonly SQLITE_MAX_SQL_LENGTH_IN_BYTES = 1000000;
+
     constructor(private _trans: SqlTransaction, private _schema: NoSqlProvider.StoreSchema, private _replaceUnicode: boolean,
             private _supportsFTS3: boolean, private _verbose: boolean) {
         // Empty
@@ -741,9 +745,6 @@ class SqlStore implements NoSqlProvider.DbStore {
             startTime = Date.now();
         }
 
-        // This was taked from the sqlite documentation
-        const SQLITE_MAX_SQL_LENGTH_IN_BYTES = 1000000;
-
         // Partition the parameters
         var arrayOfParams: Array<Array<String>> = [[]];
         var totalLength = 0;
@@ -760,7 +761,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             totalItems++;
 
             // Make sure we don't exceed the following sqlite limits, if so go to the next partition
-            let didReachSqlStatementLimit = totalLength > (SQLITE_MAX_SQL_LENGTH_IN_BYTES - 200);
+            let didReachSqlStatementLimit = totalLength > (this.SQLITE_MAX_SQL_LENGTH_IN_BYTES - 200);
             let didExceedMaxVariableCount = totalItems >= this._trans.internal_getMaxVariables();
             if (didReachSqlStatementLimit || didExceedMaxVariableCount) {
                 totalLength = 0;
