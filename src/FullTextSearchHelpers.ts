@@ -22,7 +22,6 @@ function sqlCompat(value: string): string {
 }
 
 export function breakAndNormalizeSearchPhrase(phrase: string): string[] {
-
     // Faster than using _.uniq since it's just a pile of strings.
     // Deburr and tolower before using _.words since _.words breaks on CaseChanges.
     return _.map(_.mapKeys(_.words(_.deburr(phrase).toLowerCase(), _whitespaceRegexMatch)), (value, key) => sqlCompat(key));
@@ -37,13 +36,13 @@ export function getFullTextIndexWordsForItem(keyPath: string, item: any): string
 export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbIndex {
     protected _keyPath: string | string[];
 
-    constructor(protected _indexSchema: NoSqlProvider.IndexSchema, protected _primaryKeyPath: string | string[]) {
+    constructor(protected _indexSchema: NoSqlProvider.IndexSchema|undefined, protected _primaryKeyPath: string | string[]) {
         this._keyPath = this._indexSchema ? this._indexSchema.keyPath : this._primaryKeyPath;
     }
 
     fullTextSearch<T>(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And, limit?: number)
             : SyncTasks.Promise<T[]> {
-        if (!this._indexSchema.fullText) {
+        if (!this._indexSchema || !this._indexSchema.fullText) {
             return SyncTasks.Rejected<T[]>('fullTextSearch performed against non-fullText index!');
         }
 
@@ -68,7 +67,7 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
             }
 
             if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
-                const data = _.values(_.assign<_.Dictionary<T>>({}, ...uniquers));
+                const data = _.values(_.assign<_.Dictionary<T>>({}, ...uniquers!!!));
                 if (limit) {
                     return _.take(data, limit);
                 }
@@ -76,7 +75,7 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
             }
 
             if (resolution === NoSqlProvider.FullTextTermResolution.And) {
-                const [first, ...others] = uniquers;
+                const [first, ...others] = uniquers!!!;
                 const data = _.values(_.pickBy<_.Dictionary<T>, _.Dictionary<T>>(first, (value, key) => _.every(others, set => key in set)));
                 if (limit) {
                     return _.take(data, limit);

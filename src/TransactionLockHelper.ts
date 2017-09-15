@@ -26,7 +26,7 @@ export interface TransactionToken {
 }
 
 interface TransactionTokenInternal extends TransactionToken {
-    completionDefer: SyncTasks.Deferred<void>;
+    completionDefer: SyncTasks.Deferred<void>|undefined;
 }
 
 class TransactionLockHelper {

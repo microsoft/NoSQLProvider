@@ -54,7 +54,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
         super(true);
     }
 
-    private _db: SqliteDatabase;
+    private _db: SqliteDatabase|undefined;
 
     private _closingDefer: SyncTasks.Deferred<void>;
 
@@ -91,10 +91,14 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
     }
 
     close(): SyncTasks.Promise<void> {
+        if (!this._db) {
+            return SyncTasks.Rejected<void>('Database already closed');
+        }
+
         return this._lockHelper.closeWhenPossible().then(() => {
             let def = SyncTasks.Defer<void>();
-            this._db.close(() => {
-                this._db = null;
+            this._db!!!.close(() => {
+                this._db = undefined;
                 def.resolve();
             }, (err: any) => {
                 def.reject(err);
@@ -104,6 +108,10 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
     }
 
     openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
+        if (!this._db) {
+            return SyncTasks.Rejected('Can\'t openTransation, Database closed');
+        }
+
         if (this._closingDefer) {
             return SyncTasks.Rejected('Currently closing provider -- rejecting transaction open');
         }
@@ -112,7 +120,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
 
             let ourTrans: SqlProviderBase.SqliteSqlTransaction;
-            (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db, (trans: CordovaTransaction) => {
+            (writeNeeded ? this._db!!!.transaction : this._db!!!.readTransaction).call(this._db, (trans: CordovaTransaction) => {
                 ourTrans = new CordovaNativeSqliteTransaction(trans, this._lockHelper, transToken, this._schema, this._verbose, 999,
                     this._supportsFTS3);
                 deferred.resolve(ourTrans);

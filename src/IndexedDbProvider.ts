@@ -20,7 +20,7 @@ const IndexPrefix = 'nsp_i_';
 // closely mirror IndexedDB's.  We mostly do a lot of wrapping of the APIs into JQuery promises and have some fancy footwork to
 // do semi-automatic schema upgrades.
 export class IndexedDbProvider extends NoSqlProvider.DbProvider {
-    private _db: IDBDatabase;
+    private _db: IDBDatabase|undefined;
     private _test: boolean;
     private _dbFactory: IDBFactory;
     private _fakeComplicatedKeys: boolean;
@@ -136,7 +136,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
                         let nuke = false;
                         const indexSchema = _.find(storeSchema.indexes, idx => idx.name === indexName);
-                        if (!_.isObject(indexSchema)) {
+                        if (!indexSchema || !_.isObject(indexSchema)) {
                             nuke = true;
                         } else if (typeof index.keyPath !== typeof indexSchema.keyPath) {
                             nuke = true;
@@ -215,7 +215,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                     const fakeToken: TransactionToken = {
                         storeNames: [ storeSchema.name ],
                         exclusive: false,
-                        completionPromise: undefined
+                        completionPromise: SyncTasks.Defer<void>().promise()
                     };
                     const iTrans = new IndexedDbTransaction(trans, undefined, fakeToken, schema, this._fakeComplicatedKeys);
                     const tStore = iTrans.getStore(storeSchema.name);
@@ -255,12 +255,20 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
     }
 
     close(): SyncTasks.Promise<void> {
+        if (!this._db) {
+            return SyncTasks.Rejected('Database already closed');
+        }
+
         this._db.close();
         this._db = undefined;
         return SyncTasks.Resolved<void>();
     }
 
     openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
+        if (!this._db) {
+            return SyncTasks.Rejected('Can\'t openTransaction, database is closed');
+        }
+
         let intStoreNames = storeNames;
 
         if (this._fakeComplicatedKeys) {
@@ -278,7 +286,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                 if (storeSchema.indexes) {
                     _.each(storeSchema.indexes, indexSchema => {
                         if (indexSchema.multiEntry || indexSchema.fullText) {
-                            intStoreNames.push(storeSchema.name + '_' + indexSchema.name);
+                            intStoreNames.push(storeSchema!!!.name + '_' + indexSchema.name);
                         }
                     });
                 }
@@ -291,13 +299,13 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         return this._lockHelper.openTransaction(storeNames, writeNeeded).then(transToken => {
             let trans: IDBTransaction;
             const err = _.attempt(() => {
-                trans = this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
+                trans = this._db!!!.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
             });
             if (err) {
                 return SyncTasks.Rejected(err);
             }
 
-            return new IndexedDbTransaction(trans, this._lockHelper, transToken, this._schema, this._fakeComplicatedKeys);
+            return new IndexedDbTransaction(trans!!!, this._lockHelper, transToken, this._schema, this._fakeComplicatedKeys);
         });
     }
 }
@@ -331,7 +339,7 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
         const store = _.find(this._stores, s => s.name === storeName);
         const storeSchema = _.find(this._schema.stores, s => s.name === storeName);
         if (!store || !storeSchema) {
-            return undefined;
+            throw 'Store not found: ' + storeName;
         }
 
         const indexStores: IDBObjectStore[] = [];
@@ -410,7 +418,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         }
 
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
-        return SyncTasks.all(_.map(keys, key =>
+        return SyncTasks.all(_.map(keys!!!, key =>
             IndexedDbProvider.WrapRequest<T>(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))));
     }
 
@@ -431,7 +439,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 
                     _.each(this._schema.indexes, index => {
                         if (index.multiEntry || index.fullText) {
-                            let indexStore = _.find(this._indexStores, store => store.name === this._schema.name + '_' + index.name);
+                            let indexStore = _.find(this._indexStores, store => store.name === this._schema.name + '_' + index.name)!!!;
 
                             let keys: any[];
                             if (index.fullText) {
@@ -527,14 +535,14 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             return SyncTasks.Rejected<void>(err);
         }
 
-        return SyncTasks.all(_.map(keys, key => {
+        return SyncTasks.all(_.map(keys!!!, key => {
             if (this._fakeComplicatedKeys && _.some(this._schema.indexes, index => index.multiEntry || index.fullText)) {
                 // If we're faking keys and there's any multientry indexes, we have to do the way more complicated version...
                 return IndexedDbProvider.WrapRequest<any>(this._store.get(key)).then(item => {
                     if (item) {
                         // Go through each multiEntry index and nuke the referenced items from the sub-stores
-                        let promises = _.map(_.filter(this._schema.indexes, index => index.multiEntry), index => {
-                            let indexStore = _.find(this._indexStores, store => store.name === this._schema.name + '_' + index.name);
+                        let promises = _.map(_.filter(this._schema.indexes, index => !!index.multiEntry), index => {
+                            let indexStore = _.find(this._indexStores, store => store.name === this._schema.name + '_' + index.name)!!!;
 
                             let refKey: string;
                             const err = _.attempt(() => {
@@ -552,7 +560,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                             }
 
                             // First clear out the old values from the index store for the refkey
-                            const cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey));
+                            const cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey!!!));
                             return IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
                                 cursor['delete']();
                             });
@@ -572,20 +580,20 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
     openIndex(indexName: string): NoSqlProvider.DbIndex {
         const indexSchema = _.find(this._schema.indexes, idx => idx.name === indexName);
         if (!indexSchema) {
-            return undefined;
+            throw 'Index not found: ' + indexName;
         }
 
         if (this._fakeComplicatedKeys && (indexSchema.multiEntry || indexSchema.fullText)) {
             const store = _.find(this._indexStores, indexStore => indexStore.name === this._schema.name + '_' + indexSchema.name);
             if (!store) {
-                return undefined;
+                throw 'Indexstore not found: ' + this._schema.name + '_' + indexSchema.name;
             }
             return new IndexedDbIndex(store.index('key'), indexSchema, this._schema.primaryKeyPath, this._fakeComplicatedKeys,
                 this._store);
         } else {
             const index = this._store.index(indexName);
             if (!index) {
-                return undefined;
+                throw 'Index store not found: ' + indexName;
             }
             return new IndexedDbIndex(index, indexSchema, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
         }
@@ -621,7 +629,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             // Get based on the keys from the index store, which have refkeys that point back to the original store
             return IndexedDbIndex.getFromCursorRequest<{ key: string, refkey: any }>(req, limit, offset).then(rets => {
                 // Now get the original items using the refkeys from the index store, which are PKs on the main store
-                const getters = _.map(rets, ret => IndexedDbProvider.WrapRequest<T>(this._fakedOriginalStore.get(ret.refkey)));
+                const getters = _.map(rets, ret => IndexedDbProvider.WrapRequest<T>(this._fakedOriginalStore!!!.get(ret.refkey)));
                 return SyncTasks.all(getters);
             });
         } else {
@@ -630,8 +638,10 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        // Don't change this null to undefined, IE chokes on it...
-        const req = this._store.openCursor(null, reverse ? 'prev' : 'next');
+        // ************************* Don't change this null to undefined, IE chokes on it... *****************************
+        // ************************* Don't change this null to undefined, IE chokes on it... *****************************
+        // ************************* Don't change this null to undefined, IE chokes on it... *****************************
+        const req = this._store.openCursor(null!!!, reverse ? 'prev' : 'next');
         return this._resolveCursorResult<T>(req, limit, offset);
     }
 
