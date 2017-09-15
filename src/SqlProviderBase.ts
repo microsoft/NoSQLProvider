@@ -15,6 +15,9 @@ import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 const schemaVersionKey = 'schemaVersion';
 
+// This was taked from the sqlite documentation
+const SQLITE_MAX_SQL_LENGTH_IN_BYTES = 1000000;
+
 interface IndexMetadata {
     key: string;
     storeName: string;
@@ -728,7 +731,7 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
-        let joinedKeys: string[];
+        let joinedKeys: string[] = [];
         const err = _.attempt(() => {
             joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
         });
@@ -741,17 +744,47 @@ class SqlStore implements NoSqlProvider.DbStore {
             startTime = Date.now();
         }
 
-        // PERF: This is optimizable, but it's of questionable utility
-        const queries = _.map(joinedKeys!!!, joinedKey => {
+        // Partition the parameters
+        var arrayOfParams: Array<Array<String>> = [[]];
+        var totalLength = 0;
+        var totalItems = 0;
+        var partitionIndex = 0;
+        joinedKeys.forEach(joinedKey => {
+
+            // Append the new item to the current partition
+            arrayOfParams[partitionIndex].push(joinedKey);
+
+            // Accumulate the length
+            totalLength += joinedKey.length + 2;
+
+            totalItems++;
+
+            // Make sure we don't exceed the following sqlite limits, if so go to the next partition
+            let didReachSqlStatementLimit = totalLength > (SQLITE_MAX_SQL_LENGTH_IN_BYTES - 200);
+            let didExceedMaxVariableCount = totalItems >= this._trans.internal_getMaxVariables();
+            if (didReachSqlStatementLimit || didExceedMaxVariableCount) {
+                totalLength = 0;
+                totalItems = 0;
+                partitionIndex++;
+                arrayOfParams.push(new Array<String>());
+            }
+        });
+
+        const queries = _.map(arrayOfParams, params => {
             let queries: SyncTasks.Promise<void>[] = [];
+
+            // Generate as many '?' as there are params
+            let sqlPart = Array.apply(null, new Array(params.length)).map(()=> '?').join(',');
+
             _.each(this._schema.indexes, index => {
                 if (indexUsesSeparateTable(index, this._supportsFTS3)) {
                     queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
-                        ' WHERE nsp_refpk = ?', [joinedKey]));
+                        ' WHERE nsp_refpk IN (' + sqlPart + ')', params));
                 }
             });
 
-            queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]));
+            queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name +
+                ' WHERE nsp_pk IN (' + sqlPart + ')', params));
 
             return SyncTasks.all(queries).then(_.noop);
         });
