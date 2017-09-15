@@ -728,7 +728,7 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
-        let joinedKeys: string[];
+        let joinedKeys: string[] = [];
         const err = _.attempt(() => {
             joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
         });
