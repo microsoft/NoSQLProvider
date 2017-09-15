@@ -15,7 +15,7 @@ import SqlProviderBase = require('./SqlProviderBase');
 // is actually a NoSQL store.  We store the raw object as a JSON.encoded string in the nsp_data column, and have an nsp_pk column
 // for the primary keypath value, then nsp_i_[index name] columns for each of the indexes.
 export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
-    private _db: Database;
+    private _db: Database|undefined;
 
     constructor(supportsFTS3 = true) {
         super(supportsFTS3);
@@ -55,7 +55,8 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
 
             let errorDetail: string;
             this._db.changeVersion(this._db.version, this._schema.version.toString(), (t) => {
-                let trans = new WebSqlTransaction(t, undefined, this._schema, this._verbose, 999, this._supportsFTS3);
+                let trans = new WebSqlTransaction(t, SyncTasks.Defer<void>().promise(), this._schema, this._verbose, 999,
+                    this._supportsFTS3);
 
                 this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => {
                     deferred.resolve();
@@ -70,7 +71,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
         } else if (wipeIfExists) {
             // No version change, but wipe anyway
             let errorDetail: string;
-            this.openTransaction(undefined, true).then(trans => {
+            this.openTransaction([], true).then(trans => {
                 this._upgradeDb(trans, oldVersion, true).then(() => {
                     deferred.resolve();
                 }, err => {
@@ -88,18 +89,22 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
     }
 
     close(): SyncTasks.Promise<void> {
-        this._db = null;
+        this._db = undefined;
         return SyncTasks.Resolved<void>();
     }
 
     openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
+        if (!this._db) {
+            return SyncTasks.Rejected('Database closed');
+        }
+
         const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
 
-        let ourTrans: SqlProviderBase.SqliteSqlTransaction = null;
-        let finishDefer = SyncTasks.Defer<void>();
+        let ourTrans: SqlProviderBase.SqliteSqlTransaction|undefined;
+        let finishDefer: SyncTasks.Deferred<void>|undefined = SyncTasks.Defer<void>();
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db,
             (trans: SQLTransaction) => {
-                ourTrans = new WebSqlTransaction(trans, finishDefer.promise(), this._schema, this._verbose, 999, this._supportsFTS3);
+                ourTrans = new WebSqlTransaction(trans, finishDefer!!!.promise(), this._schema, this._verbose, 999, this._supportsFTS3);
                 deferred.resolve(ourTrans);
             }, (err: SQLError) => {
                 if (ourTrans) {
@@ -115,7 +120,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                     deferred.reject(err);
                 }
             }, () => {
-                ourTrans.internal_markTransactionClosed();
+                ourTrans!!!.internal_markTransactionClosed();
                 if (finishDefer) {
                     finishDefer.resolve();
                     finishDefer = undefined;

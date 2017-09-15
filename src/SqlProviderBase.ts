@@ -29,7 +29,7 @@ function getIndexIdentifier(storeSchema: NoSqlProvider.StoreSchema, index: NoSql
 // * Multientry indexes
 // * Full-text indexes that support FTS3
 function indexUsesSeparateTable(indexSchema: NoSqlProvider.IndexSchema, supportsFTS3: boolean): boolean {
-    return indexSchema.multiEntry || (indexSchema.fullText && supportsFTS3);
+    return indexSchema.multiEntry || (!!indexSchema.fullText && supportsFTS3);
 }
 
 const FakeFTSJoinToken = '^$^';
@@ -105,14 +105,14 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
             // Get Index metadatas
             let indexMetadata: IndexMetadata[] = _.chain(fullMeta)
                 .map(meta => {
-                    let metaObj: IndexMetadata;
+                    let metaObj: IndexMetadata|undefined;
                     _.attempt(() => {
                         metaObj = JSON.parse(meta.value);
                     });
                     return metaObj;
                 })
-                .filter(meta => meta && !!meta.storeName)
-                .value();
+                .filter(meta => !!meta && !!meta.storeName)
+                .value() as IndexMetadata[];
             return trans.runQuery('SELECT type, name, tbl_name, sql from sqlite_master', [])
                 .then(rows => {
                     let tableNames: string[] = [];
@@ -315,7 +315,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 // Nuke old indexes on the original table (since they don't change names and we don't need them anymore).
                                 // Also new old multientry/FTS tables (if they still exist after the purge above.)
                                 let indexDroppers: SyncTasks.Promise<any[]>[] = _.map(indexNames[storeSchema.name], indexName =>
-                                    trans.runQuery('DROP INDEX ' + indexName)).concat(_.map(indexTables[storeSchema.name], tableName => 
+                                    trans.runQuery('DROP INDEX ' + indexName)).concat(_.map(indexTables[storeSchema.name], tableName =>
                                     trans.runQuery('DROP TABLE IF EXISTS ' + storeSchema.name + '_' + tableName)));
 
                                 let nukeIndexesAndRename = SyncTasks.all(indexDroppers).then(() => {
@@ -401,7 +401,7 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
         });
     }
 
-    internal_getResultFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T> {
+    internal_getResultFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T|undefined> {
         return this.internal_getResultsFromQuery<T>(sql, parameters)
             .then(rets => rets.length < 1 ? undefined : rets[0]);
     }
@@ -409,7 +409,7 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
     getStore(storeName: string): NoSqlProvider.DbStore {
         const storeSchema = _.find(this._schema.stores, store => store.name === storeName);
         if (!storeSchema) {
-            return undefined;
+            throw 'Store not found: ' + storeName;
         }
 
         return new SqlStore(this, storeSchema, this._requiresUnicodeReplacement(), this._supportsFTS3, this._verbose);
@@ -540,7 +540,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         // Empty
     }
 
-    get<T>(key: any | any[]): SyncTasks.Promise<T> {
+    get<T>(key: any | any[]): SyncTasks.Promise<T|undefined> {
         let joinedKey: string;
         const err = _.attempt(() => {
             joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath);
@@ -554,7 +554,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             startTime = Date.now();
         }
 
-        let promise = this._trans.internal_getResultFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey]);
+        let promise = this._trans.internal_getResultFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk = ?', [joinedKey!!!]);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStore (' + this._schema.name + ') get: (' + (Date.now() - startTime) + 'ms)');
@@ -572,7 +572,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             return SyncTasks.Rejected(err);
         }
 
-        if (joinedKeys.length === 0) {
+        if (joinedKeys!!!.length === 0) {
             return SyncTasks.Resolved<T[]>([]);
         }
 
@@ -581,10 +581,10 @@ class SqlStore implements NoSqlProvider.DbStore {
             startTime = Date.now();
         }
 
-        let qmarks = _.map(joinedKeys, k => '?');
+        const qmarks = _.map(joinedKeys!!!, k => '?');
 
         let promise = this._trans.internal_getResultsFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk IN (' +
-            qmarks.join(',') + ')', joinedKeys);
+            qmarks.join(',') + ')', joinedKeys!!!);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStore (' + this._schema.name + ') getMultiple: (' + (Date.now() - startTime) + 'ms): Count: ' + joinedKeys.length);
@@ -665,7 +665,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             _.each(items, (item, itemIndex) => {
                 let key: string;
                 const err = _.attempt(() => {
-                    key = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
+                    key = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath)!!!;
                 });
                 if (err) {
                     queries.push(SyncTasks.Rejected<void>(err));
@@ -696,7 +696,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                     }
 
                     let valArgs: string[] = [], insertArgs: string[] = [];
-                    _.each(serializedKeys, val => {
+                    _.each(serializedKeys!!!, val => {
                         valArgs.push(index.includeDataInIndex ? '(?, ?, ?)' : '(?, ?)');
                         insertArgs.push(val);
                         insertArgs.push(key);
@@ -801,7 +801,7 @@ class SqlStore implements NoSqlProvider.DbStore {
     openIndex(indexName: string): NoSqlProvider.DbIndex {
         const indexSchema = _.find(this._schema.indexes, index => index.name === indexName);
         if (!indexSchema) {
-            return undefined;
+            throw 'Index not found: ' + indexName;
         }
 
         return new SqlStoreIndex(this._trans, this._schema, indexSchema, this._supportsFTS3, this._verbose);
@@ -830,7 +830,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     private _indexTableName: string;
     private _keyPath: string | string[];
 
-    constructor(protected _trans: SqlTransaction, storeSchema: NoSqlProvider.StoreSchema, indexSchema: NoSqlProvider.IndexSchema,
+    constructor(protected _trans: SqlTransaction, storeSchema: NoSqlProvider.StoreSchema, indexSchema: NoSqlProvider.IndexSchema|undefined,
             private _supportsFTS3: boolean, private _verbose: boolean) {
         if (!indexSchema) {
             // Going against the PK of the store
@@ -863,7 +863,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         }
     }
 
-    private _handleQuery<T>(sql: string, args: any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    private _handleQuery<T>(sql: string, args?: any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
         sql += ' ORDER BY ' + this._queryColumn + (reverse ? ' DESC' : ' ASC');
 
         if (limit) {
@@ -912,7 +912,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             startTime = Date.now();
         }
 
-        let promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?', [joinedKey],
+        let promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?', [joinedKey!!!],
             reverse, limit, offset);
         if (this._verbose) {
             promise = promise.finally(() => {
@@ -940,7 +940,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             startTime = Date.now();
         }
 
-        let promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks, args, reverse, limit, offset);
+        let promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks!!!, args!!!, reverse, limit, offset);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getRange: (' + (Date.now() - startTime) + 'ms)');
@@ -994,7 +994,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         }
 
         let promise = this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn
-            + ' = ?', [joinedKey]).then(result => result[0]['cnt']);
+            + ' = ?', [joinedKey!!!]).then(result => result[0]['cnt']);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countOnly: (' + (Date.now() - startTime) + 'ms)');
@@ -1021,7 +1021,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             startTime = Date.now();
         }
 
-        let promise = this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks, args)
+        let promise = this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + checks!!!, args!!!)
             .then(result => result[0]['cnt']);
         if (this._verbose) {
             promise = promise.finally(() => {

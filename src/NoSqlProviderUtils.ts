@@ -22,7 +22,7 @@ const keypathJoinerString = '%&';
 
 // This function computes a serialized single string value for a keypath on an object.  This is used for generating ordered string keys
 // for compound (or non-compound) values.
-export function getSerializedKeyForKeypath(obj: any, keyPathRaw: string | string[]): string {
+export function getSerializedKeyForKeypath(obj: any, keyPathRaw: string | string[]): string|undefined {
     const values = getKeyForKeypath(obj, keyPathRaw);
     if (values === undefined) {
         return undefined;
@@ -150,5 +150,5 @@ export function formListOfSerializedKeys(keyOrKeys: any | any[], keyPath: string
 
 export function isIE() {
     return (typeof (document) !== 'undefined' && document.all !== null && document.documentMode <= 11) ||
-        (typeof (navigator) !== 'undefined' && navigator.userAgent && navigator.userAgent.indexOf('Edge/') !== -1);
+        (typeof (navigator) !== 'undefined' && !!navigator.userAgent && navigator.userAgent.indexOf('Edge/') !== -1);
 }
