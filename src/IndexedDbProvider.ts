@@ -215,7 +215,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                     const fakeToken: TransactionToken = {
                         storeNames: [ storeSchema.name ],
                         exclusive: false,
-                        completionPromise: undefined
+                        completionPromise: SyncTasks.Defer<void>().promise()
                     };
                     const iTrans = new IndexedDbTransaction(trans, undefined, fakeToken, schema, this._fakeComplicatedKeys);
                     const tStore = iTrans.getStore(storeSchema.name);
