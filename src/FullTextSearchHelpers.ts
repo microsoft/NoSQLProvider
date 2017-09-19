@@ -40,7 +40,8 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
         this._keyPath = this._indexSchema ? this._indexSchema.keyPath : this._primaryKeyPath;
     }
 
-    fullTextSearch<T>(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And, limit?: number)
+    fullTextSearch<T>(searchPhrase: string, 
+        resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And, limit?: number)
             : SyncTasks.Promise<T[]> {
         if (!this._indexSchema || !this._indexSchema.fullText) {
             return SyncTasks.Rejected<T[]>('fullTextSearch performed against non-fullText index!');
@@ -76,7 +77,9 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
 
             if (resolution === NoSqlProvider.FullTextTermResolution.And) {
                 const [first, ...others] = uniquers!!!;
-                const data = _.values(_.pickBy<_.Dictionary<T>, _.Dictionary<T>>(first, (value, key) => _.every(others, set => key in set)));
+                const data = _.values(
+                    _.pickBy<_.Dictionary<T>, _.Dictionary<T>>(first, (value, key) => _.every(others, set => key in set))
+                );
                 if (limit) {
                     return _.take(data, limit);
                 }

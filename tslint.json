@@ -1,6 +1,7 @@
 {
   "rules": {
     "align": [true, "statements"],
+    "ban": [true, "_", {"name": ["_", "chain"]}],
     "class-name": true,
     "curly": true,
     "eofline": true,
@@ -20,7 +21,6 @@
     "no-switch-case-fall-through": true,
     "no-trailing-whitespace": false,
     "no-unused-expression": true,
-    "no-use-before-declare": true,
     "one-line": [true,
         "check-open-brace",
         "check-catch",

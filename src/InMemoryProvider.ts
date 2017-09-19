@@ -1,4 +1,4 @@
-﻿/**
+/**
  * InMemoryProvider.ts
  * Author: David de Regt
  * Copyright: Microsoft 2015
@@ -232,7 +232,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
     openIndex(indexName: string): NoSqlProvider.DbIndex {
         let indexSchema = _.find(this._storeSchema.indexes, idx => idx.name === indexName);
         if (!indexSchema) {
-            throw 'Index not found: ' + indexName;
+            throw new Error('Index not found: ' + indexName);
         }
 
         this._checkDataClone();
@@ -347,7 +347,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
 
     private _returnResultsFromKeys(data: _.Dictionary<any>, sortedKeys: string[], reverse?: boolean, limit?: number, offset?: number) {
         if (reverse) {
-            sortedKeys = _(sortedKeys).reverse().value();
+            sortedKeys = _.reverse(sortedKeys);
         }
 
         if (offset) {
