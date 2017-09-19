@@ -795,7 +795,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStore (' + this._schema.name + ') remove: (' + (Date.now() - startTime) + 'ms): Count: ' + 
-                joinedKeys.length);
+                    joinedKeys.length);
             });
         }
         return promise;
@@ -897,7 +897,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getAll: (' +
-                (Date.now() - startTime) + 'ms)');
+                    (Date.now() - startTime) + 'ms)');
             });
         }
         return promise;
