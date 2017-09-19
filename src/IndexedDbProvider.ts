@@ -1,4 +1,4 @@
-﻿/**
+/**
  * IndexedDbProvider.ts
  * Author: David de Regt
  * Copyright: Microsoft 2015
@@ -339,7 +339,7 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
         const store = _.find(this._stores, s => s.name === storeName);
         const storeSchema = _.find(this._schema.stores, s => s.name === storeName);
         if (!store || !storeSchema) {
-            throw 'Store not found: ' + storeName;
+            throw new Error('Store not found: ' + storeName);
         }
 
         const indexStores: IDBObjectStore[] = [];
@@ -497,7 +497,8 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                 } else {
                     _.each(this._schema.indexes, index => {
                         if (index.fullText) {
-                            item[IndexPrefix + index.name] = FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item);
+                            item[IndexPrefix + index.name] = 
+                                FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item);
                         }
                     });
                 }
@@ -580,20 +581,20 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
     openIndex(indexName: string): NoSqlProvider.DbIndex {
         const indexSchema = _.find(this._schema.indexes, idx => idx.name === indexName);
         if (!indexSchema) {
-            throw 'Index not found: ' + indexName;
+            throw new Error('Index not found: ' + indexName);
         }
 
         if (this._fakeComplicatedKeys && (indexSchema.multiEntry || indexSchema.fullText)) {
             const store = _.find(this._indexStores, indexStore => indexStore.name === this._schema.name + '_' + indexSchema.name);
             if (!store) {
-                throw 'Indexstore not found: ' + this._schema.name + '_' + indexSchema.name;
+                throw new Error('Indexstore not found: ' + this._schema.name + '_' + indexSchema.name);
             }
             return new IndexedDbIndex(store.index('key'), indexSchema, this._schema.primaryKeyPath, this._fakeComplicatedKeys,
                 this._store);
         } else {
             const index = this._store.index(indexName);
             if (!index) {
-                throw 'Index store not found: ' + indexName;
+                throw new Error('Index store not found: ' + indexName);
             }
             return new IndexedDbIndex(index, indexSchema, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
         }
@@ -681,7 +682,8 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _getKeyRangeForRange(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+    private _getKeyRangeForRange(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, 
+                highRangeExclusive?: boolean)
             : IDBKeyRange {
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
             // IE has to switch to hacky pre-joined-compound-keys
@@ -747,7 +749,8 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         return deferred.promise();
     }
 
-    static iterateOverCursorRequest(req: IDBRequest, func: (cursor: IDBCursor) => void, limit?: number, offset?: number): SyncTasks.Promise<void> {
+    static iterateOverCursorRequest(req: IDBRequest, func: (cursor: IDBCursor) => void, limit?: number, offset?: number)
+            : SyncTasks.Promise<void> {
         const deferred = SyncTasks.Defer<void>();
 
         let count = 0;

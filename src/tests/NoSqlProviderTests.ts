@@ -46,7 +46,7 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
     //     var reactNativeSqliteProvider = require('react-native-sqlite-storage');
     //     provider = new CordovaNativeSqliteProvider(reactNativeSqliteProvider);
     } else {
-        throw 'Provider not found for name: ' + providerName;
+        throw new Error('Provider not found for name: ' + providerName);
     }
     const dbName = providerName.indexOf('sqlite3memory') !== -1 ? ':memory:' : 'test';
     return NoSqlProvider.openListOfProviders([provider], dbName, schema, wipeFirst, false);
@@ -67,7 +67,8 @@ describe('NoSqlProvider', function () {
         }
     });
 
-    const provsToTest = typeof window === 'undefined' ? ['sqlite3memory', 'sqlite3memorynofts3', 'sqlite3disk', 'sqlite3disknofts3', 'memory'] :
+    const provsToTest = typeof window === 'undefined' ? 
+        ['sqlite3memory', 'sqlite3memorynofts3', 'sqlite3disk', 'sqlite3disknofts3', 'memory'] :
         (NoSqlProviderUtils.isIE() ? ['indexeddb', 'memory'] : ['indexeddb', 'indexeddbfakekeys', 'websql', 'websqlnofts3', 'memory']);
 
     it('Number/value/type sorting', () => {
@@ -224,7 +225,8 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 1, 'countRange--');
                         });
 
-                        return SyncTasks.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3c, t3d, t3d2, t4, t4count, t5, t5count, t6, t6count]).then(() => {
+                        return SyncTasks.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3c, t3d, t3d2, t4, t4count, t5,
+                                t5count, t6, t6count]).then(() => {
                             if (compound) {
                                 let tt1 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3))
                                     .then(ret => {
@@ -599,10 +601,10 @@ describe('NoSqlProvider', function () {
                             }
                         ]
                     }, true).then(prov => {
-                        return prov.put('test', { id: 'a', id2:'1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
+                        return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
                         // Insert data without multi-entry key defined
-                        .then(() => prov.put('test', { id: 'c', id2:'2', val: 'd', k: [] }))
-                        .then(() => prov.put('test', { id: 'e', id2:'3', val: 'f' }))
+                        .then(() => prov.put('test', { id: 'c', id2: '2', val: 'd', k: [] }))
+                        .then(() => prov.put('test', { id: 'e', id2: '3', val: 'f' }))
                         .then(() => {
                             var g1 = prov.get<any>('test', ['a', '1']).then(ret => {
                                 assert.equal(ret.val, 'b');
@@ -651,7 +653,7 @@ describe('NoSqlProvider', function () {
                             }
                         ]
                     }, true).then(prov => {
-                        return prov.put('test', { id: 'a', id2:'1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
+                        return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
                         .then(() => {
                             return prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
                                 assert.equal(ret.length, 2);
@@ -659,7 +661,7 @@ describe('NoSqlProvider', function () {
                             });
                         })
                         .then(() => {
-                            return prov.put('test', { id: 'a', id2:'1', val: 'b', k: { k: ['z'] } });
+                            return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['z'] } });
                         })
                         .then(() => {
                             return prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
@@ -1731,11 +1733,13 @@ describe('NoSqlProvider', function () {
                             assert.equal(res.length, 2);
                             assert.ok(_.some(res, r => r.id === 'a1') && _.some(res, r => r.id === 'a2'));
                         });
-                        const p19 = prov.fullTextSearch<any>('test', 'i', 'fox nopers', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p19 = prov.fullTextSearch<any>('test', 'i', 'fox nopers', NoSqlProvider.FullTextTermResolution.Or)
+                        .then(res => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p20 = prov.fullTextSearch<any>('test', 'i', 'foxers nopers', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p20 = prov.fullTextSearch<any>('test', 'i', 'foxers nopers', NoSqlProvider.FullTextTermResolution.Or)
+                        .then(res => {
                             assert.equal(res.length, 0);
                         });
                         const p21 = prov.fullTextSearch<any>('test', 'i', 'fox)', NoSqlProvider.FullTextTermResolution.Or).then(res => {
@@ -1744,7 +1748,8 @@ describe('NoSqlProvider', function () {
                         const p22 = prov.fullTextSearch<any>('test', 'i', 'fox*', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 1);
                         });
-                        const p23 = prov.fullTextSearch<any>('test', 'i', 'fox* fox( <fox>', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p23 = prov.fullTextSearch<any>('test', 'i', 'fox* fox( <fox>', NoSqlProvider.FullTextTermResolution.Or)
+                        .then(res => {
                             assert.equal(res.length, 1);
                         });
                         const p24 = prov.fullTextSearch<any>('test', 'i', 'f)ox', NoSqlProvider.FullTextTermResolution.Or).then(res => {
@@ -1760,7 +1765,8 @@ describe('NoSqlProvider', function () {
                             assert.equal(res.length, 0);
                         });
 
-                        return SyncTasks.all([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21, p22, p23, p24, p25, p26, p27]).then(() => {
+                        return SyncTasks.all([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, 
+                                p21, p22, p23, p24, p25, p26, p27]).then(() => {
                             return prov.close();
                         });
                     });

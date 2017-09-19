@@ -6,7 +6,8 @@
   "scripts": {
     "test": "mocha dist/tests/NoSqlProviderTests.js",
     "webtest": "webpack --watch",
-    "build": "tsc"
+    "build": "npm run tslint && tsc",
+    "tslint": "tslint --project tsconfig.json -r tslint.json -r ./node_modules/tslint-microsoft-contrib --fix || true"
   },
   "main": "dist/NoSqlProvider.js",
   "dependencies": {
