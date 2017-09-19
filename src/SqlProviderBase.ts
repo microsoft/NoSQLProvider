@@ -199,17 +199,17 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         });
                         let tableNamesNotNeeded = _.filter(tableNames, name => !_.includes(tableNamesNeeded, name));
                         dropQueries = _.flatten(_.map(tableNamesNotNeeded, name => {
-                                const transList: SyncTasks.Promise<any>[] = [trans.runQuery('DROP TABLE ' + name)];
-                                const metasToDelete = _.filter(indexMetadata, meta => meta.storeName === name);
-                                const metaKeysToDelete = _.map(metasToDelete, meta => meta.key);
+                            const transList: SyncTasks.Promise<any>[] = [trans.runQuery('DROP TABLE ' + name)];
+                            const metasToDelete = _.filter(indexMetadata, meta => meta.storeName === name);
+                            const metaKeysToDelete = _.map(metasToDelete, meta => meta.key);
 
-                                // Clean up metas
-                                if (metasToDelete.length > 0) {
-                                    transList.push(trans.runQuery('DELETE FROM metadata where name in (?)', [metasToDelete.join(', ')]));
-                                    indexMetadata = _.filter(indexMetadata, meta => !_.includes(metaKeysToDelete, meta.key));
-                                }
-                                return transList;
-                            }));
+                            // Clean up metas
+                            if (metasToDelete.length > 0) {
+                                transList.push(trans.runQuery('DELETE FROM metadata where name in (?)', [metasToDelete.join(', ')]));
+                                indexMetadata = _.filter(indexMetadata, meta => !_.includes(metaKeysToDelete, meta.key));
+                            }
+                            return transList;
+                        }));
                         
                         tableNames = _.filter(tableNames, name => _.includes(tableNamesNeeded, name));
                     }
@@ -558,7 +558,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         }
 
         let promise = this._trans.internal_getResultFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + 
-        ' WHERE nsp_pk = ?', [joinedKey!!!]);
+            ' WHERE nsp_pk = ?', [joinedKey!!!]);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStore (' + this._schema.name + ') get: (' + (Date.now() - startTime) + 'ms)');
@@ -592,7 +592,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStore (' + this._schema.name + ') getMultiple: (' + (Date.now() - startTime) + 'ms): Count: ' + 
-                joinedKeys.length);
+                    joinedKeys.length);
             });
         }
         return promise;
@@ -662,7 +662,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             const thisPageCount = Math.min(itemPageSize, items.length - i);
             const qmarksValues = _.fill(new Array(thisPageCount), qmarkString);
             queries.push(this._trans.internal_nonQuery('INSERT OR REPLACE INTO ' + this._schema.name + ' (' + fields.join(',') +
-             ') VALUES (' + qmarksValues.join('),(') + ')', args.splice(0, thisPageCount * fields.length)));
+                ') VALUES (' + qmarksValues.join('),(') + ')', args.splice(0, thisPageCount * fields.length)));
         }
 
         // Also prepare mulltiEntry and FullText indexes
@@ -710,7 +710,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                         }
                     });
                     queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
-                            ' WHERE nsp_refpk = ?', [key])
+                        ' WHERE nsp_refpk = ?', [key])
                     .then(() => {
                         if (valArgs.length > 0) {
                             return this._trans.internal_nonQuery('INSERT INTO ' + this._schema.name + '_' + index.name +
@@ -923,7 +923,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getOnly: (' + 
-                (Date.now() - startTime) + 'ms)');
+                    (Date.now() - startTime) + 'ms)');
             });
         }
         return promise;
@@ -952,7 +952,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getRange: (' + 
-                (Date.now() - startTime) + 'ms)');
+                    (Date.now() - startTime) + 'ms)');
             });
         }
         return promise;
@@ -984,7 +984,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countAll: (' + 
-                (Date.now() - startTime) + 'ms)');
+                    (Date.now() - startTime) + 'ms)');
             });
         }
         return promise;
@@ -1009,7 +1009,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countOnly: (' + 
-                (Date.now() - startTime) + 'ms)');
+                    (Date.now() - startTime) + 'ms)');
             });
         }
         return promise;
@@ -1038,7 +1038,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countOnly: (' + 
-                (Date.now() - startTime) + 'ms)');
+                    (Date.now() - startTime) + 'ms)');
             });
         }
         return promise;
@@ -1085,7 +1085,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') fullTextSearch: (' + 
-                (Date.now() - startTime) + 'ms)');
+                    (Date.now() - startTime) + 'ms)');
             });
         }
         return promise;
