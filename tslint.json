@@ -1,6 +1,7 @@
 {
   "rules": {
     "align": [true, "statements"],
+    "ban": [true, "_", {"name": ["_", "chain"]}],
     "class-name": true,
     "curly": true,
     "eofline": true,

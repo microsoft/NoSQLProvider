@@ -106,16 +106,15 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
         // Get a list of all tables and indexes on the tables
         return this._getMetadata(trans).then(fullMeta => {
             // Get Index metadatas
-            let indexMetadata: IndexMetadata[] = _.chain(fullMeta)
-                .map(meta => {
+            let indexMetadata: IndexMetadata[] = 
+                _.map(fullMeta, meta => {
                     let metaObj: IndexMetadata|undefined;
                     _.attempt(() => {
                         metaObj = JSON.parse(meta.value);
                     });
                     return metaObj;
                 })
-                .filter(meta => !!meta && !!meta.storeName)
-                .value() as IndexMetadata[];
+                .filter(meta => !!meta && !!meta.storeName) as IndexMetadata[];
             return trans.runQuery('SELECT type, name, tbl_name, sql from sqlite_master', [])
                 .then(rows => {
                     let tableNames: string[] = [];
@@ -196,14 +195,12 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 }
                             });
                         });
-                        dropQueries = _.flatten(_.chain(tableNames)
-                            .filter(name => !_.includes(tableNamesNeeded, name))
+                        dropQueries = _.flatten(
+                            _.filter(tableNames, name => !_.includes(tableNamesNeeded, name))
                             .map(name => {
                                 const transList: SyncTasks.Promise<any>[] = [trans.runQuery('DROP TABLE ' + name)];
-                                const metasToDelete = _.chain(indexMetadata)
-                                    .filter(meta => meta.storeName === name)
-                                    .map(meta => meta.key)
-                                    .value();
+                                const metasToDelete = _.filter(indexMetadata, meta => meta.storeName === name)
+                                    .map(meta => meta.key);
 
                                 // Clean up metas
                                 if (metasToDelete.length > 0) {
@@ -211,8 +208,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     indexMetadata = _.filter(indexMetadata, meta => !_.includes(metasToDelete, meta.key));
                                 }
                                 return transList;
-                            })
-                            .value());
+                            }));
 
                         tableNames = _.filter(tableNames, name => _.includes(tableNamesNeeded, name));
                     }
@@ -812,8 +808,8 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     clearAllData(): SyncTasks.Promise<void> {
-        let queries = _.chain(this._schema.indexes).filter(index => indexUsesSeparateTable(index, this._supportsFTS3)).map(index =>
-            this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name)).value();
+        let queries = _.filter(this._schema.indexes, index => indexUsesSeparateTable(index, this._supportsFTS3)).map(index =>
+            this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name));
 
         queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name));
 

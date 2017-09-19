@@ -347,7 +347,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
 
     private _returnResultsFromKeys(data: _.Dictionary<any>, sortedKeys: string[], reverse?: boolean, limit?: number, offset?: number) {
         if (reverse) {
-            sortedKeys = _(sortedKeys).reverse().value();
+            sortedKeys = _.reverse(sortedKeys);
         }
 
         if (offset) {
