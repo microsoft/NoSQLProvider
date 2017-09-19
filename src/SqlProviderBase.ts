@@ -197,21 +197,20 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 }
                             });
                         });
-                        dropQueries = _.flatten(
-                            _.filter(tableNames, name => !_.includes(tableNamesNeeded, name))
-                            .map(name => {
+                        let tableNamesNotNeeded = _.filter(tableNames, name => !_.includes(tableNamesNeeded, name));
+                        dropQueries = _.flatten(_.map(tableNamesNotNeeded, name => {
                                 const transList: SyncTasks.Promise<any>[] = [trans.runQuery('DROP TABLE ' + name)];
-                                const metasToDelete = _.filter(indexMetadata, meta => meta.storeName === name)
-                                    .map(meta => meta.key);
+                                const metasToDelete = _.filter(indexMetadata, meta => meta.storeName === name);
+                                const metaKeysToDelete = _.map(metasToDelete, meta => meta.key);
 
                                 // Clean up metas
                                 if (metasToDelete.length > 0) {
                                     transList.push(trans.runQuery('DELETE FROM metadata where name in (?)', [metasToDelete.join(', ')]));
-                                    indexMetadata = _.filter(indexMetadata, meta => !_.includes(metasToDelete, meta.key));
+                                    indexMetadata = _.filter(indexMetadata, meta => !_.includes(metaKeysToDelete, meta.key));
                                 }
                                 return transList;
                             }));
-
+                        
                         tableNames = _.filter(tableNames, name => _.includes(tableNamesNeeded, name));
                     }
 
@@ -816,7 +815,8 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     clearAllData(): SyncTasks.Promise<void> {
-        let queries = _.filter(this._schema.indexes, index => indexUsesSeparateTable(index, this._supportsFTS3)).map(index =>
+        let indexes = _.filter(this._schema.indexes, index => indexUsesSeparateTable(index, this._supportsFTS3));
+        let queries = _.map(indexes, index =>
             this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name));
 
         queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name));
