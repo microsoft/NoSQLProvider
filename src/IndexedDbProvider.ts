@@ -419,7 +419,8 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
         return SyncTasks.all(_.map(keys!!!, key =>
-            IndexedDbProvider.WrapRequest<T>(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))));
+            IndexedDbProvider.WrapRequest<T>(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))))
+            .then(_.compact);
     }
 
     put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
@@ -497,7 +498,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                 } else {
                     _.each(this._schema.indexes, index => {
                         if (index.fullText) {
-                            item[IndexPrefix + index.name] = 
+                            item[IndexPrefix + index.name] =
                                 FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item);
                         }
                     });
@@ -682,7 +683,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _getKeyRangeForRange(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, 
+    private _getKeyRangeForRange(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean,
                 highRangeExclusive?: boolean)
             : IDBKeyRange {
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
