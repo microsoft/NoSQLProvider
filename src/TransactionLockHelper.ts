@@ -27,6 +27,7 @@ export interface TransactionToken {
 
 interface TransactionTokenInternal extends TransactionToken {
     completionDefer: SyncTasks.Deferred<void>|undefined;
+    hadSuccess?: boolean;
 }
 
 class TransactionLockHelper {
@@ -92,11 +93,14 @@ class TransactionLockHelper {
     transactionComplete(token: TransactionToken) {
         const tokenInt = token as TransactionTokenInternal;
         if (tokenInt.completionDefer) {
+            tokenInt.hadSuccess = true;
+
             const toResolve = tokenInt.completionDefer;
             tokenInt.completionDefer = undefined;
             toResolve.resolve();
         } else {
-            throw new Error('Completing a transaction that has already been completed');
+            throw new Error('Completing a transaction that has already been completed. Stores: ' + token.storeNames.join(',') +
+                ', HadSuccess: ' + tokenInt.hadSuccess);
         }
 
         this._cleanTransaction(token);
@@ -105,11 +109,14 @@ class TransactionLockHelper {
     transactionFailed(token: TransactionToken, message: string) {
         const tokenInt = token as TransactionTokenInternal;
         if (tokenInt.completionDefer) {
+            tokenInt.hadSuccess = false;
+
             const toResolve = tokenInt.completionDefer;
             tokenInt.completionDefer = undefined;
             toResolve.reject(new Error(message));
         } else {
-            throw new Error('Failing a transaction that has already been completed');
+            throw new Error('Failing a transaction that has already been completed. Stores: ' + token.storeNames.join(',') +
+                ', HadSuccess: ' + tokenInt.hadSuccess + ', Message: ' + message);
         }
 
         this._cleanTransaction(token);

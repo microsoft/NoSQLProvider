@@ -13,7 +13,6 @@
         "noImplicitThis": true,
         "noUnusedLocals": true,
         "forceConsistentCasingInFileNames": true,
-        
         "strictNullChecks": true
     },
 
