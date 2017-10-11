@@ -11,6 +11,7 @@ import SyncTasks = require('synctasks');
 
 import FullTextSearchHelpers = require('./FullTextSearchHelpers');
 import NoSqlProvider = require('./NoSqlProvider');
+import { ItemType, KeyPathType, KeyType } from './NoSqlProvider';
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
 
@@ -390,7 +391,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         // NOP
     }
 
-    get<T>(key: any | any[]): SyncTasks.Promise<T> {
+    get(key: KeyType): SyncTasks.Promise<ItemType|undefined> {
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._schema.primaryKeyPath)) {
             const err = _.attempt(() => {
                 key = NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath);
@@ -400,11 +401,11 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             }
         }
 
-        return IndexedDbProvider.WrapRequest<T>(this._store.get(key))
+        return IndexedDbProvider.WrapRequest(this._store.get(key))
             .then(val => removeFullTextMetadataAndReturn(this._schema, val));
     }
 
-    getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
+    getMultiple(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]> {
         let keys: any[];
         const err = _.attempt(() => {
             keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
@@ -419,11 +420,11 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
         return SyncTasks.all(_.map(keys!!!, key =>
-            IndexedDbProvider.WrapRequest<T>(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))))
+            IndexedDbProvider.WrapRequest(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))))
             .then(_.compact);
     }
 
-    put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
+    put(itemOrItems: ItemType|ItemType[]): SyncTasks.Promise<void> {
         let items = NoSqlProviderUtils.arrayify(itemOrItems);
 
         let promises: SyncTasks.Promise<void>[] = [];
@@ -431,11 +432,13 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         const err = _.attempt(() => {
             _.each(items, item => {
                 let errToReport: any;
+                let fakedPk = false;
 
                 if (this._fakeComplicatedKeys) {
                     // Fill out any compound-key indexes
                     if (NoSqlProviderUtils.isCompoundKeyPath(this._schema.primaryKeyPath)) {
-                        item['nsp_pk'] = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
+                        fakedPk = true;
+                        (item as any)['nsp_pk'] = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
                     }
 
                     _.each(this._schema.indexes, index => {
@@ -491,14 +494,14 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                                     return SyncTasks.all(iputters);
                                 }).then(_.noop));
                         } else if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
-                            item[IndexPrefix + index.name] = NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath);
+                            (item as any)[IndexPrefix + index.name] = NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath);
                         }
                         return true;
                     });
                 } else {
                     _.each(this._schema.indexes, index => {
                         if (index.fullText) {
-                            item[IndexPrefix + index.name] =
+                            (item as any)[IndexPrefix + index.name] =
                                 FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item);
                         }
                     });
@@ -507,6 +510,13 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                 if (!errToReport) {
                     errToReport = _.attempt(() => {
                         const req = this._store.put(item);
+
+                        if (fakedPk) {
+                            // If we faked the PK and mutated the incoming object, we can nuke that on the way out.  IndexedDB clones the
+                            // object synchronously for the put call, so it's already been captured with the nsp_pk field intact.
+                            delete (item as any)['nsp_pk'];
+                        }
+                        
                         promises.push(IndexedDbProvider.WrapRequest<void>(req));
                     });
                 }
@@ -524,7 +534,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         return SyncTasks.all(promises).then(_.noop);
     }
 
-    remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
+    remove(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<void> {
         let keys: any[];
         const err = _.attempt(() => {
             keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
@@ -546,16 +556,16 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                         let promises = _.map(_.filter(this._schema.indexes, index => !!index.multiEntry), index => {
                             let indexStore = _.find(this._indexStores, store => store.name === this._schema.name + '_' + index.name)!!!;
 
-                            let refKey: string;
+                            let refKey: KeyType;
                             const err = _.attempt(() => {
 
                                 // We need to reference the PK of the actual row we're using here, so calculate the actual PK -- if it's
                                 // compound, we're already faking complicated keys, so we know to serialize it to a string.  If not, use the
                                 // raw value.
-                                refKey = NoSqlProviderUtils.getKeyForKeypath(item, this._schema.primaryKeyPath);
-                                if (_.isArray(this._schema.primaryKeyPath)) {
-                                    refKey = NoSqlProviderUtils.serializeKeyToString(refKey, this._schema.primaryKeyPath);
-                                }
+                                const tempRefKey = NoSqlProviderUtils.getKeyForKeypath(item, this._schema.primaryKeyPath)!!!;
+                                refKey = _.isArray(this._schema.primaryKeyPath) ? 
+                                    NoSqlProviderUtils.serializeKeyToString(tempRefKey, this._schema.primaryKeyPath) :
+                                    tempRefKey;
                             });
                             if (err) {
                                 return SyncTasks.Rejected<void>(err);
@@ -622,32 +632,32 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 // result APIs to get their result list.  Also added ability to use an "index" for opening the primary key on a store.
 class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     constructor(private _store: IDBIndex | IDBObjectStore, indexSchema: NoSqlProvider.IndexSchema|undefined,
-            primaryKeyPath: string | string[], private _fakeComplicatedKeys: boolean, private _fakedOriginalStore?: IDBObjectStore) {
+            primaryKeyPath: KeyPathType, private _fakeComplicatedKeys: boolean, private _fakedOriginalStore?: IDBObjectStore) {
         super(indexSchema, primaryKeyPath);
     }
 
-    private _resolveCursorResult<T>(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    private _resolveCursorResult(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         if (this._fakeComplicatedKeys && this._fakedOriginalStore) {
             // Get based on the keys from the index store, which have refkeys that point back to the original store
             return IndexedDbIndex.getFromCursorRequest<{ key: string, refkey: any }>(req, limit, offset).then(rets => {
                 // Now get the original items using the refkeys from the index store, which are PKs on the main store
-                const getters = _.map(rets, ret => IndexedDbProvider.WrapRequest<T>(this._fakedOriginalStore!!!.get(ret.refkey)));
+                const getters = _.map(rets, ret => IndexedDbProvider.WrapRequest(this._fakedOriginalStore!!!.get(ret.refkey)));
                 return SyncTasks.all(getters);
             });
         } else {
-            return IndexedDbIndex.getFromCursorRequest<T>(req, limit, offset);
+            return IndexedDbIndex.getFromCursorRequest(req, limit, offset);
         }
     }
 
-    getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         const req = this._store.openCursor(null!!!, reverse ? 'prev' : 'next');
-        return this._resolveCursorResult<T>(req, limit, offset);
+        return this._resolveCursorResult(req, limit, offset);
     }
 
-    getOnly<T>(key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         let keyRange: any;
         const err = _.attempt(() => {
             keyRange = this._getKeyRangeForOnly(key);
@@ -657,19 +667,19 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         }
 
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
-        return this._resolveCursorResult<T>(req, limit, offset);
+        return this._resolveCursorResult(req, limit, offset);
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _getKeyRangeForOnly(key: any|any[]): IDBKeyRange {
+    private _getKeyRangeForOnly(key: KeyType): IDBKeyRange {
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
             return IDBKeyRange.only(NoSqlProviderUtils.serializeKeyToString(key, this._keyPath));
         }
         return IDBKeyRange.only(key);
     }
 
-    getRange<T>(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
+            reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         let keyRange: any;
         const err = _.attempt(() => {
             keyRange = this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
@@ -679,11 +689,11 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         }
 
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
-        return this._resolveCursorResult<T>(req, limit, offset);
+        return this._resolveCursorResult(req, limit, offset);
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _getKeyRangeForRange(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean,
+    private _getKeyRangeForRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean,
                 highRangeExclusive?: boolean)
             : IDBKeyRange {
         if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._keyPath)) {
@@ -700,7 +710,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         return this._countRequest(req);
     }
 
-    countOnly(key: any|any[]): SyncTasks.Promise<number> {
+    countOnly(key: KeyType): SyncTasks.Promise<number> {
         let keyRange: any;
         const err = _.attempt(() => {
             keyRange = this._getKeyRangeForOnly(key);
@@ -713,7 +723,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         return this._countRequest(req);
     }
 
-    countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+    countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
             : SyncTasks.Promise<number> {
         let keyRange: any;
         const err = _.attempt(() => {
@@ -728,7 +738,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     static getFromCursorRequest<T>(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
-        let outList: any[] = [];
+        let outList: T[] = [];
         return this.iterateOverCursorRequest(req, cursor => {
             // Typings on cursor are wrong...
             outList.push((cursor as any).value);

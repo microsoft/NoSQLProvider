@@ -11,6 +11,7 @@ import SyncTasks = require('synctasks');
 
 import FullTextSearchHelpers = require('./FullTextSearchHelpers');
 import NoSqlProvider = require('./NoSqlProvider');
+import { ItemType } from './NoSqlProvider';
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 const schemaVersionKey = 'schemaVersion';
@@ -543,7 +544,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         // Empty
     }
 
-    get<T>(key: any | any[]): SyncTasks.Promise<T|undefined> {
+    get(key: KeyType): SyncTasks.Promise<ItemType|undefined> {
         let joinedKey: string;
         const err = _.attempt(() => {
             joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath);
@@ -557,7 +558,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             startTime = Date.now();
         }
 
-        let promise = this._trans.internal_getResultFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + 
+        let promise = this._trans.internal_getResultFromQuery('SELECT nsp_data FROM ' + this._schema.name + 
             ' WHERE nsp_pk = ?', [joinedKey!!!]);
         if (this._verbose) {
             promise = promise.finally(() => {
@@ -567,7 +568,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         return promise;
     }
 
-    getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
+    getMultiple(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]> {
         let joinedKeys: string[];
         const err = _.attempt(() => {
             joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
@@ -577,7 +578,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         }
 
         if (joinedKeys!!!.length === 0) {
-            return SyncTasks.Resolved<T[]>([]);
+            return SyncTasks.Resolved([]);
         }
 
         let startTime: number;
@@ -587,7 +588,7 @@ class SqlStore implements NoSqlProvider.DbStore {
 
         const qmarks = _.map(joinedKeys!!!, k => '?');
 
-        let promise = this._trans.internal_getResultsFromQuery<T>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk IN (' +
+        let promise = this._trans.internal_getResultsFromQuery('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk IN (' +
             qmarks.join(',') + ')', joinedKeys!!!);
         if (this._verbose) {
             promise = promise.finally(() => {
@@ -600,7 +601,7 @@ class SqlStore implements NoSqlProvider.DbStore {
 
     private static _unicodeFixer = new RegExp('[\u2028\u2029]', 'g');
 
-    put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
+    put(itemOrItems: ItemType|ItemType[]): SyncTasks.Promise<void> {
         let items = NoSqlProviderUtils.arrayify(itemOrItems);
 
         if (items.length === 0) {
@@ -732,7 +733,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         return promise.then(_.noop);
     }
 
-    remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
+    remove(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<void> {
         let joinedKeys: string[] = [];
         const err = _.attempt(() => {
             joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
@@ -867,7 +868,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         }
     }
 
-    private _handleQuery<T>(sql: string, args?: any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    private _handleQuery(sql: string, args?: any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         sql += ' ORDER BY ' + this._queryColumn + (reverse ? ' DESC' : ' ASC');
 
         if (limit) {
@@ -884,16 +885,16 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             sql += ' OFFSET ' + offset.toString();
         }
 
-        return this._trans.internal_getResultsFromQuery<T>(sql, args);
+        return this._trans.internal_getResultsFromQuery(sql, args);
     }
 
-    getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         let startTime: number;
         if (this._verbose) {
             startTime = Date.now();
         }
 
-        let promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName, undefined, reverse, limit, offset);
+        let promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName, undefined, reverse, limit, offset);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getAll: (' +
@@ -903,7 +904,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         return promise;
     }
 
-    getOnly<T>(key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         let joinedKey: string;
         const err = _.attempt(() => {
             joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
@@ -917,7 +918,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             startTime = Date.now();
         }
 
-        let promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?',
+        let promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?',
             [joinedKey!!!],
             reverse, limit, offset);
         if (this._verbose) {
@@ -929,8 +930,8 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         return promise;
     }
 
-    getRange<T>(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
+            reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         let checks: string;
         let args: string[];
         const err = _.attempt(() => {
@@ -947,8 +948,8 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             startTime = Date.now();
         }
 
-        let promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks!!!, args!!!,
-        reverse, limit, offset);
+        let promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks!!!, args!!!,
+            reverse, limit, offset);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getRange: (' + 
@@ -959,7 +960,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _getRangeChecks(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, 
+    private _getRangeChecks(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, 
             highRangeExclusive?: boolean) {
         let checks: string[] = [];
         let args: string[] = [];
@@ -990,7 +991,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         return promise;
     }
 
-    countOnly(key: any|any[]): SyncTasks.Promise<number> {
+    countOnly(key: KeyType): SyncTasks.Promise<number> {
         let joinedKey: string;
         const err = _.attempt(() => {
             joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
@@ -1015,7 +1016,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         return promise;
     }
 
-    countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+    countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
             : SyncTasks.Promise<number> {
         let checks: string;
         let args: string[];
@@ -1044,8 +1045,8 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         return promise;
     }
 
-    fullTextSearch<T>(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And, 
-            limit?: number): SyncTasks.Promise<T[]> {
+    fullTextSearch(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And, 
+            limit?: number): SyncTasks.Promise<ItemType[]> {
         let startTime: number;
         if (this._verbose) {
             startTime = Date.now();
@@ -1053,10 +1054,10 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
 
         const terms = FullTextSearchHelpers.breakAndNormalizeSearchPhrase(searchPhrase);
 
-        let promise: SyncTasks.Promise<T[]>;
+        let promise: SyncTasks.Promise<ItemType[]>;
         if (this._supportsFTS3) {
             if (resolution === NoSqlProvider.FullTextTermResolution.And) {
-                promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' MATCH ?',
+                promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' MATCH ?',
                     [_.map(terms, term => term + '*').join(' ')], false, limit);
             } else if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
                 // SQLite FTS3 doesn't support OR queries so we have to hack it...
@@ -1064,9 +1065,9 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
                 const joinedQuery = 'SELECT * FROM (SELECT DISTINCT * FROM (' + baseQueries.join(' UNION ALL ') + ')) mi LEFT JOIN ' +
                     this._rawTableName + ' t ON mi.nsp_refpk = t.nsp_pk';
                 const args = _.map(terms, term => term + '*');
-                promise = this._handleQuery<T>(joinedQuery, args, false, limit);
+                promise = this._handleQuery(joinedQuery, args, false, limit);
             } else {
-                return SyncTasks.Rejected<T[]>('fullTextSearch called with invalid term resolution mode');
+                return SyncTasks.Rejected('fullTextSearch called with invalid term resolution mode');
             }
         } else {
             let joinTerm: string;
@@ -1075,10 +1076,10 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             } else if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
                 joinTerm = ' OR ';
             } else {
-                return SyncTasks.Rejected<T[]>('fullTextSearch called with invalid term resolution mode');
+                return SyncTasks.Rejected('fullTextSearch called with invalid term resolution mode');
             }
 
-            promise = this._handleQuery<T>('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' +
+            promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' +
                 _.map(terms, term => this._queryColumn + ' LIKE ?').join(joinTerm),
                 _.map(terms, term => '%' + FakeFTSJoinToken + term + '%'));
         }

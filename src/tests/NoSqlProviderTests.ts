@@ -3,6 +3,7 @@ import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('../NoSqlProvider');
+import { KeyComponentType } from '../NoSqlProvider';
 
 // import { CordovaNativeSqliteProvider } from '../CordovaNativeSqliteProvider';
 import { InMemoryProvider } from '../InMemoryProvider';
@@ -15,6 +16,8 @@ import NoSqlProviderUtils = require('../NoSqlProviderUtils');
 SyncTasks.config.catchExceptions = false;
 
 let cleanupFile = false;
+
+type TestObj = { id?: string, val: string };
 
 function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipeFirst: boolean) {
     let provider: NoSqlProvider.DbProvider;
@@ -103,7 +106,7 @@ describe('NoSqlProvider', function () {
         });
 
         try {
-            NoSqlProviderUtils.serializeValueToOrderableString([4, 5]);
+            NoSqlProviderUtils.serializeValueToOrderableString([4, 5] as any as KeyComponentType);
             assert(false, 'Should reject this key');
         } catch (e) {
             // Should throw -- expecting this result.
@@ -116,9 +119,9 @@ describe('NoSqlProvider', function () {
                 // Setter should set the testable parameter on the first param to the value in the second param, and third param to the
                 // second index column for compound indexes.
                 var tester = (prov: NoSqlProvider.DbProvider, indexName: string|undefined, compound: boolean,
-                    setter: (obj: any, indexval1: string, indexval2: string) => void) => {
+                        setter: (obj: any, indexval1: string, indexval2: string) => void) => {
                     var putters = [1, 2, 3, 4, 5].map(v => {
-                        var obj: any = { val: 'val' + v };
+                        var obj: TestObj = { val: 'val' + v };
                         if (indexName) {
                             obj.id = 'id' + v;
                         }
@@ -135,7 +138,7 @@ describe('NoSqlProvider', function () {
                             }
                         };
 
-                        let t1 = prov.getAll<any>('test', indexName).then(ret => {
+                        let t1 = prov.getAll('test', indexName).then((ret: TestObj[]) => {
                             assert.equal(ret.length, 5, 'getAll');
                             [1, 2, 3, 4, 5].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
@@ -144,17 +147,17 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 5, 'countAll');
                         });
 
-                        let t1b = prov.getAll<any>('test', indexName, false, 3).then(ret => {
+                        let t1b = prov.getAll('test', indexName, false, 3).then((ret: TestObj[]) => {
                             assert.equal(ret.length, 3, 'getAll lim3');
                             [1, 2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
-                        let t1c = prov.getAll<any>('test', indexName, false, 3, 1).then(ret => {
+                        let t1c = prov.getAll('test', indexName, false, 3, 1).then((ret: TestObj[]) => {
                             assert.equal(ret.length, 3, 'getAll lim3 off1');
                             [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
-                        let t2 = prov.getOnly<any>('test', indexName, formIndex(3)).then(ret => {
+                        let t2 = prov.getOnly('test', indexName, formIndex(3)).then((ret: TestObj[]) => {
                             assert.equal(ret.length, 1, 'getOnly');
                             assert.equal(ret[0].val, 'val3');
                         });
@@ -163,7 +166,7 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 1, 'countOnly');
                         });
 
-                        let t3 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4)).then(ret => {
+                        let t3 = prov.getRange('test', indexName, formIndex(2), formIndex(4)).then((ret: TestObj[]) => {
                             assert.equal(ret.length, 3, 'getRange++');
                             [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
@@ -172,33 +175,38 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 3, 'countRange++');
                         });
 
-                        let t3b = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 1).then(ret => {
+                        let t3b = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1)
+                            .then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 1, 'getRange++ lim1');
                                 [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3b2 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, true, 1).then(ret => {
+                        let t3b2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 1)
+                            .then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 1, 'getRange++ lim1 rev');
                                 [4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3c = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 1, 1).then(ret => {
+                        let t3c = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1, 1)
+                            .then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 1, 'getRange++ lim1 off1');
                                 [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3d = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, false, 2, 1).then(ret => {
+                        let t3d = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 2, 1)
+                            .then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1');
                                 [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3d2 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1).then(ret => {
+                        let t3d2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1)
+                            .then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
                                 assert.equal(ret[0].val, 'val3');
                                 [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t4 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), true, false).then(ret => {
+                        let t4 = prov.getRange('test', indexName, formIndex(2), formIndex(4), true, false).then((ret: TestObj[]) => {
                             assert.equal(ret.length, 2, 'getRange-+');
                             [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
@@ -207,7 +215,7 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 2, 'countRange-+');
                         });
 
-                        let t5 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), false, true).then(ret => {
+                        let t5 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, true).then((ret: TestObj[]) => {
                             assert.equal(ret.length, 2, 'getRange+-');
                             [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
@@ -216,7 +224,7 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 2, 'countRange+-');
                         });
 
-                        let t6 = prov.getRange<any>('test', indexName, formIndex(2), formIndex(4), true, true).then(ret => {
+                        let t6 = prov.getRange('test', indexName, formIndex(2), formIndex(4), true, true).then((ret: TestObj[]) => {
                             assert.equal(ret.length, 1, 'getRange--');
                             [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
@@ -228,8 +236,8 @@ describe('NoSqlProvider', function () {
                         return SyncTasks.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3c, t3d, t3d2, t4, t4count, t5,
                                 t5count, t6, t6count]).then(() => {
                             if (compound) {
-                                let tt1 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3))
-                                    .then(ret => {
+                                let tt1 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
+                                    .then((ret: TestObj[]) => {
                                         assert.equal(ret.length, 2, 'getRange2++');
                                         [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
@@ -239,8 +247,8 @@ describe('NoSqlProvider', function () {
                                         assert.equal(ret, 2, 'countRange2++');
                                     });
 
-                                let tt2 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
-                                    .then(ret => {
+                                let tt2 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
+                                    .then((ret: TestObj[]) => {
                                         assert.equal(ret.length, 2, 'getRange2+-');
                                         [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
@@ -250,8 +258,8 @@ describe('NoSqlProvider', function () {
                                         assert.equal(ret, 2, 'countRange2+-');
                                     });
 
-                                let tt3 = prov.getRange<any>('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
-                                    .then(ret => {
+                                let tt3 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
+                                    .then((ret: TestObj[]) => {
                                         assert.equal(ret.length, 1, 'getRange2-+');
                                         [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
@@ -282,10 +290,10 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return prov.put('test', { id: 'a', val: 'b' }).then(() => {
-                            return prov.get<any>('test', 'a').then(ret => {
+                            return prov.get('test', 'a').then((ret: TestObj) => {
                                 assert.equal(ret.val, 'b');
 
-                                return prov.getAll<any>('test', undefined).then(ret2 => {
+                                return prov.getAll('test', undefined).then((ret2: TestObj[]) => {
                                     assert.equal(ret2.length, 1);
                                     assert.equal(ret2[0].val, 'b');
 
@@ -310,7 +318,7 @@ describe('NoSqlProvider', function () {
                             return prov.getAll('test', undefined).then(rets => {
                                 assert(!!rets);
                                 assert.equal(rets.length, 0);
-                                return prov.getMultiple<any>('test', []).then(rets => {
+                                return prov.getMultiple('test', []).then(rets => {
                                     assert(!!rets);
                                     assert.equal(rets.length, 0);
                                     return prov.close();
@@ -359,7 +367,7 @@ describe('NoSqlProvider', function () {
                                         assert(!!rets);
                                         assert.equal(rets.length, 4);
                                         return prov.remove('test', ['a3', 'a4', 'a2']).then(() => {
-                                            return prov.getAll<any>('test', undefined).then(rets => {
+                                            return prov.getAll('test', undefined).then((rets: TestObj[]) => {
                                                 assert(!!rets);
                                                 assert.equal(rets.length, 1);
                                                 assert.equal(rets[0].id, 'a5');
@@ -521,26 +529,26 @@ describe('NoSqlProvider', function () {
                             .then(() => prov.put('test', { id: 'c', val: 'd', k: [] }))
                             .then(() => prov.put('test', { id: 'e', val: 'f' }))
                             .then(() => {
-                                var g1 = prov.get<any>('test', 'a').then(ret => {
+                                var g1 = prov.get('test', 'a').then((ret: TestObj) => {
                                     assert.equal(ret.val, 'b');
                                 });
-                                var g2 = prov.getAll<any>('test', 'key').then(ret => {
+                                var g2 = prov.getAll('test', 'key').then((ret: TestObj[]) => {
                                     assert.equal(ret.length, 4);
                                     ret.forEach(r => { assert.equal(r.val, 'b'); });
                                 });
-                                var g2b = prov.getAll<any>('test', 'key', false, 2).then(ret => {
+                                var g2b = prov.getAll('test', 'key', false, 2).then((ret: TestObj[]) => {
                                     assert.equal(ret.length, 2);
                                     ret.forEach(r => { assert.equal(r.val, 'b'); });
                                 });
-                                var g2c = prov.getAll<any>('test', 'key', false, 2, 1).then(ret => {
+                                var g2c = prov.getAll('test', 'key', false, 2, 1).then((ret: TestObj[]) => {
                                     assert.equal(ret.length, 2);
                                     ret.forEach(r => { assert.equal(r.val, 'b'); });
                                 });
-                                var g3 = prov.getOnly<any>('test', 'key', 'x').then(ret => {
+                                var g3 = prov.getOnly('test', 'key', 'x').then((ret: TestObj[]) => {
                                     assert.equal(ret.length, 1);
                                     assert.equal(ret[0].val, 'b');
                                 });
-                                var g4 = prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                                var g4 = prov.getRange('test', 'key', 'x', 'y', false, false).then((ret: TestObj[]) => {
                                     assert.equal(ret.length, 2);
                                     ret.forEach(r => { assert.equal(r.val, 'b'); });
                                 });
@@ -571,7 +579,7 @@ describe('NoSqlProvider', function () {
                     }, true).then(prov => {
                         return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
                         .then(() => {
-                            return prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                            return prov.getRange('test', 'key', 'x', 'y', false, false).then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
@@ -580,12 +588,12 @@ describe('NoSqlProvider', function () {
                             return prov.put('test', { id: 'a', val: 'b', k: { k: ['z'] } });
                         })
                         .then(() => {
-                            return prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                            return prov.getRange('test', 'key', 'x', 'y', false, false).then(ret => {
                                 assert.equal(ret.length, 0);
                             });
                         })
                         .then(() => {
-                            return prov.getRange<any>('test', 'key', 'x', 'z', false, false).then(ret => {
+                            return prov.getRange('test', 'key', 'x', 'z', false, false).then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 1);
                                 assert.equal(ret[0].val, 'b');
                             });
@@ -594,7 +602,7 @@ describe('NoSqlProvider', function () {
                             return prov.remove('test', 'a');
                         })
                         .then(() => {
-                            return prov.getRange<any>('test', 'key', 'x', 'z', false, false).then(ret => {
+                            return prov.getRange('test', 'key', 'x', 'z', false, false).then(ret => {
                                 assert.equal(ret.length, 0);
                             });
                         })
@@ -626,26 +634,26 @@ describe('NoSqlProvider', function () {
                         .then(() => prov.put('test', { id: 'c', id2: '2', val: 'd', k: [] }))
                         .then(() => prov.put('test', { id: 'e', id2: '3', val: 'f' }))
                         .then(() => {
-                            var g1 = prov.get<any>('test', ['a', '1']).then(ret => {
+                            var g1 = prov.get('test', ['a', '1']).then((ret: TestObj) => {
                                 assert.equal(ret.val, 'b');
                             });
-                            var g2 = prov.getAll<any>('test', 'key').then(ret => {
+                            var g2 = prov.getAll('test', 'key').then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 4);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
-                            var g2b = prov.getAll<any>('test', 'key', false, 2).then(ret => {
+                            var g2b = prov.getAll('test', 'key', false, 2).then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
-                            var g2c = prov.getAll<any>('test', 'key', false, 2, 1).then(ret => {
+                            var g2c = prov.getAll('test', 'key', false, 2, 1).then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
-                            var g3 = prov.getOnly<any>('test', 'key', 'x').then(ret => {
+                            var g3 = prov.getOnly('test', 'key', 'x').then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 1);
                                 assert.equal(ret[0].val, 'b');
                             });
-                            var g4 = prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                            var g4 = prov.getRange('test', 'key', 'x', 'y', false, false).then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
@@ -675,7 +683,7 @@ describe('NoSqlProvider', function () {
                     }, true).then(prov => {
                         return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
                         .then(() => {
-                            return prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                            return prov.getRange('test', 'key', 'x', 'y', false, false).then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
@@ -684,12 +692,12 @@ describe('NoSqlProvider', function () {
                             return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['z'] } });
                         })
                         .then(() => {
-                            return prov.getRange<any>('test', 'key', 'x', 'y', false, false).then(ret => {
+                            return prov.getRange('test', 'key', 'x', 'y', false, false).then(ret => {
                                 assert.equal(ret.length, 0);
                             });
                         })
                         .then(() => {
-                            return prov.getRange<any>('test', 'key', 'x', 'z', false, false).then(ret => {
+                            return prov.getRange('test', 'key', 'x', 'z', false, false).then((ret: TestObj[]) => {
                                 assert.equal(ret.length, 1);
                                 assert.equal(ret[0].val, 'b');
                             });
@@ -698,7 +706,7 @@ describe('NoSqlProvider', function () {
                             return prov.remove('test', ['a', '1']);
                         })
                         .then(() => {
-                            return prov.getRange<any>('test', 'key', 'x', 'z', false, false).then(ret => {
+                            return prov.getRange('test', 'key', 'x', 'z', false, false).then(ret => {
                                 assert.equal(ret.length, 0);
                             });
                         })
@@ -734,7 +742,7 @@ describe('NoSqlProvider', function () {
                                 });
                             }).then(() => {
                                 assert.ok(false, 'Should fail');
-                                return SyncTasks.Rejected();
+                                return SyncTasks.Rejected<void>();
                             }, err => {
                                 // woot
                                 return undefined;
@@ -797,7 +805,7 @@ describe('NoSqlProvider', function () {
                                     started1 = true;
                                     const store = trans.getStore('test');
                                     return store.put({ id: 'abc', a: 'b' }).then(() => {
-                                        return store.get<any>('abc').then(val => {
+                                        return store.get('abc').then((val: any) => {
                                             assert.ok(val && val.a === 'b');
                                             assert.ok(!closed1);
                                             check1 = true;
@@ -809,7 +817,7 @@ describe('NoSqlProvider', function () {
                                     assert.ok(closed1);
                                     assert.ok(started1 && check1);
                                     const store = trans.getStore('test');
-                                    return store.get<any>('abc').then(val => {
+                                    return store.get('abc').then((val: any) => {
                                         assert.ok(val && val.a === 'b');
                                         check2 = true;
                                     });
@@ -919,17 +927,17 @@ describe('NoSqlProvider', function () {
                                 ]
                             }, false).then(prov => {
                                 return prov.put('test2', { id: 'def', ttt: 'ghi' }).then(() => {
-                                    const p1 = prov.get<any>('test', 'abc').then(item => {
+                                    const p1 = prov.get('test', 'abc').then((item: TestObj) => {
                                         assert(!!item);
                                         assert.equal(item.id, 'abc');
                                     });
-                                    const p2 = prov.get<any>('test2', 'abc').then(item => {
+                                    const p2 = prov.get('test2', 'abc').then(item => {
                                         assert(!item);
                                     });
-                                    const p3 = prov.get<any>('test2', 'def').then(item => {
+                                    const p3 = prov.get('test2', 'def').then(item => {
                                         assert(!item);
                                     });
-                                    const p4 = prov.get<any>('test2', 'ghi').then(item => {
+                                    const p4 = prov.get('test2', 'ghi').then((item: TestObj) => {
                                         assert(!!item);
                                         assert.equal(item.id, 'def');
                                     });
@@ -1042,17 +1050,17 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                     assert.equal(items[0].tt, 'a');
                                 });
-                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                     assert.equal(items[0].tt, 'a');
                                 });
-                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
                                 return SyncTasks.all([p1, p2, p3]).then(() => {
@@ -1128,19 +1136,19 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p1b = prov.getOnly<any>('test', 'ind1', 'b').then(items => {
+                                const p1b = prov.getOnly('test', 'ind1', 'b').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
                                 return SyncTasks.all([p1, p1b, p2, p3]).then(() => {
@@ -1183,22 +1191,22 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p1b = prov.getOnly<any>('test', 'ind1', 'b').then(items => {
+                                const p1b = prov.getOnly('test', 'ind1', 'b').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p1c = prov.getOnly<any>('test', 'ind1', 'x').then(items => {
+                                const p1c = prov.getOnly('test', 'ind1', 'x').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
                                 return SyncTasks.all([p1, p1b, p1c, p2, p3]).then(() => {
@@ -1235,7 +1243,7 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                return prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                return prov.getOnly('test', 'ind1', 'a').then(items => {
                                     return prov.close().then(() => {
                                         return SyncTasks.Rejected<void>('Shouldn\'t have worked');
                                     });
@@ -1278,14 +1286,14 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                const p1 = prov.getOnly('test', 'ind1', 'a').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                const p2 = prov.getOnly<any>('test', 'ind1', 'b').then(items => {
+                                const p2 = prov.getOnly('test', 'ind1', 'b').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].ttb, 'b');
                                 });
-                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
                                 return SyncTasks.all([p1, p2, p3]).then(() => {
@@ -1327,17 +1335,17 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                     assert.equal(items[0].tt, 'a');
                                 });
-                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                     assert.equal(items[0].tt, 'a');
                                 });
-                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
                                 return SyncTasks.all([p1, p2, p3]).then(() => {
@@ -1380,17 +1388,17 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                     assert.equal(items[0].tt, 'a');
                                 });
-                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                     assert.equal(items[0].tt, 'a');
                                 });
-                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
                                 return SyncTasks.all([p1, p2, p3]).then(() => {
@@ -1434,19 +1442,19 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p1b = prov.getOnly<any>('test', 'ind1', 'b').then(items => {
+                                const p1b = prov.getOnly('test', 'ind1', 'b').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
                                 return SyncTasks.all([p1, p1b, p2, p3]).then(() => {
@@ -1491,19 +1499,19 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                const p1 = prov.getOnly<any>('test', 'ind1', 'a').then(items => {
+                                const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p1b = prov.getOnly<any>('test', 'ind1', 'b').then(items => {
+                                const p1b = prov.getOnly('test', 'ind1', 'b').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p2 = prov.getOnly<any>('test', undefined, 'abc').then(items => {
+                                const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                const p3 = prov.getOnly<any>('test', 'ind1', 'abc').then(items => {
+                                const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
                                 return SyncTasks.all([p1, p1b, p2, p3]).then(() => {
@@ -1548,17 +1556,17 @@ describe('NoSqlProvider', function () {
                                 ]
                             }, false).then(prov => {
                                 return prov.put('test2', { id: 'def', content: 'ghi' }).then(() => {
-                                    const p1 = prov.get<any>('test', 'abc').then(item => {
+                                    const p1 = prov.get('test', 'abc').then((item: any) => {
                                         assert.ok(item);
                                         assert.equal(item.id, 'abc');
                                     });
-                                    const p2 = prov.get<any>('test2', 'abc').then(item => {
+                                    const p2 = prov.get('test2', 'abc').then(item => {
                                         assert.ok(!item);
                                     });
-                                    const p3 = prov.get<any>('test2', 'def').then(item => {
+                                    const p3 = prov.get('test2', 'def').then(item => {
                                         assert.ok(item);
                                     });
-                                    const p4 = prov.fullTextSearch<any>('test2', 'a', 'ghi').then(items => {
+                                    const p4 = prov.fullTextSearch('test2', 'a', 'ghi').then((items: any[]) => {
                                         assert.equal(items.length, 1);
                                         assert.equal(items[0].id, 'def');
                                     });
@@ -1600,11 +1608,11 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                const p1 = prov.get<any>('test', 'abc').then(item => {
+                                const p1 = prov.get('test', 'abc').then((item: any) => {
                                     assert.ok(item);
                                     assert.equal(item.id, 'abc');
                                 });
-                                const p2 = prov.fullTextSearch<any>('test', 'a', 'ghi').then(items => {
+                                const p2 = prov.fullTextSearch('test', 'a', 'ghi').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
@@ -1645,12 +1653,12 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                const p1 = prov.get<any>('test', 'abc').then(item => {
+                                const p1 = prov.get('test', 'abc').then((item: any) => {
                                     assert.ok(item);
                                     assert.equal(item.id, 'abc');
                                     assert.equal(item.content, 'ghi');
                                 });
-                                const p2 = prov.fullTextSearch<any>('test', 'a', 'ghi').then(items => {
+                                const p2 = prov.fullTextSearch('test', 'a', 'ghi').then((items: any[]) => {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 }).then(() => {
@@ -1686,102 +1694,102 @@ describe('NoSqlProvider', function () {
                             { id: 'a1', txt: 'the quick brown fox jumps over the lăzy dog who is a bro with brows' },
                             { id: 'a2', txt: 'bob likes his dog' },
                             { id: 'a3', txt: 'tes>ter'}]).then(() => {
-                        const p1 = prov.fullTextSearch<any>('test', 'i', 'brown').then(res => {
+                        const p1 = prov.fullTextSearch('test', 'i', 'brown').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p2 = prov.fullTextSearch<any>('test', 'i', 'dog').then(res => {
+                        const p2 = prov.fullTextSearch('test', 'i', 'dog').then(res => {
                             assert.equal(res.length, 2);
                         });
-                        const p3 = prov.fullTextSearch<any>('test', 'i', 'do').then(res => {
+                        const p3 = prov.fullTextSearch('test', 'i', 'do').then(res => {
                             assert.equal(res.length, 2);
                         });
-                        const p4 = prov.fullTextSearch<any>('test', 'i', 'LiKe').then(res => {
+                        const p4 = prov.fullTextSearch('test', 'i', 'LiKe').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a2');
                         });
-                        const p5 = prov.fullTextSearch<any>('test', 'i', 'azy').then(res => {
+                        const p5 = prov.fullTextSearch('test', 'i', 'azy').then(res => {
                             assert.equal(res.length, 0);
                         });
-                        const p6 = prov.fullTextSearch<any>('test', 'i', 'lazy dog').then(res => {
+                        const p6 = prov.fullTextSearch('test', 'i', 'lazy dog').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p7 = prov.fullTextSearch<any>('test', 'i', 'dog lazy').then(res => {
+                        const p7 = prov.fullTextSearch('test', 'i', 'dog lazy').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p8 = prov.fullTextSearch<any>('test', 'i', 'DOG lăzy').then(res => {
+                        const p8 = prov.fullTextSearch('test', 'i', 'DOG lăzy').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p9 = prov.fullTextSearch<any>('test', 'i', 'lĄzy').then(res => {
+                        const p9 = prov.fullTextSearch('test', 'i', 'lĄzy').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p10 = prov.fullTextSearch<any>('test', 'i', 'brown brown brown').then(res => {
+                        const p10 = prov.fullTextSearch('test', 'i', 'brown brown brown').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p11 = prov.fullTextSearch<any>('test', 'i', 'brown brOwn browN').then(res => {
+                        const p11 = prov.fullTextSearch('test', 'i', 'brown brOwn browN').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p12 = prov.fullTextSearch<any>('test', 'i', 'brow').then(res => {
+                        const p12 = prov.fullTextSearch('test', 'i', 'brow').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p13 = prov.fullTextSearch<any>('test', 'i', 'bro').then(res => {
+                        const p13 = prov.fullTextSearch('test', 'i', 'bro').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p14 = prov.fullTextSearch<any>('test', 'i', 'br').then(res => {
+                        const p14 = prov.fullTextSearch('test', 'i', 'br').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p15 = prov.fullTextSearch<any>('test', 'i', 'b').then(res => {
+                        const p15 = prov.fullTextSearch('test', 'i', 'b').then(res => {
                             assert.equal(res.length, 2);
                         });
-                        const p16 = prov.fullTextSearch<any>('test', 'i', 'b z').then(res => {
+                        const p16 = prov.fullTextSearch('test', 'i', 'b z').then(res => {
                             assert.equal(res.length, 0);
                         });
-                        const p17 = prov.fullTextSearch<any>('test', 'i', 'b z', NoSqlProvider.FullTextTermResolution.Or).then(res => {
-                            assert.equal(res.length, 2);
-                            assert.ok(_.some(res, r => r.id === 'a1') && _.some(res, r => r.id === 'a2'));
-                        });
-                        const p18 = prov.fullTextSearch<any>('test', 'i', 'q h', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p17 = prov.fullTextSearch('test', 'i', 'b z', NoSqlProvider.FullTextTermResolution.Or).then((res: any[]) => {
                             assert.equal(res.length, 2);
                             assert.ok(_.some(res, r => r.id === 'a1') && _.some(res, r => r.id === 'a2'));
                         });
-                        const p19 = prov.fullTextSearch<any>('test', 'i', 'fox nopers', NoSqlProvider.FullTextTermResolution.Or)
-                        .then(res => {
+                        const p18 = prov.fullTextSearch('test', 'i', 'q h', NoSqlProvider.FullTextTermResolution.Or).then((res: any[]) => {
+                            assert.equal(res.length, 2);
+                            assert.ok(_.some(res, r => r.id === 'a1') && _.some(res, r => r.id === 'a2'));
+                        });
+                        const p19 = prov.fullTextSearch('test', 'i', 'fox nopers', NoSqlProvider.FullTextTermResolution.Or)
+                                .then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
                         });
-                        const p20 = prov.fullTextSearch<any>('test', 'i', 'foxers nopers', NoSqlProvider.FullTextTermResolution.Or)
-                        .then(res => {
+                        const p20 = prov.fullTextSearch('test', 'i', 'foxers nopers', NoSqlProvider.FullTextTermResolution.Or)
+                                .then(res => {
                             assert.equal(res.length, 0);
                         });
-                        const p21 = prov.fullTextSearch<any>('test', 'i', 'fox)', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p21 = prov.fullTextSearch('test', 'i', 'fox)', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 1);
                         });
-                        const p22 = prov.fullTextSearch<any>('test', 'i', 'fox*', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p22 = prov.fullTextSearch('test', 'i', 'fox*', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 1);
                         });
-                        const p23 = prov.fullTextSearch<any>('test', 'i', 'fox* fox( <fox>', NoSqlProvider.FullTextTermResolution.Or)
-                        .then(res => {
+                        const p23 = prov.fullTextSearch('test', 'i', 'fox* fox( <fox>', NoSqlProvider.FullTextTermResolution.Or)
+                                .then(res => {
                             assert.equal(res.length, 1);
                         });
-                        const p24 = prov.fullTextSearch<any>('test', 'i', 'f)ox', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p24 = prov.fullTextSearch('test', 'i', 'f)ox', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 0);
                         });
-                        const p25 = prov.fullTextSearch<any>('test', 'i', 'fo*x', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p25 = prov.fullTextSearch('test', 'i', 'fo*x', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 0);
                         });
-                        const p26 = prov.fullTextSearch<any>('test', 'i', 'tes>ter', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p26 = prov.fullTextSearch('test', 'i', 'tes>ter', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 1);
                         });
-                        const p27 = prov.fullTextSearch<any>('test', 'i', 'f*x', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p27 = prov.fullTextSearch('test', 'i', 'f*x', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 0);
                         });
 

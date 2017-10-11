@@ -8,7 +8,9 @@
 
 import _ = require('lodash');
 
-export function isArray(obj: any): boolean {
+import { KeyComponentType, KeyPathType, KeyType } from './NoSqlProvider';
+
+export function isArray<T>(obj: T|T[]): obj is T[] {
     return (Object.prototype.toString.call(obj) === '[object Array]');
 }
 
@@ -22,7 +24,7 @@ const keypathJoinerString = '%&';
 
 // This function computes a serialized single string value for a keypath on an object.  This is used for generating ordered string keys
 // for compound (or non-compound) values.
-export function getSerializedKeyForKeypath(obj: any, keyPathRaw: string | string[]): string|undefined {
+export function getSerializedKeyForKeypath(obj: any, keyPathRaw: KeyPathType): string|undefined {
     const values = getKeyForKeypath(obj, keyPathRaw);
     if (values === undefined) {
         return undefined;
@@ -31,7 +33,7 @@ export function getSerializedKeyForKeypath(obj: any, keyPathRaw: string | string
     return serializeKeyToString(values, keyPathRaw);
 }
 
-export function getKeyForKeypath(obj: any, keyPathRaw: string | string[]): any {
+export function getKeyForKeypath(obj: any, keyPathRaw: KeyPathType): KeyType|undefined {
     const keyPathArray = arrayify(keyPathRaw);
 
     const values = _.map(keyPathArray, kp => getValueForSingleKeypath(obj, kp));
@@ -48,15 +50,15 @@ export function getKeyForKeypath(obj: any, keyPathRaw: string | string[]): any {
 }
 
 // Internal helper function for getting a value out of a standard keypath.
-export function getValueForSingleKeypath(obj: any, keyPath: string): any {
-    return _.get<any>(obj, keyPath, undefined);
+export function getValueForSingleKeypath(obj: any, singleKeyPath: string): any {
+    return _.get<any>(obj, singleKeyPath, undefined);
 }
 
-export function isCompoundKeyPath(keyPath: string | string[]) {
+export function isCompoundKeyPath(keyPath: KeyPathType) {
     return isArray(keyPath) && keyPath.length > 1;
 }
 
-export function formListOfKeys(keyOrKeys: any | any[], keyPath: string | string[]): any[] {
+export function formListOfKeys(keyOrKeys: KeyType|KeyType[], keyPath: KeyPathType): any[] {
     if (isCompoundKeyPath(keyPath)) {
         if (!isArray(keyOrKeys)) {
             throw new Error('formListOfKeys called with a compound keypath (' + JSON.stringify(keyPath) +
@@ -75,7 +77,7 @@ export function formListOfKeys(keyOrKeys: any | any[], keyPath: string | string[
     return arrayify(keyOrKeys);
 }
 
-export function serializeValueToOrderableString(val: any) {
+export function serializeValueToOrderableString(val: KeyComponentType): string {
     if (typeof val === 'number') {
         return 'A' + serializeNumberToOrderableString(val as number);
     }
@@ -126,7 +128,7 @@ export function serializeNumberToOrderableString(n: number) {
     }
 }
 
-export function serializeKeyToString(key: any | any[], keyPath: string | string[]): string {
+export function serializeKeyToString(key: KeyType, keyPath: KeyPathType): string {
     if (isCompoundKeyPath(keyPath)) {
         if (isArray(key)) {
             return _.map(key, k => serializeValueToOrderableString(k)).join(keypathJoinerString);
@@ -144,7 +146,7 @@ export function serializeKeyToString(key: any | any[], keyPath: string | string[
     }
 }
 
-export function formListOfSerializedKeys(keyOrKeys: any | any[], keyPath: string | string[]): string[] {
+export function formListOfSerializedKeys(keyOrKeys: KeyType|KeyType[], keyPath: KeyPathType): string[] {
     return _.map(formListOfKeys(keyOrKeys, keyPath), key => serializeKeyToString(key, keyPath));
 }
 
