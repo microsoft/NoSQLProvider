@@ -13,10 +13,16 @@
 import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
+// Basic nomenclature types for everyone to agree on.
+export type ItemType = object;
+export type KeyComponentType = string|number|Date;
+export type KeyType = KeyComponentType|KeyComponentType[];
+export type KeyPathType = string|string[];
+
 // Schema type describing an index for a store.
 export interface IndexSchema {
     name: string;
-    keyPath: string | string[];
+    keyPath: KeyPathType;
     unique?: boolean;
     multiEntry?: boolean;
     fullText?: boolean;
@@ -27,7 +33,7 @@ export interface IndexSchema {
 export interface StoreSchema {
     name: string;
     indexes?: IndexSchema[];
-    primaryKeyPath: string | string[];
+    primaryKeyPath: KeyPathType;
 }
 
 // Schema representing a whole database (a collection of stores).  Change your version number whenever you change your schema or
@@ -46,24 +52,24 @@ export enum FullTextTermResolution {
 
 // Interface type describing an index being opened for querying.
 export interface DbIndex {
-    getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
-    getOnly<T>(key: any|any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
-    getRange<T>(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-        reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
+    getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
+    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
+    getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
+        reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
     countAll(): SyncTasks.Promise<number>;
-    countOnly(key: any|any[]): SyncTasks.Promise<number>;
-    countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+    countOnly(key: KeyType): SyncTasks.Promise<number>;
+    countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
         : SyncTasks.Promise<number>;
-    fullTextSearch<T>(searchPhrase: string, resolution?: FullTextTermResolution, limit?: number): SyncTasks.Promise<T[]>;
+    fullTextSearch(searchPhrase: string, resolution?: FullTextTermResolution, limit?: number): SyncTasks.Promise<ItemType[]>;
 }
 
 // Interface type describing a database store opened for accessing.  Get commands at this level work against the primary keypath
 // of the store.
 export interface DbStore {
-    get<T>(key: any|any[]): SyncTasks.Promise<T|undefined>;
-    getMultiple<T>(keyOrKeys: any|any[]): SyncTasks.Promise<T[]>;
-    put(itemOrItems: any|any[]): SyncTasks.Promise<void>;
-    remove(keyOrKeys: any|any[]): SyncTasks.Promise<void>;
+    get(key: KeyType): SyncTasks.Promise<ItemType|undefined>;
+    getMultiple(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]>;
+    put(itemOrItems: ItemType|ItemType[]): SyncTasks.Promise<void>;
+    remove(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<void>;
 
     openPrimaryKey(): DbIndex;
     openIndex(indexName: string): DbIndex;
@@ -138,25 +144,25 @@ export abstract class DbProvider {
     }
 
     // Shortcut functions
-    get<T>(storeName: string, key: any|any[]): SyncTasks.Promise<T|undefined> {
+    get(storeName: string, key: KeyType): SyncTasks.Promise<ItemType|undefined> {
         return this._getStoreTransaction(storeName, false).then(store => {
-            return store.get<T>(key);
+            return store.get(key);
         });
     }
 
-    getMultiple<T>(storeName: string, keyOrKeys: any|any[]): SyncTasks.Promise<T[]> {
+    getMultiple(storeName: string, keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]> {
         return this._getStoreTransaction(storeName, false).then(store => {
-            return store.getMultiple<T>(keyOrKeys);
+            return store.getMultiple(keyOrKeys);
         });
     }
 
-    put(storeName: string, itemOrItems: any|any[]): SyncTasks.Promise<void> {
+    put(storeName: string, itemOrItems: ItemType|ItemType[]): SyncTasks.Promise<void> {
         return this._getStoreTransaction(storeName, true).then(store => {
             return store.put(itemOrItems);
         });
     }
 
-    remove(storeName: string, keyOrKeys: any|any[]): SyncTasks.Promise<void> {
+    remove(storeName: string, keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<void> {
         return this._getStoreTransaction(storeName, true).then(store => {
             return store.remove(keyOrKeys);
         });
@@ -175,24 +181,25 @@ export abstract class DbProvider {
         });
     }
 
-    getAll<T>(storeName: string, indexName: string|undefined, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    getAll(storeName: string, indexName: string|undefined, reverse?: boolean, limit?: number, offset?: number)
+            : SyncTasks.Promise<ItemType[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
-            return index.getAll<T>(reverse, limit, offset);
+            return index.getAll(reverse, limit, offset);
         });
     }
 
-    getOnly<T>(storeName: string, indexName: string|undefined, key: any|any[], reverse?: boolean, limit?: number, offset?: number)
-            : SyncTasks.Promise<T[]> {
+    getOnly(storeName: string, indexName: string|undefined, key: KeyType, reverse?: boolean, limit?: number, offset?: number)
+            : SyncTasks.Promise<ItemType[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
-            return index.getOnly<T>(key, reverse, limit, offset);
+            return index.getOnly(key, reverse, limit, offset);
         });
     }
 
-    getRange<T>(storeName: string, indexName: string|undefined, keyLowRange: any|any[], keyHighRange: any|any[],
+    getRange(storeName: string, indexName: string|undefined, keyLowRange: KeyType, keyHighRange: KeyType,
         lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverse?: boolean, limit?: number, offset?: number)
-            : SyncTasks.Promise<T[]> {
+            : SyncTasks.Promise<ItemType[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
-            return index.getRange<T>(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset);
+            return index.getRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset);
         });
     }
 
@@ -202,21 +209,21 @@ export abstract class DbProvider {
         });
     }
 
-    countOnly(storeName: string, indexName: string|undefined, key: any|any[]): SyncTasks.Promise<number> {
+    countOnly(storeName: string, indexName: string|undefined, key: KeyType): SyncTasks.Promise<number> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.countOnly(key);
         });
     }
 
-    countRange(storeName: string, indexName: string|undefined, keyLowRange: any|any[], keyHighRange: any|any[],
+    countRange(storeName: string, indexName: string|undefined, keyLowRange: KeyType, keyHighRange: KeyType,
             lowRangeExclusive?: boolean, highRangeExclusive?: boolean): SyncTasks.Promise<number> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.countRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
     }
 
-    fullTextSearch<T>(storeName: string, indexName: string, searchPhrase: string,
-            resolution: FullTextTermResolution = FullTextTermResolution.And, limit?: number): SyncTasks.Promise<T[]> {
+    fullTextSearch(storeName: string, indexName: string, searchPhrase: string,
+            resolution: FullTextTermResolution = FullTextTermResolution.And, limit?: number): SyncTasks.Promise<ItemType[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.fullTextSearch(searchPhrase, resolution);
         });

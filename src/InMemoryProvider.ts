@@ -11,6 +11,7 @@ import SyncTasks = require('synctasks');
 
 import FullTextSearchHelpers = require('./FullTextSearchHelpers');
 import NoSqlProvider = require('./NoSqlProvider');
+import { ItemType, KeyPathType, KeyType } from './NoSqlProvider';
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
 
@@ -152,7 +153,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
         this._mergedData = this._committedStoreData;
     }
 
-    get<T>(key: any | any[]): SyncTasks.Promise<T> {
+    get(key: KeyType): SyncTasks.Promise<ItemType|undefined> {
         if (!this._trans.internal_isOpen()) {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
@@ -168,7 +169,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
         return SyncTasks.Resolved(this._mergedData[joinedKey!!!]);
     }
 
-    getMultiple<T>(keyOrKeys: any | any[]): SyncTasks.Promise<T[]> {
+    getMultiple(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
@@ -184,7 +185,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
         return SyncTasks.Resolved(_.compact(_.map(joinedKeys!!!, key => this._mergedData[key])));
     }
 
-    put(itemOrItems: any | any[]): SyncTasks.Promise<void> {
+    put(itemOrItems: ItemType|ItemType[]): SyncTasks.Promise<void> {
         if (!this._trans.internal_isOpen()) {
             return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
         }
@@ -203,7 +204,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
         return SyncTasks.Resolved<void>();
     }
 
-    remove(keyOrKeys: any | any[]): SyncTasks.Promise<void> {
+    remove(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<void> {
         if (!this._trans.internal_isOpen()) {
             return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
         }
@@ -255,7 +256,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
 // Note: Currently maintains nothing interesting -- rebuilds the results every time from scratch.  Scales like crap.
 class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     constructor(private _trans: InMemoryTransaction, private _mergedData: _.Dictionary<any>,
-            indexSchema: NoSqlProvider.IndexSchema|undefined, primaryKeyPath: string | string[]) {
+            indexSchema: NoSqlProvider.IndexSchema|undefined, primaryKeyPath: KeyPathType) {
         super(indexSchema, primaryKeyPath);
     }
 
@@ -296,7 +297,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         return data;
     }
 
-    getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
@@ -313,12 +314,12 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         return this._returnResultsFromKeys(data!!!, sortedKeys, reverse, limit, offset);
     }
 
-    getOnly<T>(key: any | any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         return this.getRange(key, key, false, false, reverse, limit, offset);
     }
 
-    getRange<T>(keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
+            reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
@@ -337,7 +338,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _getKeysForRange(data: _.Dictionary<any>, keyLowRange: any | any[], keyHighRange: any | any[], lowRangeExclusive?: boolean,
+    private _getKeysForRange(data: _.Dictionary<any>, keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean,
             highRangeExclusive?: boolean): string[] {
         const keyLow = NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath);
         const keyHigh = NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath);
@@ -376,11 +377,11 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         return SyncTasks.Resolved(_.keys(data!!!).length);
     }
 
-    countOnly(key: any|any[]): SyncTasks.Promise<number> {
+    countOnly(key: KeyType): SyncTasks.Promise<number> {
         return this.countRange(key, key, false, false);
     }
 
-    countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+    countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
             : SyncTasks.Promise<number> {
         if (!this._trans.internal_isOpen()) {
             return SyncTasks.Rejected('InMemoryTransaction already closed');

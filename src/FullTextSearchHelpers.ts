@@ -10,6 +10,7 @@ import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
+import { ItemType } from './NoSqlProvider';
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 const _whitespaceRegexMatch = /\S+/g;
@@ -40,24 +41,24 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
         this._keyPath = this._indexSchema ? this._indexSchema.keyPath : this._primaryKeyPath;
     }
 
-    fullTextSearch<T>(searchPhrase: string, 
+    fullTextSearch(searchPhrase: string, 
         resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And, limit?: number)
-            : SyncTasks.Promise<T[]> {
+            : SyncTasks.Promise<ItemType[]> {
         if (!this._indexSchema || !this._indexSchema.fullText) {
-            return SyncTasks.Rejected<T[]>('fullTextSearch performed against non-fullText index!');
+            return SyncTasks.Rejected('fullTextSearch performed against non-fullText index!');
         }
 
         const terms = breakAndNormalizeSearchPhrase(searchPhrase);
         if (terms.length === 0) {
-            return SyncTasks.Rejected<T[]>('fullTextSearch called with empty searchPhrase');
+            return SyncTasks.Rejected('fullTextSearch called with empty searchPhrase');
         }
 
         const promises = _.map(terms, term => {
             const upperEnd = term.substr(0, term.length - 1) + String.fromCharCode(term.charCodeAt(term.length - 1) + 1);
-            return this.getRange<T>(term, upperEnd, false, true, false, limit);
+            return this.getRange(term, upperEnd, false, true, false, limit);
         });
         return SyncTasks.all(promises).then(results => {
-            let uniquers: _.Dictionary<T>[];
+            let uniquers: _.Dictionary<ItemType>[];
 
             const err = _.attempt(() => {
                 uniquers = _.map(results, resultSet => _.keyBy(resultSet, item =>
@@ -68,7 +69,7 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
             }
 
             if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
-                const data = _.values(_.assign<_.Dictionary<T>>({}, ...uniquers!!!));
+                const data = _.values(_.assign<_.Dictionary<ItemType>>({}, ...uniquers!!!));
                 if (limit) {
                     return _.take(data, limit);
                 }
@@ -78,7 +79,7 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
             if (resolution === NoSqlProvider.FullTextTermResolution.And) {
                 const [first, ...others] = uniquers!!!;
                 const data = _.values(
-                    _.pickBy<_.Dictionary<T>, _.Dictionary<T>>(first, (value, key) => _.every(others, set => key in set))
+                    _.pickBy<_.Dictionary<ItemType>, _.Dictionary<ItemType>>(first, (value, key) => _.every(others, set => key in set))
                 );
                 if (limit) {
                     return _.take(data, limit);
@@ -86,16 +87,16 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
                 return data;
             }
 
-            return SyncTasks.Rejected<T[]>('Undefined full text term resolution type');
+            return SyncTasks.Rejected('Undefined full text term resolution type');
         });
     }
 
-    abstract getAll<T>(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
-    abstract getOnly<T>(key: any|any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
-    abstract getRange<T>(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-        reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<T[]>;
+    abstract getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
+    abstract getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
+    abstract getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
+        reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
     abstract countAll(): SyncTasks.Promise<number>;
-    abstract countOnly(key: any|any[]): SyncTasks.Promise<number>;
-    abstract countRange(keyLowRange: any|any[], keyHighRange: any|any[], lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+    abstract countOnly(key: KeyType): SyncTasks.Promise<number>;
+    abstract countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
         : SyncTasks.Promise<number>;
 }
