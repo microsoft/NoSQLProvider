@@ -432,10 +432,12 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         const err = _.attempt(() => {
             _.each(items, item => {
                 let errToReport: any;
+                let fakedPk = false;
 
                 if (this._fakeComplicatedKeys) {
                     // Fill out any compound-key indexes
                     if (NoSqlProviderUtils.isCompoundKeyPath(this._schema.primaryKeyPath)) {
+                        fakedPk = true;
                         (item as any)['nsp_pk'] = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
                     }
 
@@ -508,6 +510,13 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                 if (!errToReport) {
                     errToReport = _.attempt(() => {
                         const req = this._store.put(item);
+
+                        if (fakedPk) {
+                            // If we faked the PK and mutated the incoming object, we can nuke that on the way out.  IndexedDB clones the
+                            // object synchronously for the put call, so it's already been captured with the nsp_pk field intact.
+                            delete (item as any)['nsp_pk'];
+                        }
+                        
                         promises.push(IndexedDbProvider.WrapRequest<void>(req));
                     });
                 }
