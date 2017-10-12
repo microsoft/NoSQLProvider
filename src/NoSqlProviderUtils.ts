@@ -10,12 +10,8 @@ import _ = require('lodash');
 
 import { KeyComponentType, KeyPathType, KeyType } from './NoSqlProvider';
 
-export function isArray<T>(obj: T|T[]): obj is T[] {
-    return (Object.prototype.toString.call(obj) === '[object Array]');
-}
-
 export function arrayify<T>(obj: T | T[]): T[] {
-    return isArray(obj) ? <T[]>obj : [<T>obj];
+    return _.isArray(obj) ? <T[]>obj : [<T>obj];
 }
 
 // Constant string for joining compound keypaths for websql and IE indexeddb.  There may be marginal utility in using a more obscure
@@ -55,16 +51,16 @@ export function getValueForSingleKeypath(obj: any, singleKeyPath: string): any {
 }
 
 export function isCompoundKeyPath(keyPath: KeyPathType) {
-    return isArray(keyPath) && keyPath.length > 1;
+    return _.isArray(keyPath) && keyPath.length > 1;
 }
 
 export function formListOfKeys(keyOrKeys: KeyType|KeyType[], keyPath: KeyPathType): any[] {
     if (isCompoundKeyPath(keyPath)) {
-        if (!isArray(keyOrKeys)) {
+        if (!_.isArray(keyOrKeys)) {
             throw new Error('formListOfKeys called with a compound keypath (' + JSON.stringify(keyPath) +
                 ') but a non-compound keyOrKeys (' + JSON.stringify(keyOrKeys) + ')');
         }
-        if (!isArray(keyOrKeys[0])) {
+        if (!_.isArray(keyOrKeys[0])) {
             // Looks like a single compound key, so make it a list of a single key
             return [keyOrKeys];
         }
@@ -130,14 +126,14 @@ export function serializeNumberToOrderableString(n: number) {
 
 export function serializeKeyToString(key: KeyType, keyPath: KeyPathType): string {
     if (isCompoundKeyPath(keyPath)) {
-        if (isArray(key)) {
+        if (_.isArray(key)) {
             return _.map(key, k => serializeValueToOrderableString(k)).join(keypathJoinerString);
         } else {
             throw new Error('serializeKeyToString called with a compound keypath (' + JSON.stringify(keyPath) +
                 ') but a non-compound key (' + JSON.stringify(key) + ')');
         }
     } else {
-        if (isArray(key)) {
+        if (_.isArray(key)) {
             throw new Error('serializeKeyToString called with a non-compound keypath (' + JSON.stringify(keyPath) +
                 ') but a compound key (' + JSON.stringify(key) + ')');
         } else {
