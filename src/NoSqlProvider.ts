@@ -126,7 +126,7 @@ export abstract class DbProvider {
                 }
                 return store.clearAllData();
             });
-            return SyncTasks.all(clearers).then(rets => void 0);
+            return SyncTasks.all(clearers).then(_.noop);
         });
     }
 

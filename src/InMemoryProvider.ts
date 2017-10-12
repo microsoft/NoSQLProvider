@@ -15,7 +15,10 @@ import { ItemType, KeyPathType, KeyType } from './NoSqlProvider';
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
 
-export type StoreData = { data: _.Dictionary<any>, schema: NoSqlProvider.StoreSchema };
+export interface StoreData {
+    data: _.Dictionary<any>;
+    schema: NoSqlProvider.StoreSchema;
+}
 
 // Very simple in-memory dbprovider for handling IE inprivate windows (and unit tests, maybe?)
 export class InMemoryProvider extends NoSqlProvider.DbProvider {
