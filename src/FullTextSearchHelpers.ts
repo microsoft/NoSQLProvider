@@ -10,7 +10,7 @@ import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
-import { ItemType } from './NoSqlProvider';
+import { ItemType, KeyType } from './NoSqlProvider';
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 const _whitespaceRegexMatch = /\S+/g;
