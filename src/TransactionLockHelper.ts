@@ -13,19 +13,17 @@ import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
 
-interface PendingTransaction {
-    storeNames: string[];
-    exclusive: boolean;
-    openDefer: SyncTasks.Deferred<TransactionToken>;
-}
-
 export interface TransactionToken {
-    completionPromise: SyncTasks.Promise<void>;
-    storeNames: string[];
-    exclusive: boolean;
+    readonly completionPromise: SyncTasks.Promise<void>;
+    readonly storeNames: string[];
+    readonly exclusive: boolean;
 }
 
-interface TransactionTokenInternal extends TransactionToken {
+interface PendingTransaction {
+    token: TransactionToken;
+
+    opened: boolean;
+    openDefer: SyncTasks.Deferred<TransactionToken>;
     completionDefer: SyncTasks.Deferred<void>|undefined;
     hadSuccess?: boolean;
 }
@@ -34,8 +32,8 @@ class TransactionLockHelper {
     private _closingDefer: SyncTasks.Deferred<void>;
     private _closed = false;
 
-    protected _exclusiveLocks: _.Dictionary<boolean> = {};
-    protected _readOnlyCounts: _.Dictionary<number> = {};
+    private _exclusiveLocks: _.Dictionary<boolean> = {};
+    private _readOnlyCounts: _.Dictionary<number> = {};
 
     private _pendingTransactions: PendingTransaction[] = [];
     
@@ -76,11 +74,19 @@ class TransactionLockHelper {
             }
         }
 
-        const pendingTrans: PendingTransaction = {
+        const completionDefer = SyncTasks.Defer<void>();
+        const newToken: TransactionToken = {
             // Undefined means lock all stores
             storeNames: storeNames || _.map(this._schema.stores, store => store.name),
             exclusive,
-            openDefer: SyncTasks.Defer<TransactionToken>()
+            completionPromise: completionDefer.promise()
+        };
+
+        const pendingTrans: PendingTransaction = {
+            token: newToken,
+            opened: false,
+            openDefer: SyncTasks.Defer<TransactionToken>(),
+            completionDefer
         };
 
         this._pendingTransactions.push(pendingTrans);
@@ -91,32 +97,45 @@ class TransactionLockHelper {
     }
 
     transactionComplete(token: TransactionToken) {
-        const tokenInt = token as TransactionTokenInternal;
-        if (tokenInt.completionDefer) {
-            tokenInt.hadSuccess = true;
+        const pendingTransIndex = _.findIndex(this._pendingTransactions, trans => trans.token === token);
+        if (pendingTransIndex !== -1) {
+            const pendingTrans = this._pendingTransactions[pendingTransIndex];
+            if (pendingTrans.completionDefer) {
+                pendingTrans.hadSuccess = true;
 
-            const toResolve = tokenInt.completionDefer;
-            tokenInt.completionDefer = undefined;
-            toResolve.resolve();
+                const toResolve = pendingTrans.completionDefer;
+                this._pendingTransactions.splice(pendingTransIndex, 1);
+                pendingTrans.completionDefer = undefined;
+                toResolve.resolve();
+            } else {
+                throw new Error('Completing a transaction that has already been completed. Stores: ' + token.storeNames.join(',') +
+                    ', HadSuccess: ' + pendingTrans.hadSuccess);
+            }
         } else {
-            throw new Error('Completing a transaction that has already been completed. Stores: ' + token.storeNames.join(',') +
-                ', HadSuccess: ' + tokenInt.hadSuccess);
+            throw new Error('Completing a transaction that is no longer tracked. Stores: ' + token.storeNames.join(','));
         }
 
         this._cleanTransaction(token);
     }
 
     transactionFailed(token: TransactionToken, message: string) {
-        const tokenInt = token as TransactionTokenInternal;
-        if (tokenInt.completionDefer) {
-            tokenInt.hadSuccess = false;
+        const pendingTransIndex = _.findIndex(this._pendingTransactions, trans => trans.token === token);
+        if (pendingTransIndex !== -1) {
+            const pendingTrans = this._pendingTransactions[pendingTransIndex];
+            if (pendingTrans.completionDefer) {
+                pendingTrans.hadSuccess = false;
 
-            const toResolve = tokenInt.completionDefer;
-            tokenInt.completionDefer = undefined;
-            toResolve.reject(new Error(message));
+                const toResolve = pendingTrans.completionDefer;
+                this._pendingTransactions.splice(pendingTransIndex, 1);
+                pendingTrans.completionDefer = undefined;
+                toResolve.reject(new Error(message));
+            } else {
+                throw new Error('Failing a transaction that has already been completed. Stores: ' + token.storeNames.join(',') +
+                    ', HadSuccess: ' + pendingTrans.hadSuccess + ', Message: ' + message);
+            }
         } else {
-            throw new Error('Failing a transaction that has already been completed. Stores: ' + token.storeNames.join(',') +
-                ', HadSuccess: ' + tokenInt.hadSuccess + ', Message: ' + message);
+            throw new Error('Failing a transaction that is no longer tracked. Stores: ' + token.storeNames.join(',') + ', message: ' +
+                message);
         }
 
         this._cleanTransaction(token);
@@ -147,39 +166,36 @@ class TransactionLockHelper {
         for (let i = 0; i < this._pendingTransactions.length; ) {
             const trans = this._pendingTransactions[i];
 
-            if (this._closingDefer) {
-                this._pendingTransactions.splice(i, 1);
-                trans.openDefer.reject('Closing Provider');
-                continue;             
-            }
-
-            if (_.some(trans.storeNames, storeName => this._exclusiveLocks[storeName] ||
-                        (trans.exclusive && this._readOnlyCounts[storeName] > 0))) {
+            if (trans.opened) {
                 i++;
                 continue;
             }
 
-            this._pendingTransactions.splice(i, 1);
+            if (this._closingDefer) {
+                this._pendingTransactions.splice(i, 1);
+                trans.openDefer.reject('Closing Provider');
+                continue;
+            }
 
-            if (trans.exclusive) {
-                _.each(trans.storeNames, storeName => {
+            if (_.some(trans.token.storeNames, storeName => this._exclusiveLocks[storeName] ||
+                    (trans.token.exclusive && this._readOnlyCounts[storeName] > 0))) {
+                i++;
+                continue;
+            }
+
+            trans.opened = true;
+
+            if (trans.token.exclusive) {
+                _.each(trans.token.storeNames, storeName => {
                     this._exclusiveLocks[storeName] = true;
                 });
             } else {
-                _.each(trans.storeNames, storeName => {
+                _.each(trans.token.storeNames, storeName => {
                     this._readOnlyCounts[storeName]++;
                 });
             }
 
-            const newDefer = SyncTasks.Defer<void>();
-            const newToken: TransactionTokenInternal = {
-                completionDefer: newDefer,
-                completionPromise: newDefer.promise(),
-                exclusive: trans.exclusive,
-                storeNames: trans.storeNames
-            };
-
-            trans.openDefer.resolve(newToken);
+            trans.openDefer.resolve(trans.token);
         }
 
         this._checkClose();
