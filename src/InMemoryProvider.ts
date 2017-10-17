@@ -16,7 +16,7 @@ import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
 
 export interface StoreData {
-    data: _.Dictionary<any>;
+    data: _.Dictionary<ItemType>;
     schema: NoSqlProvider.StoreSchema;
 }
 
@@ -118,10 +118,10 @@ class InMemoryTransaction implements NoSqlProvider.DbTransaction {
 }
 
 class InMemoryStore implements NoSqlProvider.DbStore {
-    private _pendingCommitDataChanges: _.Dictionary<any>|undefined;
+    private _pendingCommitDataChanges: _.Dictionary<ItemType|undefined>|undefined;
 
-    private _committedStoreData: _.Dictionary<any>;
-    private _mergedData: _.Dictionary<any>;
+    private _committedStoreData: _.Dictionary<ItemType>;
+    private _mergedData: _.Dictionary<ItemType>;
     private _storeSchema: NoSqlProvider.StoreSchema;
 
     constructor(private _trans: InMemoryTransaction, storeInfo: StoreData) {
@@ -258,20 +258,20 @@ class InMemoryStore implements NoSqlProvider.DbStore {
 
 // Note: Currently maintains nothing interesting -- rebuilds the results every time from scratch.  Scales like crap.
 class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
-    constructor(private _trans: InMemoryTransaction, private _mergedData: _.Dictionary<any>,
+    constructor(private _trans: InMemoryTransaction, private _mergedData: _.Dictionary<ItemType>,
             indexSchema: NoSqlProvider.IndexSchema|undefined, primaryKeyPath: KeyPathType) {
         super(indexSchema, primaryKeyPath);
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _calcChunkedData(): _.Dictionary<any> {
+    private _calcChunkedData(): _.Dictionary<ItemType[]>|_.Dictionary<ItemType> {
         if (!this._indexSchema) {
             // Primary key -- use data intact
             return this._mergedData;
         }
 
         // If it's not the PK index, re-pivot the data to be keyed off the key value built from the keypath
-        let data: _.Dictionary<any> = {};
+        let data: _.Dictionary<ItemType[]> = {};
         _.each(this._mergedData, item => {
             // Each item may be non-unique so store as an array of items for each key
             let keys: string[]|undefined;
@@ -305,7 +305,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
 
-        let data: _.Dictionary<any>;
+        let data: _.Dictionary<ItemType[]>|_.Dictionary<ItemType>;
         const err = _.attempt(() => {
             data = this._calcChunkedData();
         });
@@ -327,7 +327,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
 
-        let data: _.Dictionary<any>;
+        let data: _.Dictionary<ItemType[]>|_.Dictionary<ItemType>;
         let sortedKeys: string[];
         const err = _.attempt(() => {
             data = this._calcChunkedData();
@@ -341,15 +341,16 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _getKeysForRange(data: _.Dictionary<any>, keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean,
-            highRangeExclusive?: boolean): string[] {
+    private _getKeysForRange(data: _.Dictionary<ItemType[]>|_.Dictionary<ItemType>, keyLowRange: KeyType, keyHighRange: KeyType,
+            lowRangeExclusive?: boolean, highRangeExclusive?: boolean): string[] {
         const keyLow = NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath);
         const keyHigh = NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath);
         return _.filter(_.keys(data), key =>
             (key > keyLow || (key === keyLow && !lowRangeExclusive)) && (key < keyHigh || (key === keyHigh && !highRangeExclusive)));
     }
 
-    private _returnResultsFromKeys(data: _.Dictionary<any>, sortedKeys: string[], reverse?: boolean, limit?: number, offset?: number) {
+    private _returnResultsFromKeys(data: _.Dictionary<ItemType[]>|_.Dictionary<ItemType>, sortedKeys: string[], reverse?: boolean,
+            limit?: number, offset?: number) {
         if (reverse) {
             sortedKeys = _.reverse(sortedKeys);
         }
@@ -370,7 +371,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         if (!this._trans.internal_isOpen()) {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
-        let data: _.Dictionary<any>;
+        let data: _.Dictionary<ItemType[]>|_.Dictionary<ItemType>;
         const err = _.attempt(() => {
             data = this._calcChunkedData();
         });
