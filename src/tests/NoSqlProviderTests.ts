@@ -7,7 +7,7 @@ import { KeyComponentType } from '../NoSqlProvider';
 
 // import { CordovaNativeSqliteProvider } from '../CordovaNativeSqliteProvider';
 import { InMemoryProvider } from '../InMemoryProvider';
-import { IndexedDbProvider } from '../IndexedDbProvider';
+import { IndexedDbProvider, isIE } from '../IndexedDbProvider';
 import { WebSqlProvider } from '../WebSqlProvider';
 
 import NoSqlProviderUtils = require('../NoSqlProviderUtils');
@@ -72,7 +72,7 @@ describe('NoSqlProvider', function () {
 
     const provsToTest = typeof window === 'undefined' ?
         ['sqlite3memory', 'sqlite3memorynofts3', 'sqlite3disk', 'sqlite3disknofts3', 'memory'] :
-        (NoSqlProviderUtils.isIE() ? ['indexeddb', 'memory'] : ['indexeddb', 'indexeddbfakekeys', 'websql', 'websqlnofts3', 'memory']);
+        (isIE() ? ['indexeddb', 'memory'] : ['indexeddb', 'indexeddbfakekeys', 'websql', 'websqlnofts3', 'memory']);
 
     it('Number/value/type sorting', () => {
         const pairsToTest = [

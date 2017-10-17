@@ -17,6 +17,11 @@ import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper
 
 const IndexPrefix = 'nsp_i_';
 
+export function isIE() {
+    return (typeof (document) !== 'undefined' && document.all !== null && document.documentMode <= 11) ||
+        (typeof (navigator) !== 'undefined' && !!navigator.userAgent && navigator.userAgent.indexOf('Edge/') !== -1);
+}
+
 // The DbProvider implementation for IndexedDB.  This one is fairly straightforward since the library's access patterns pretty
 // closely mirror IndexedDB's.  We mostly do a lot of wrapping of the APIs into JQuery promises and have some fancy footwork to
 // do semi-automatic schema upgrades.
@@ -38,14 +43,12 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         } else {
             this._dbFactory = window._indexedDB || window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
 
-            // IE/Edge's IndexedDB implementation doesn't support compound keys, so we have to fake it by implementing them similar to how
-            // the WebSqlProvider does, by concatenating the values into another field which then gets its own index.
-            let isIE = NoSqlProviderUtils.isIE();
-
             if (typeof explicitDbFactorySupportsCompoundKeys !== 'undefined') {
                 this._fakeComplicatedKeys = !explicitDbFactorySupportsCompoundKeys;
             } else {
-                this._fakeComplicatedKeys = isIE;
+                // IE/Edge's IndexedDB implementation doesn't support compound keys, so we have to fake it by implementing them similar to
+                // how the WebSqlProvider does, by concatenating the values into another field which then gets its own index.
+                this._fakeComplicatedKeys = isIE();
             }
         }
     }
