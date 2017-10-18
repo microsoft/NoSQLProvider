@@ -323,7 +323,9 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
         this._stores = _.map(this._transToken.storeNames, storeName => this._trans.objectStore(storeName));
 
         if (lockHelper) {
+            let hasCompleted = false;
             this._trans.oncomplete = () => {
+                hasCompleted = true;
                 lockHelper.transactionComplete(this._transToken);
             };
 
@@ -333,8 +335,20 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
             };
 
             this._trans.onabort = () => {
-                lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction Aborted, Error: ' +
-                    (this._trans.error ? this._trans.error.message : undefined));
+                if (hasCompleted && this._trans.error.message === 'Transaction timed out due to inactivity.') {
+                    // Chromium seems to have a bug in their indexeddb implementation that lets it start a timeout
+                    // while the app is in the middle of a commit (it does a two-phase commit).  It can then finish
+                    // the commit, and later fire the timeout, despite the transaction having been written out already.
+                    // In this case, it appears that we should be completely fine to ignore the spurious timeout.
+                    //
+                    // Applicable Chromium source code here:
+                    // https://chromium.googlesource.com/chromium/src/+/master/content/browser/indexed_db/indexed_db_transaction.cc
+                    
+                    console.warn('Swallowed a transaction timeout warning after completion from IndexedDb');
+                } else {
+                    lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction Aborted, Error: ' +
+                        (this._trans.error ? this._trans.error.message : undefined));
+                }
             };
         }
     }
