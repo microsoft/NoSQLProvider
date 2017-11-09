@@ -787,14 +787,14 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
                     func(cursor);
                     count++;
                     if (limit && (count === limit)) {
-                        deferred.resolve();
+                        deferred.resolve(void 0);
                         return;
                     }
                     cursor['continue']();
                 }
             } else {
                 // Nothing else to iterate
-                deferred.resolve();
+                deferred.resolve(void 0);
             }
         };
         req.onerror = (ev) => {

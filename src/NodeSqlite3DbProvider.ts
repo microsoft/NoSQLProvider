@@ -70,7 +70,7 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBa
                 if (err) {
                     task.reject(err);
                 } else {
-                    task.resolve();
+                    task.resolve(void 0);
                 }
             });
             return task.promise();

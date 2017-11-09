@@ -60,7 +60,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                     this._supportsFTS3);
 
                 this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => {
-                    deferred.resolve();
+                    deferred.resolve(void 0);
                 }, err => {
                     errorDetail = err && err.message ? err.message : err.toString();
                     // Got a promise error.  Force the transaction to abort.
@@ -74,7 +74,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             let errorDetail: string;
             this.openTransaction([], true).then(trans => {
                 this._upgradeDb(trans, oldVersion, true).then(() => {
-                    deferred.resolve();
+                    deferred.resolve(void 0);
                 }, err => {
                     errorDetail = err && err.message ? err.message : err.toString();
                     // Got a promise error.  Force the transaction to abort.
@@ -84,7 +84,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                 deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
             });
         } else {
-            deferred.resolve();
+            deferred.resolve(void 0);
         }
         return deferred.promise();
     }
@@ -123,7 +123,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             }, () => {
                 ourTrans!!!.internal_markTransactionClosed();
                 if (finishDefer) {
-                    finishDefer.resolve();
+                    finishDefer.resolve(void 0);
                     finishDefer = undefined;
                 }
             });

@@ -57,7 +57,7 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
 
 function sleep(timeMs: number): SyncTasks.Promise<void> {
     let defer = SyncTasks.Defer<void>();
-    setTimeout(() => { defer.resolve(); }, timeMs);
+    setTimeout(() => { defer.resolve(void 0); }, timeMs);
     return defer.promise();
 }
 

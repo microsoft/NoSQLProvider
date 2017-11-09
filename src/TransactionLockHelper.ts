@@ -56,7 +56,7 @@ class TransactionLockHelper {
     private _checkClose() {
         if (!this._closed && this._closingDefer && !this.hasTransaction() ) {
             this._closed = true;
-            this._closingDefer.resolve();
+            this._closingDefer.resolve(void 0);
         }
     }
 
@@ -106,7 +106,7 @@ class TransactionLockHelper {
                 const toResolve = pendingTrans.completionDefer;
                 this._pendingTransactions.splice(pendingTransIndex, 1);
                 pendingTrans.completionDefer = undefined;
-                toResolve.resolve();
+                toResolve.resolve(void 0);
             } else {
                 throw new Error('Completing a transaction that has already been completed. Stores: ' + token.storeNames.join(',') +
                     ', HadSuccess: ' + pendingTrans.hadSuccess);

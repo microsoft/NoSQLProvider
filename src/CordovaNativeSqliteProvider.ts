@@ -77,7 +77,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
 
         const task = SyncTasks.Defer<void>();
         this._db = this._plugin.openDatabase(dbParams, () => {
-            task.resolve();
+            task.resolve(void 0);
         }, (err: any) => {
             task.reject('Couldn\'t open database: ' + dbName + ', error: ' + JSON.stringify(err));
         });
@@ -99,7 +99,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             let def = SyncTasks.Defer<void>();
             this._db!!!.close(() => {
                 this._db = undefined;
-                def.resolve();
+                def.resolve(void 0);
             }, (err: any) => {
                 def.reject(err);
             });

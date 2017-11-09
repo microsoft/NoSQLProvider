@@ -78,9 +78,8 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
 
             if (resolution === NoSqlProvider.FullTextTermResolution.And) {
                 const [first, ...others] = uniquers!!!;
-                const data = _.values(
-                    _.pickBy<_.Dictionary<ItemType>, _.Dictionary<ItemType>>(first, (value, key) => _.every(others, set => key in set))
-                );
+                const dic = _.pickBy(first, (value, key) => _.every(others, set => key in set)) as _.Dictionary<ItemType>;
+                const data = _.values(dic);
                 if (limit) {
                     return _.take(data, limit);
                 }
