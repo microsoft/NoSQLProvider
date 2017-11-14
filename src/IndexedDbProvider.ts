@@ -323,6 +323,7 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
         this._stores = _.map(this._transToken.storeNames, storeName => this._trans.objectStore(storeName));
 
         if (lockHelper) {
+            let completed = false;
             this._trans.oncomplete = () => {
                 // Chromium seems to have a bug in their indexeddb implementation that lets it start a timeout
                 // while the app is in the middle of a commit (it does a two-phase commit).  It can then finish
@@ -332,6 +333,7 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
                 // Applicable Chromium source code here:
                 // https://chromium.googlesource.com/chromium/src/+/master/content/browser/indexed_db/indexed_db_transaction.cc
                 this._trans.onabort = null!!!;
+                completed = true;
                 
                 lockHelper.transactionComplete(this._transToken);
             };
@@ -342,6 +344,12 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
             };
 
             this._trans.onabort = () => {
+                if (completed) {
+                    console.warn('IndexedDbTransaction Aborted after Complete, Swallowing. Error: ' +
+                        (this._trans.error ? this._trans.error.message : undefined));
+                    return;
+                }
+                
                 lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction Aborted, Error: ' +
                     (this._trans.error ? this._trans.error.message : undefined));
             };
