@@ -332,13 +332,18 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
                 //
                 // Applicable Chromium source code here:
                 // https://chromium.googlesource.com/chromium/src/+/master/content/browser/indexed_db/indexed_db_transaction.cc
-                this._trans.onabort = null!!!;
                 completed = true;
                 
                 lockHelper.transactionComplete(this._transToken);
             };
 
             this._trans.onerror = () => {
+                if (completed) {
+                    console.warn('IndexedDbTransaction Errored after Complete, Swallowing. Error: ' +
+                        (this._trans.error ? this._trans.error.message : undefined));
+                    return;
+                }
+
                 lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction OnError: ' +
                     (this._trans.error ? this._trans.error.message : undefined));
             };
