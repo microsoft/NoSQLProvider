@@ -323,40 +323,45 @@ class IndexedDbTransaction implements NoSqlProvider.DbTransaction {
         this._stores = _.map(this._transToken.storeNames, storeName => this._trans.objectStore(storeName));
 
         if (lockHelper) {
-            let completed = false;
+            // Chromium seems to have a bug in their indexeddb implementation that lets it start a timeout
+            // while the app is in the middle of a commit (it does a two-phase commit).  It can then finish
+            // the commit, and later fire the timeout, despite the transaction having been written out already.
+            // In this case, it appears that we should be completely fine to ignore the spurious timeout.
+            //
+            // Applicable Chromium source code here:
+            // https://chromium.googlesource.com/chromium/src/+/master/content/browser/indexed_db/indexed_db_transaction.cc
+            let history: string[] = [];
+
             this._trans.oncomplete = () => {
-                // Chromium seems to have a bug in their indexeddb implementation that lets it start a timeout
-                // while the app is in the middle of a commit (it does a two-phase commit).  It can then finish
-                // the commit, and later fire the timeout, despite the transaction having been written out already.
-                // In this case, it appears that we should be completely fine to ignore the spurious timeout.
-                //
-                // Applicable Chromium source code here:
-                // https://chromium.googlesource.com/chromium/src/+/master/content/browser/indexed_db/indexed_db_transaction.cc
-                completed = true;
+                history.push('complete');
                 
                 lockHelper.transactionComplete(this._transToken);
             };
 
             this._trans.onerror = () => {
-                if (completed) {
-                    console.warn('IndexedDbTransaction Errored after Complete, Swallowing. Error: ' +
-                        (this._trans.error ? this._trans.error.message : undefined));
+                history.push('error-' + (this._trans.error ? this._trans.error.message : ''));
+
+                if (history.length > 1) {
+                    console.warn('IndexedDbTransaction Errored after Resolution, Swallowing. Error: ' +
+                        (this._trans.error ? this._trans.error.message : undefined) + ', History: ' + history.join(','));
                     return;
                 }
 
                 lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction OnError: ' +
-                    (this._trans.error ? this._trans.error.message : undefined));
+                    (this._trans.error ? this._trans.error.message : undefined) + ', History: ' + history.join(','));
             };
 
             this._trans.onabort = () => {
-                if (completed) {
-                    console.warn('IndexedDbTransaction Aborted after Complete, Swallowing. Error: ' +
-                        (this._trans.error ? this._trans.error.message : undefined));
+                history.push('abort-' + (this._trans.error ? this._trans.error.message : ''));
+                
+                if (history.length > 1) {
+                    console.warn('IndexedDbTransaction Aborted after Resolution, Swallowing. Error: ' +
+                        (this._trans.error ? this._trans.error.message : undefined) + ', History: ' + history.join(','));
                     return;
                 }
                 
                 lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction Aborted, Error: ' +
-                    (this._trans.error ? this._trans.error.message : undefined));
+                    (this._trans.error ? this._trans.error.message : undefined) + ', History: ' + history.join(','));
             };
         }
     }
