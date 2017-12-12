@@ -44,7 +44,9 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
     }
 
     close(): SyncTasks.Promise<void> {
-        return SyncTasks.Resolved<void>();
+        return this._lockHelper.closeWhenPossible().then(() => {
+            this._stores = {};
+        });
     }
 
     internal_getStore(name: string): StoreData {
