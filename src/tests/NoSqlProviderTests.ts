@@ -138,7 +138,8 @@ describe('NoSqlProvider', function () {
                             }
                         };
 
-                        let t1 = prov.getAll('test', indexName).then((ret: TestObj[]) => {
+                        let t1 = prov.getAll('test', indexName).then(retVal => {
+                            const ret = retVal as TestObj[];
                             assert.equal(ret.length, 5, 'getAll');
                             [1, 2, 3, 4, 5].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
@@ -147,26 +148,29 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 5, 'countAll');
                         });
 
-                        let t1b = prov.getAll('test', indexName, false, 3).then((ret: TestObj[]) => {
+                        let t1b = prov.getAll('test', indexName, false, 3).then(retVal => {
+                            const ret = retVal as TestObj[];
                             assert.equal(ret.length, 3, 'getAll lim3');
                             [1, 2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
-                        let t1c = prov.getAll('test', indexName, false, 3, 1).then((ret: TestObj[]) => {
+                        let t1c = prov.getAll('test', indexName, false, 3, 1).then(retVal => {
+                            const ret = retVal as TestObj[];
                             assert.equal(ret.length, 3, 'getAll lim3 off1');
                             [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
-                        let t2 = prov.getOnly('test', indexName, formIndex(3)).then((ret: TestObj[]) => {
+                        let t2 = prov.getOnly('test', indexName, formIndex(3)).then(ret => {
                             assert.equal(ret.length, 1, 'getOnly');
-                            assert.equal(ret[0].val, 'val3');
+                            assert.equal((ret[0] as TestObj).val, 'val3');
                         });
 
                         let t2count = prov.countOnly('test', indexName, formIndex(3)).then(ret => {
                             assert.equal(ret, 1, 'countOnly');
                         });
 
-                        let t3 = prov.getRange('test', indexName, formIndex(2), formIndex(4)).then((ret: TestObj[]) => {
+                        let t3 = prov.getRange('test', indexName, formIndex(2), formIndex(4)).then(retVal => {
+                            const ret = retVal as TestObj[];
                             assert.equal(ret.length, 3, 'getRange++');
                             [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
@@ -176,37 +180,43 @@ describe('NoSqlProvider', function () {
                         });
 
                         let t3b = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1)
-                            .then((ret: TestObj[]) => {
+                            .then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1, 'getRange++ lim1');
                                 [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3b2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 1)
-                            .then((ret: TestObj[]) => {
+                            .then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1, 'getRange++ lim1 rev');
                                 [4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3c = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1, 1)
-                            .then((ret: TestObj[]) => {
+                            .then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1, 'getRange++ lim1 off1');
                                 [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3d = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 2, 1)
-                            .then((ret: TestObj[]) => {
+                            .then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1');
                                 [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3d2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1)
-                            .then((ret: TestObj[]) => {
+                            .then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
-                                assert.equal(ret[0].val, 'val3');
+                                assert.equal((ret[0] as TestObj).val, 'val3');
                                 [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t4 = prov.getRange('test', indexName, formIndex(2), formIndex(4), true, false).then((ret: TestObj[]) => {
+                        let t4 = prov.getRange('test', indexName, formIndex(2), formIndex(4), true, false).then(retVal => {
+                            const ret = retVal as TestObj[];
                             assert.equal(ret.length, 2, 'getRange-+');
                             [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
@@ -215,7 +225,8 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 2, 'countRange-+');
                         });
 
-                        let t5 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, true).then((ret: TestObj[]) => {
+                        let t5 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, true).then(retVal => {
+                            const ret = retVal as TestObj[];
                             assert.equal(ret.length, 2, 'getRange+-');
                             [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
@@ -224,7 +235,8 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 2, 'countRange+-');
                         });
 
-                        let t6 = prov.getRange('test', indexName, formIndex(2), formIndex(4), true, true).then((ret: TestObj[]) => {
+                        let t6 = prov.getRange('test', indexName, formIndex(2), formIndex(4), true, true).then(retVal => {
+                            const ret = retVal as TestObj[];
                             assert.equal(ret.length, 1, 'getRange--');
                             [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                         });
@@ -237,7 +249,8 @@ describe('NoSqlProvider', function () {
                                 t5count, t6, t6count]).then(() => {
                             if (compound) {
                                 let tt1 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
-                                    .then((ret: TestObj[]) => {
+                                    .then(retVal => {
+                                        const ret = retVal as TestObj[];
                                         assert.equal(ret.length, 2, 'getRange2++');
                                         [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
@@ -248,7 +261,8 @@ describe('NoSqlProvider', function () {
                                     });
 
                                 let tt2 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
-                                    .then((ret: TestObj[]) => {
+                                    .then(retVal => {
+                                        const ret = retVal as TestObj[];
                                         assert.equal(ret.length, 2, 'getRange2+-');
                                         [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
@@ -259,7 +273,8 @@ describe('NoSqlProvider', function () {
                                     });
 
                                 let tt3 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
-                                    .then((ret: TestObj[]) => {
+                                    .then(retVal => {
+                                        const ret = retVal as TestObj[];
                                         assert.equal(ret.length, 1, 'getRange2-+');
                                         [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                                     });
@@ -290,10 +305,12 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return prov.put('test', { id: 'a', val: 'b' }).then(() => {
-                            return prov.get('test', 'a').then((ret: TestObj) => {
+                            return prov.get('test', 'a').then(retVal => {
+                                const ret = retVal as TestObj;
                                 assert.equal(ret.val, 'b');
 
-                                return prov.getAll('test', undefined).then((ret2: TestObj[]) => {
+                                return prov.getAll('test', undefined).then(ret2Val => {
+                                    const ret2 = ret2Val as TestObj[];
                                     assert.equal(ret2.length, 1);
                                     assert.equal(ret2[0].val, 'b');
 
@@ -367,7 +384,8 @@ describe('NoSqlProvider', function () {
                                         assert(!!rets);
                                         assert.equal(rets.length, 4);
                                         return prov.remove('test', ['a3', 'a4', 'a2']).then(() => {
-                                            return prov.getAll('test', undefined).then((rets: TestObj[]) => {
+                                            return prov.getAll('test', undefined).then(retVals => {
+                                                const rets = retVals as TestObj[];
                                                 assert(!!rets);
                                                 assert.equal(rets.length, 1);
                                                 assert.equal(rets[0].id, 'a5');
@@ -529,26 +547,32 @@ describe('NoSqlProvider', function () {
                             .then(() => prov.put('test', { id: 'c', val: 'd', k: [] }))
                             .then(() => prov.put('test', { id: 'e', val: 'f' }))
                             .then(() => {
-                                var g1 = prov.get('test', 'a').then((ret: TestObj) => {
+                                var g1 = prov.get('test', 'a').then(retVal => {
+                                    const ret = retVal as TestObj;
                                     assert.equal(ret.val, 'b');
                                 });
-                                var g2 = prov.getAll('test', 'key').then((ret: TestObj[]) => {
+                                var g2 = prov.getAll('test', 'key').then(retVal => {
+                                    const ret = retVal as TestObj[];
                                     assert.equal(ret.length, 4);
                                     ret.forEach(r => { assert.equal(r.val, 'b'); });
                                 });
-                                var g2b = prov.getAll('test', 'key', false, 2).then((ret: TestObj[]) => {
+                                var g2b = prov.getAll('test', 'key', false, 2).then(retVal => {
+                                    const ret = retVal as TestObj[];
                                     assert.equal(ret.length, 2);
                                     ret.forEach(r => { assert.equal(r.val, 'b'); });
                                 });
-                                var g2c = prov.getAll('test', 'key', false, 2, 1).then((ret: TestObj[]) => {
+                                var g2c = prov.getAll('test', 'key', false, 2, 1).then(retVal => {
+                                    const ret = retVal as TestObj[];
                                     assert.equal(ret.length, 2);
                                     ret.forEach(r => { assert.equal(r.val, 'b'); });
                                 });
-                                var g3 = prov.getOnly('test', 'key', 'x').then((ret: TestObj[]) => {
+                                var g3 = prov.getOnly('test', 'key', 'x').then(retVal => {
+                                    const ret = retVal as TestObj[];
                                     assert.equal(ret.length, 1);
                                     assert.equal(ret[0].val, 'b');
                                 });
-                                var g4 = prov.getRange('test', 'key', 'x', 'y', false, false).then((ret: TestObj[]) => {
+                                var g4 = prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
+                                    const ret = retVal as TestObj[];
                                     assert.equal(ret.length, 2);
                                     ret.forEach(r => { assert.equal(r.val, 'b'); });
                                 });
@@ -579,7 +603,8 @@ describe('NoSqlProvider', function () {
                     }, true).then(prov => {
                         return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
                         .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'y', false, false).then((ret: TestObj[]) => {
+                            return prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
@@ -593,7 +618,8 @@ describe('NoSqlProvider', function () {
                             });
                         })
                         .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'z', false, false).then((ret: TestObj[]) => {
+                            return prov.getRange('test', 'key', 'x', 'z', false, false).then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1);
                                 assert.equal(ret[0].val, 'b');
                             });
@@ -634,26 +660,32 @@ describe('NoSqlProvider', function () {
                         .then(() => prov.put('test', { id: 'c', id2: '2', val: 'd', k: [] }))
                         .then(() => prov.put('test', { id: 'e', id2: '3', val: 'f' }))
                         .then(() => {
-                            var g1 = prov.get('test', ['a', '1']).then((ret: TestObj) => {
+                            var g1 = prov.get('test', ['a', '1']).then(retVal => {
+                                const ret = retVal as TestObj;
                                 assert.equal(ret.val, 'b');
                             });
-                            var g2 = prov.getAll('test', 'key').then((ret: TestObj[]) => {
+                            var g2 = prov.getAll('test', 'key').then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 4);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
-                            var g2b = prov.getAll('test', 'key', false, 2).then((ret: TestObj[]) => {
+                            var g2b = prov.getAll('test', 'key', false, 2).then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
-                            var g2c = prov.getAll('test', 'key', false, 2, 1).then((ret: TestObj[]) => {
+                            var g2c = prov.getAll('test', 'key', false, 2, 1).then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
-                            var g3 = prov.getOnly('test', 'key', 'x').then((ret: TestObj[]) => {
+                            var g3 = prov.getOnly('test', 'key', 'x').then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1);
                                 assert.equal(ret[0].val, 'b');
                             });
-                            var g4 = prov.getRange('test', 'key', 'x', 'y', false, false).then((ret: TestObj[]) => {
+                            var g4 = prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
@@ -683,7 +715,8 @@ describe('NoSqlProvider', function () {
                     }, true).then(prov => {
                         return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
                         .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'y', false, false).then((ret: TestObj[]) => {
+                            return prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
@@ -692,12 +725,14 @@ describe('NoSqlProvider', function () {
                             return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['z'] } });
                         })
                         .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'y', false, false).then(ret => {
+                            return prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 0);
                             });
                         })
                         .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'z', false, false).then((ret: TestObj[]) => {
+                            return prov.getRange('test', 'key', 'x', 'z', false, false).then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1);
                                 assert.equal(ret[0].val, 'b');
                             });
@@ -706,7 +741,8 @@ describe('NoSqlProvider', function () {
                             return prov.remove('test', ['a', '1']);
                         })
                         .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'z', false, false).then(ret => {
+                            return prov.getRange('test', 'key', 'x', 'z', false, false).then(retVal => {
+                                const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 0);
                             });
                         })
@@ -927,7 +963,8 @@ describe('NoSqlProvider', function () {
                                 ]
                             }, false).then(prov => {
                                 return prov.put('test2', { id: 'def', ttt: 'ghi' }).then(() => {
-                                    const p1 = prov.get('test', 'abc').then((item: TestObj) => {
+                                    const p1 = prov.get('test', 'abc').then(itemVal => {
+                                        const item = itemVal as TestObj;
                                         assert(!!item);
                                         assert.equal(item.id, 'abc');
                                     });
@@ -937,7 +974,8 @@ describe('NoSqlProvider', function () {
                                     const p3 = prov.get('test2', 'def').then(item => {
                                         assert(!item);
                                     });
-                                    const p4 = prov.get('test2', 'ghi').then((item: TestObj) => {
+                                    const p4 = prov.get('test2', 'ghi').then(itemVal => {
+                                        const item = itemVal as TestObj;
                                         assert(!!item);
                                         assert.equal(item.id, 'def');
                                     });

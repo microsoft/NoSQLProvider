@@ -37,7 +37,7 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBa
         return this._ourVersionChecker(wipeIfExists);
     }
 
-    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
+    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
         if (!this._db) {
             return SyncTasks.Rejected('Can\'t openTransaction on a closed database');
         }
@@ -100,7 +100,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
         this._clearTimer();
         this._openTimer = setTimeout(() => {
             this._openTimer = undefined;
-            
+
             if (!this._transToken.exclusive) {
                 this.internal_markTransactionClosed();
                 this._lockHelper.transactionComplete(this._transToken);
@@ -121,13 +121,13 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
 
     abort(): void {
         this._clearTimer();
-        
+
         if (!this._transToken.exclusive) {
             this.internal_markTransactionClosed();
             this._lockHelper.transactionFailed(this._transToken, 'NodeSqlite3Transaction Aborted');
             return;
         }
-        
+
         this.runQuery('ROLLBACK TRANSACTION').always(() => {
             this._clearTimer();
             this.internal_markTransactionClosed();

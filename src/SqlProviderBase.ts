@@ -47,6 +47,8 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
         // NOP
     }
 
+    abstract openTransaction(storeNames: string[]|undefined, writeNeeded: boolean): SyncTasks.Promise<SqlTransaction>;
+
     private _getMetadata(trans: SqlTransaction): SyncTasks.Promise<{ name: string; value: string; }[]> {
         // Create table if needed
         return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then(() => {
@@ -60,7 +62,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     }
 
     private _getDbVersion(): SyncTasks.Promise<number> {
-        return this.openTransaction(undefined, true).then((trans: SqlTransaction) => {
+        return this.openTransaction(undefined, true).then(trans => {
               // Create table if needed
             return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then(() => {
                 return trans.runQuery('SELECT value from metadata where name=?', [schemaVersionKey]).then(data => {
@@ -74,8 +76,8 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     }
 
     protected _changeDbVersion(oldVersion: number, newVersion: number): SyncTasks.Promise<SqlTransaction> {
-        return this.openTransaction(undefined, true).then((trans: SqlTransaction) => {
-            return trans.runQuery('INSERT OR REPLACE into metadata (\'name\', \'value\') VALUES (\'' + schemaVersionKey + '\', ?)', 
+        return this.openTransaction(undefined, true).then(trans => {
+            return trans.runQuery('INSERT OR REPLACE into metadata (\'name\', \'value\') VALUES (\'' + schemaVersionKey + '\', ?)',
                 [newVersion])
                 .then(() => trans);
         });
@@ -97,7 +99,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     });
                 } else if (wipeIfExists) {
                     // No version change, but wipe anyway
-                    return this.openTransaction(undefined, true).then((trans: SqlTransaction) => {
+                    return this.openTransaction(undefined, true).then(trans => {
                         return this._upgradeDb(trans, oldVersion, true);
                     });
                 }
@@ -109,7 +111,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
         // Get a list of all tables and indexes on the tables
         return this._getMetadata(trans).then(fullMeta => {
             // Get Index metadatas
-            let indexMetadata: IndexMetadata[] = 
+            let indexMetadata: IndexMetadata[] =
                 _.map(fullMeta, meta => {
                     let metaObj: IndexMetadata|undefined;
                     _.attempt(() => {
@@ -211,7 +213,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             }
                             return transList;
                         }));
-                        
+
                         tableNames = _.filter(tableNames, name => _.includes(tableNamesNeeded, name));
                     }
 
@@ -316,7 +318,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 // Nuke old indexes on the original table (since they don't change names and we don't need them anymore).
                                 // Also new old multientry/FTS tables (if they still exist after the purge above.)
                                 let indexDroppers: SyncTasks.Promise<any[]>[] = _.map(indexNames[storeSchema.name], indexName =>
-                                    trans.runQuery('DROP INDEX ' + indexName)).concat(_.map(indexTables[storeSchema.name], tableName => 
+                                    trans.runQuery('DROP INDEX ' + indexName)).concat(_.map(indexTables[storeSchema.name], tableName =>
                                     trans.runQuery('DROP TABLE IF EXISTS ' + storeSchema.name + '_' + tableName)));
 
                                 let nukeIndexesAndRename = SyncTasks.all(indexDroppers).then(() => {
@@ -324,7 +326,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     return trans.runQuery('ALTER TABLE ' + storeSchema.name + ' RENAME TO temp_' + storeSchema.name);
                                 });
 
-                                // Migrate the data over using our existing put functions 
+                                // Migrate the data over using our existing put functions
                                 // (since it will do the right things with the indexes)
                                 // and delete the temp table.
                                 let migrator = () => {
@@ -504,7 +506,7 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
                 }
             }, (t, err) => {
                 if (!err) {
-                    // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error, 
+                    // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error,
                     // slightly breaking the interface.
                     err = t as any;
                 }
@@ -558,7 +560,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             startTime = Date.now();
         }
 
-        let promise = this._trans.internal_getResultFromQuery('SELECT nsp_data FROM ' + this._schema.name + 
+        let promise = this._trans.internal_getResultFromQuery('SELECT nsp_data FROM ' + this._schema.name +
             ' WHERE nsp_pk = ?', [joinedKey!!!]);
         if (this._verbose) {
             promise = promise.finally(() => {
@@ -592,7 +594,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             qmarks.join(',') + ')', joinedKeys!!!);
         if (this._verbose) {
             promise = promise.finally(() => {
-                console.log('SqlStore (' + this._schema.name + ') getMultiple: (' + (Date.now() - startTime) + 'ms): Count: ' + 
+                console.log('SqlStore (' + this._schema.name + ') getMultiple: (' + (Date.now() - startTime) + 'ms): Count: ' +
                     joinedKeys.length);
             });
         }
@@ -795,7 +797,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         let promise = SyncTasks.all(queries).then(_.noop);
         if (this._verbose) {
             promise = promise.finally(() => {
-                console.log('SqlStore (' + this._schema.name + ') remove: (' + (Date.now() - startTime) + 'ms): Count: ' + 
+                console.log('SqlStore (' + this._schema.name + ') remove: (' + (Date.now() - startTime) + 'ms): Count: ' +
                     joinedKeys.length);
             });
         }
@@ -923,7 +925,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             reverse, limit, offset);
         if (this._verbose) {
             promise = promise.finally(() => {
-                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getOnly: (' + 
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getOnly: (' +
                     (Date.now() - startTime) + 'ms)');
             });
         }
@@ -952,7 +954,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             reverse, limit, offset);
         if (this._verbose) {
             promise = promise.finally(() => {
-                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getRange: (' + 
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getRange: (' +
                     (Date.now() - startTime) + 'ms)');
             });
         }
@@ -960,7 +962,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _getRangeChecks(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, 
+    private _getRangeChecks(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean,
             highRangeExclusive?: boolean) {
         let checks: string[] = [];
         let args: string[] = [];
@@ -984,7 +986,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         let promise = this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName).then(result => result[0]['cnt']);
         if (this._verbose) {
             promise = promise.finally(() => {
-                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countAll: (' + 
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countAll: (' +
                     (Date.now() - startTime) + 'ms)');
             });
         }
@@ -1009,7 +1011,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             + ' = ?', [joinedKey!!!]).then(result => result[0]['cnt']);
         if (this._verbose) {
             promise = promise.finally(() => {
-                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countOnly: (' + 
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countOnly: (' +
                     (Date.now() - startTime) + 'ms)');
             });
         }
@@ -1038,14 +1040,14 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             .then(result => result[0]['cnt']);
         if (this._verbose) {
             promise = promise.finally(() => {
-                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countOnly: (' + 
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countOnly: (' +
                     (Date.now() - startTime) + 'ms)');
             });
         }
         return promise;
     }
 
-    fullTextSearch(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And, 
+    fullTextSearch(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And,
             limit?: number): SyncTasks.Promise<ItemType[]> {
         let startTime: number;
         if (this._verbose) {
@@ -1085,7 +1087,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         }
         if (this._verbose) {
             promise = promise.finally(() => {
-                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') fullTextSearch: (' + 
+                console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') fullTextSearch: (' +
                     (Date.now() - startTime) + 'ms)');
             });
         }
