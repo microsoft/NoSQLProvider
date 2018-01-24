@@ -8,6 +8,7 @@
 
 import _ = require('lodash');
 import SyncTasks = require('synctasks');
+import XRegExp = require('xregexp');
 
 import NoSqlProvider = require('./NoSqlProvider');
 import { ItemType, KeyType } from './NoSqlProvider';
@@ -16,7 +17,7 @@ import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 const _whitespaceRegexMatch = /\S+/g;
 
 // Ignore all special characters
-const sqlCompatRegex = /[^a-z\d]+$|^[^a-z\d]+/gi;
+const sqlCompatRegex = XRegExp('[^\\pL\\d]+$|^[^\\pL\\d]+/gi');
 
 function sqlCompat(value: string): string {
     return value.replace(sqlCompatRegex, '');
