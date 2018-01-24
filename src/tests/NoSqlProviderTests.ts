@@ -1731,7 +1731,17 @@ describe('NoSqlProvider', function () {
                     return prov.put('test', [
                             { id: 'a1', txt: 'the quick brown fox jumps over the lăzy dog who is a bro with brows' },
                             { id: 'a2', txt: 'bob likes his dog' },
-                            { id: 'a3', txt: 'tes>ter'}]).then(() => {
+                            { id: 'a3', txt: 'tes>ter'},
+                            {   
+                                id: 'a4', 
+                                txt: 'Бывает проснешься как птица,' +
+                                     ' крылатой пружиной на взводе и хочется жить и трудиться, но к завтраку это проходит!'
+                            },
+                            {
+                                id: 'a5',
+                                txt: '漁夫從遠處看見漁夫'
+                            }
+                        ]).then(() => {
                         const p1 = prov.fullTextSearch('test', 'i', 'brown').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
@@ -1831,8 +1841,16 @@ describe('NoSqlProvider', function () {
                             assert.equal(res.length, 0);
                         });
 
+                        const p28 = prov.fullTextSearch('test', 'i', 'бывает', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 1);
+                        });
+
+                        const p29 = prov.fullTextSearch('test', 'i', '漁', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 1);
+                        });
+
                         return SyncTasks.all([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20,
-                                p21, p22, p23, p24, p25, p26, p27]).then(() => {
+                                p21, p22, p23, p24, p25, p26, p27, p28, p29]).then(() => {
                             return prov.close();
                         });
                     });
