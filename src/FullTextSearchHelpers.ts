@@ -16,7 +16,9 @@ import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 const _whitespaceRegexMatch = /\S+/g;
 
-// Ignore all special characters
+// Ignore all special characters.
+// We use XRegExp because of limited unicode support in the js regexp.
+// We want to have search working for any language, not just English.
 const sqlCompatRegex = XRegExp('[^\\pL\\d]+$|^[^\\pL\\d]+/gi');
 
 function sqlCompat(value: string): string {
