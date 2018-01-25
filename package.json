@@ -4,6 +4,7 @@
   "description": "A cross-browser/platform indexeddb-like client library",
   "author": "David de Regt <David.de.Regt@microsoft.com>",
   "scripts": {
+    "ci-test": "npm run build && npm run test",
     "test": "mocha dist/tests/NoSqlProviderTests.js",
     "webtest": "webpack --watch",
     "build": "npm run tslint && tsc",
