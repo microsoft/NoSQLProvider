@@ -7,7 +7,7 @@
  */
 
 import _ = require('lodash');
-import { LETTERS } from 'regexp-i18n';
+import { Patterns } from 'regexp-i18n';
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
@@ -17,7 +17,7 @@ import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 const _whitespaceRegexMatch = /\S+/g;
 
 // Ignore all special characters
-const sqlCompatRegex = new RegExp('[^\\d' + LETTERS + ']+$|^[^\\d' + LETTERS + ']+', 'gu');
+const sqlCompatRegex = new RegExp(Patterns.STRIP_SPECIAL, 'gu');
 
 function sqlCompat(value: string): string {
     return value.replace(sqlCompatRegex, '');
