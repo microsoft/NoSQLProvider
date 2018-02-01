@@ -7,7 +7,7 @@ import { KeyComponentType } from '../NoSqlProvider';
 
 // import { CordovaNativeSqliteProvider } from '../CordovaNativeSqliteProvider';
 import { InMemoryProvider } from '../InMemoryProvider';
-import { IndexedDbProvider, isIE } from '../IndexedDbProvider';
+import { IndexedDbProvider } from '../IndexedDbProvider';
 import { WebSqlProvider } from '../WebSqlProvider';
 
 import NoSqlProviderUtils = require('../NoSqlProviderUtils');
@@ -70,9 +70,24 @@ describe('NoSqlProvider', function () {
         }
     });
 
-    const provsToTest = typeof window === 'undefined' ?
-        ['sqlite3memory', 'sqlite3memorynofts3', 'sqlite3disk', 'sqlite3disknofts3', 'memory'] :
-        (isIE() ? ['indexeddb', 'memory'] : ['indexeddb', 'indexeddbfakekeys', 'websql', 'websqlnofts3', 'memory']);
+    let provsToTest: string[];
+    if (typeof window === 'undefined') {
+        // Non-browser environment...
+        provsToTest = ['memory', 'sqlite3memory', 'sqlite3memorynofts3', 'sqlite3disk', 'sqlite3disknofts3'];
+    } else {
+        provsToTest = ['memory'];
+
+        if (!NoSqlProviderUtils.isSafari()) {
+            // Safari has broken indexeddb support, so let's not test it there.  Everywhere else should have it.
+            // In IE, indexeddb will auto-run in fake keys mode, so if all is working, this is 2x the same test (but let's make sure!)
+            provsToTest.push('indexeddb', 'indexeddbfakekeys');
+        }
+
+        if (window.openDatabase) {
+            // WebSQL theoretically supported!
+            provsToTest.push('websql', 'websqlnofts3');
+        }
+    }
 
     it('Number/value/type sorting', () => {
         const pairsToTest = [

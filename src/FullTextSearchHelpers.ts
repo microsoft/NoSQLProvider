@@ -70,7 +70,7 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
             }
 
             if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
-                const data = _.values(_.assign<_.Dictionary<ItemType>>({}, ...uniquers!!!));
+                const data = _.values(_.assign({}, ...uniquers!!!));
                 if (limit) {
                     return _.take(data, limit);
                 }

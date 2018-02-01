@@ -24,12 +24,12 @@ export interface StoreData {
 export class InMemoryProvider extends NoSqlProvider.DbProvider {
     private _stores: { [storeName: string]: StoreData } = {};
 
-    private _lockHelper: TransactionLockHelper;
+    private _lockHelper: TransactionLockHelper|undefined;
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
-        _.each(this._schema.stores, storeSchema => {
+        _.each(this._schema!!!.stores, storeSchema => {
             this._stores[storeSchema.name] = { schema: storeSchema, data: {} };
         });
 
@@ -39,12 +39,12 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
     }
 
     openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
-        return this._lockHelper.openTransaction(storeNames, writeNeeded).then(token =>
-            new InMemoryTransaction(this, this._lockHelper, token));
+        return this._lockHelper!!!.openTransaction(storeNames, writeNeeded).then(token =>
+            new InMemoryTransaction(this, this._lockHelper!!!, token));
     }
 
     close(): SyncTasks.Promise<void> {
-        return this._lockHelper.closeWhenPossible().then(() => {
+        return this._lockHelper!!!.closeWhenPossible().then(() => {
             this._stores = {};
         });
     }

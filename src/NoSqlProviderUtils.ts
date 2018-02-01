@@ -10,6 +10,17 @@ import _ = require('lodash');
 
 import { KeyComponentType, KeyPathType, KeyType } from './NoSqlProvider';
 
+export function isIE() {
+    return (typeof (document) !== 'undefined' && document.all !== null && document.documentMode <= 11) ||
+        (typeof (navigator) !== 'undefined' && !!navigator.userAgent && navigator.userAgent.indexOf('Edge/') !== -1);
+}
+
+export function isSafari() {
+    return (typeof (navigator) !== 'undefined' && ((navigator.userAgent.indexOf('Safari') !== -1 &&
+        navigator.userAgent.indexOf('Chrome') === -1 && navigator.userAgent.indexOf('BB10') === -1) ||
+        (navigator.userAgent.indexOf('Mobile Crosswalk') !== -1)));
+}
+
 export function arrayify<T>(obj: T | T[]): T[] {
     return _.isArray(obj) ? <T[]>obj : [<T>obj];
 }

@@ -46,17 +46,17 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
 
         const deferred = SyncTasks.Defer<void>();
         let oldVersion = Number(this._db.version);
-        if (oldVersion !== this._schema.version) {
+        if (oldVersion !== this._schema!!!.version) {
             // Needs a schema upgrade/change
-            if (!wipeIfExists && this._schema.version < oldVersion) {
-                console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema.version + '). Wiping!');
+            if (!wipeIfExists && this._schema!!!.version < oldVersion) {
+                console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema!!!.version + '). Wiping!');
                 // Note: the reported DB version won't change back to the older number until after you do a put command onto the DB.
                 wipeIfExists = true;
             }
 
             let errorDetail: string;
-            this._db.changeVersion(this._db.version, this._schema.version.toString(), (t) => {
-                let trans = new WebSqlTransaction(t, SyncTasks.Defer<void>().promise(), this._schema, this._verbose, 999,
+            this._db.changeVersion(this._db.version, this._schema!!!.version.toString(), (t) => {
+                let trans = new WebSqlTransaction(t, SyncTasks.Defer<void>().promise(), this._schema!!!, this._verbose!!!, 999,
                     this._supportsFTS3);
 
                 this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => {
@@ -105,7 +105,8 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
         let finishDefer: SyncTasks.Deferred<void>|undefined = SyncTasks.Defer<void>();
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db,
             (trans: SQLTransaction) => {
-                ourTrans = new WebSqlTransaction(trans, finishDefer!!!.promise(), this._schema, this._verbose, 999, this._supportsFTS3);
+                ourTrans = new WebSqlTransaction(trans, finishDefer!!!.promise(), this._schema!!!, this._verbose!!!, 999,
+                    this._supportsFTS3);
                 deferred.resolve(ourTrans);
             }, (err: SQLError) => {
                 if (ourTrans) {

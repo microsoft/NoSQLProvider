@@ -17,21 +17,15 @@ import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper
 
 const IndexPrefix = 'nsp_i_';
 
-export function isIE() {
-    return (typeof (document) !== 'undefined' && document.all !== null && document.documentMode <= 11) ||
-        (typeof (navigator) !== 'undefined' && !!navigator.userAgent && navigator.userAgent.indexOf('Edge/') !== -1);
-}
-
 // The DbProvider implementation for IndexedDB.  This one is fairly straightforward since the library's access patterns pretty
 // closely mirror IndexedDB's.  We mostly do a lot of wrapping of the APIs into JQuery promises and have some fancy footwork to
 // do semi-automatic schema upgrades.
 export class IndexedDbProvider extends NoSqlProvider.DbProvider {
     private _db: IDBDatabase|undefined;
-    private _test: boolean;
     private _dbFactory: IDBFactory;
     private _fakeComplicatedKeys: boolean;
 
-    private _lockHelper: TransactionLockHelper;
+    private _lockHelper: TransactionLockHelper|undefined;
 
     // By default, it uses the in-browser indexed db factory, but you can pass in an explicit factory.  Currently only used for unit tests.
     constructor(explicitDbFactory?: IDBFactory, explicitDbFactorySupportsCompoundKeys?: boolean) {
@@ -48,7 +42,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             } else {
                 // IE/Edge's IndexedDB implementation doesn't support compound keys, so we have to fake it by implementing them similar to
                 // how the WebSqlProvider does, by concatenating the values into another field which then gets its own index.
-                this._fakeComplicatedKeys = isIE();
+                this._fakeComplicatedKeys = NoSqlProviderUtils.isIE();
             }
         }
     }
@@ -75,9 +69,9 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             return SyncTasks.Rejected<void>('No support for IndexedDB in this browser');
         }
 
-        if (!this._test && typeof (navigator) !== 'undefined' && ((navigator.userAgent.indexOf('Safari') !== -1 &&
-            navigator.userAgent.indexOf('Chrome') === -1 && navigator.userAgent.indexOf('BB10') === -1) ||
-            (navigator.userAgent.indexOf('Mobile Crosswalk') !== -1))) {
+        if (typeof (navigator) !== 'undefined' && ((navigator.userAgent.indexOf('Safari') !== -1 &&
+                navigator.userAgent.indexOf('Chrome') === -1 && navigator.userAgent.indexOf('BB10') === -1) ||
+                (navigator.userAgent.indexOf('Mobile Crosswalk') !== -1))) {
             // Safari doesn't support indexeddb properly, so don't let it try
             // Android crosswalk indexeddb is slow, don't use it
             return SyncTasks.Rejected<void>('Safari doesn\'t properly implement IndexedDB');
@@ -282,7 +276,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             // Pull the alternate multientry stores into the transaction as well
             let missingStores: string[] = [];
             _.each(storeNames, storeName => {
-                let storeSchema = _.find(this._schema.stores, s => s.name === storeName);
+                let storeSchema = _.find(this._schema!!!.stores, s => s.name === storeName);
                 if (!storeSchema) {
                     missingStores.push(storeName);
                     return;
@@ -300,7 +294,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             }
         }
 
-        return this._lockHelper.openTransaction(storeNames, writeNeeded).then(transToken => {
+        return this._lockHelper!!!.openTransaction(storeNames, writeNeeded).then(transToken => {
             let trans: IDBTransaction;
             const err = _.attempt(() => {
                 trans = this._db!!!.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
@@ -309,7 +303,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                 return SyncTasks.Rejected(err);
             }
 
-            return new IndexedDbTransaction(trans!!!, this._lockHelper, transToken, this._schema, this._fakeComplicatedKeys);
+            return new IndexedDbTransaction(trans!!!, this._lockHelper, transToken, this._schema!!!, this._fakeComplicatedKeys);
         });
     }
 }

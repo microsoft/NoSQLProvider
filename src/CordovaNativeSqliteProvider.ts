@@ -47,7 +47,7 @@ export interface CordovaTransaction extends SQLTransaction {
 }
 
 export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase {
-    private _lockHelper: TransactionLockHelper;
+    private _lockHelper: TransactionLockHelper|undefined;
 
     // You can use the openOptions object to pass extra optional parameters like androidDatabaseImplementation to the open command
     constructor(private _plugin: SqlitePlugin = window.sqlitePlugin, private _openOptions: SqlitePluginDbOptionalParams = {}) {
@@ -56,7 +56,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
 
     private _db: SqliteDatabase|undefined;
 
-    private _closingDefer: SyncTasks.Deferred<void>;
+    private _closingDefer: SyncTasks.Deferred<void>|undefined;
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
@@ -95,7 +95,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             return SyncTasks.Rejected<void>('Database already closed');
         }
 
-        return this._lockHelper.closeWhenPossible().then(() => {
+        return this._lockHelper!!!.closeWhenPossible().then(() => {
             let def = SyncTasks.Defer<void>();
             this._db!!!.close(() => {
                 this._db = undefined;
@@ -116,25 +116,25 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             return SyncTasks.Rejected('Currently closing provider -- rejecting transaction open');
         }
 
-        return this._lockHelper.openTransaction(storeNames, writeNeeded).then(transToken => {
+        return this._lockHelper!!!.openTransaction(storeNames, writeNeeded).then(transToken => {
             const deferred = SyncTasks.Defer<SqlProviderBase.SqlTransaction>();
 
             let ourTrans: SqlProviderBase.SqliteSqlTransaction;
             (writeNeeded ? this._db!!!.transaction : this._db!!!.readTransaction).call(this._db, (trans: CordovaTransaction) => {
-                ourTrans = new CordovaNativeSqliteTransaction(trans, this._lockHelper, transToken, this._schema, this._verbose, 999,
-                    this._supportsFTS3);
+                ourTrans = new CordovaNativeSqliteTransaction(trans, this._lockHelper!!!, transToken, this._schema!!!, this._verbose!!!,
+                    999, this._supportsFTS3);
                 deferred.resolve(ourTrans);
             }, (err: SQLError) => {
                 if (ourTrans) {
                     ourTrans.internal_markTransactionClosed();
-                    this._lockHelper.transactionFailed(transToken, 'CordovaNativeSqliteTransaction Error: ' + err.message);
+                    this._lockHelper!!!.transactionFailed(transToken, 'CordovaNativeSqliteTransaction Error: ' + err.message);
                 } else {
                     // We need to reject the transaction directly only in cases when it never finished creating.
                     deferred.reject(err);
                 }
             }, () => {
                 ourTrans.internal_markTransactionClosed();
-                this._lockHelper.transactionComplete(transToken);
+                this._lockHelper!!!.transactionComplete(transToken);
             });
             return deferred.promise();
         });

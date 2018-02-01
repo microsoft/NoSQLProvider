@@ -17,7 +17,7 @@ import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper
 export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBase {
     private _db: sqlite3.Database|undefined;
 
-    private _lockHelper: TransactionLockHelper;
+    private _lockHelper: TransactionLockHelper|undefined;
 
     constructor(supportsFTS3 = true) {
         super(supportsFTS3);
@@ -45,12 +45,13 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBa
             console.log('openTransaction Called with Stores: ' + (storeNames ? storeNames.join(',') : undefined) +
                 ', WriteNeeded: ' + writeNeeded);
         }
-        return this._lockHelper.openTransaction(storeNames, writeNeeded).then(transToken => {
+
+        return this._lockHelper!!!.openTransaction(storeNames, writeNeeded).then(transToken => {
             if (this._verbose) {
                 console.log('openTransaction Resolved with Stores: ' + (storeNames ? storeNames.join(',') : undefined) +
                     ', WriteNeeded: ' + writeNeeded);
             }
-            const trans = new NodeSqlite3Transaction(this._db!!!, this._lockHelper, transToken, this._schema, this._verbose,
+            const trans = new NodeSqlite3Transaction(this._db!!!, this._lockHelper!!!, transToken, this._schema!!!, this._verbose!!!,
                 this._supportsFTS3);
             if (writeNeeded) {
                 return trans.runQuery('BEGIN EXCLUSIVE TRANSACTION').then(ret => trans);
@@ -63,7 +64,7 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBa
         if (!this._db) {
             return SyncTasks.Rejected('Database already closed');
         }
-        return this._lockHelper.closeWhenPossible().then(() => {
+        return this._lockHelper!!!.closeWhenPossible().then(() => {
             let task = SyncTasks.Defer<void>();
             this._db!!!.close((err) => {
                 this._db = undefined;

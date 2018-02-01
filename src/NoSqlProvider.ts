@@ -94,8 +94,8 @@ export interface DbTransaction {
 // Abstract base type for a database provider.  Has accessors for opening transactions and one-off accesor helpers.
 // Note: this is a different concept than a DbStore or DbIndex, although it provides a similar (or identical) interface.
 export abstract class DbProvider {
-    protected _schema: DbSchema;
-    protected _verbose: boolean;
+    protected _schema: DbSchema|undefined;
+    protected _verbose: boolean|undefined;
 
     open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         // virtual call
@@ -113,7 +113,7 @@ export abstract class DbProvider {
     abstract openTransaction(storeNames: string[]|undefined, writeNeeded: boolean): SyncTasks.Promise<DbTransaction>;
 
     clearAllData(): SyncTasks.Promise<void> {
-        var storeNames = this._schema.stores.map(store => store.name);
+        var storeNames = this._schema!!!.stores.map(store => store.name);
 
         return this.openTransaction(storeNames, true).then(trans => {
             const clearers = storeNames.map(storeName => {

@@ -29,7 +29,7 @@ interface PendingTransaction {
 }
 
 class TransactionLockHelper {
-    private _closingDefer: SyncTasks.Deferred<void>;
+    private _closingDefer: SyncTasks.Deferred<void>|undefined;
     private _closed = false;
 
     private _exclusiveLocks: _.Dictionary<boolean> = {};

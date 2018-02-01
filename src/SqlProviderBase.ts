@@ -86,15 +86,15 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     protected _ourVersionChecker(wipeIfExists: boolean): SyncTasks.Promise<void> {
         return this._getDbVersion()
             .then(oldVersion => {
-                if (oldVersion !== this._schema.version) {
+                if (oldVersion !== this._schema!!!.version) {
                     // Needs a schema upgrade/change
-                    if (!wipeIfExists && this._schema.version < oldVersion) {
-                        console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema.version +
+                    if (!wipeIfExists && this._schema!!!.version < oldVersion) {
+                        console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema!!!.version +
                              '). Wiping!');
                         wipeIfExists = true;
                     }
 
-                    return this._changeDbVersion(oldVersion, this._schema.version).then(trans => {
+                    return this._changeDbVersion(oldVersion, this._schema!!!.version).then(trans => {
                         return this._upgradeDb(trans, oldVersion, wipeIfExists);
                     });
                 } else if (wipeIfExists) {
@@ -176,7 +176,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                     // Check each table!
                     let dropQueries: SyncTasks.Promise<any>[] = [];
-                    if (wipeAnyway || (this._schema.lastUsableVersion && oldVersion < this._schema.lastUsableVersion)) {
+                    if (wipeAnyway || (this._schema!!!.lastUsableVersion && oldVersion < this._schema!!!.lastUsableVersion!!!)) {
                         // Clear all stores if it's past the usable version
                         if (!wipeAnyway) {
                             console.log('Old version detected (' + oldVersion + '), clearing all tables');
@@ -192,7 +192,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     } else {
                         // Just delete tables we don't care about anymore. Preserve multi-entry tables, they may not be changed
                         let tableNamesNeeded: string[] = [];
-                        _.each(this._schema.stores, store => {
+                        _.each(this._schema!!!.stores, store => {
                             tableNamesNeeded.push(store.name);
                             _.each(store.indexes, index => {
                                 if (indexUsesSeparateTable(index, this._supportsFTS3)) {
@@ -221,7 +221,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         let tableQueries: SyncTasks.Promise<any>[] = [];
 
                         // Go over each store and see what needs changing
-                        _.each(this._schema.stores, storeSchema => {
+                        _.each(this._schema!!!.stores, storeSchema => {
                             const indexMaker = () => {
                                 let metaQueries: SyncTasks.Promise<any>[] = [];
                                 const indexQueries = _.map(storeSchema.indexes, index => {
