@@ -5,7 +5,7 @@
   "author": "David de Regt <David.de.Regt@microsoft.com>",
   "scripts": {
     "ci-test": "npm run build && npm run test",
-    "test": "mocha dist/tests/NoSqlProviderTests.js",
+    "test": "mocha dist/tests/NoSqlProviderTests.js --timeout 5000",
     "webtest": "webpack --watch",
     "build": "npm run tslint && tsc",
     "tslint": "tslint --project tsconfig.json -r tslint.json -r ./node_modules/tslint-microsoft-contrib --fix || true"
