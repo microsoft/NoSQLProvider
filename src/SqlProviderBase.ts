@@ -1055,6 +1055,9 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         }
 
         const terms = FullTextSearchHelpers.breakAndNormalizeSearchPhrase(searchPhrase);
+        if (terms.length === 0) {
+            return SyncTasks.Resolved([]);
+        }
 
         let promise: SyncTasks.Promise<ItemType[]>;
         if (this._supportsFTS3) {
