@@ -24,9 +24,11 @@ function sqlCompat(value: string): string {
 }
 
 export function breakAndNormalizeSearchPhrase(phrase: string): string[] {
-    // Faster than using _.uniq since it's just a pile of strings.
     // Deburr and tolower before using _.words since _.words breaks on CaseChanges.
-    return _.map(_.mapKeys(_.words(_.deburr(phrase).toLowerCase(), _whitespaceRegexMatch)), (value, key) => sqlCompat(key));
+    const words = _.words(_.deburr(phrase).toLowerCase(), _whitespaceRegexMatch);
+    // _.map(_.mapKeys is faster than _.uniq since it's just a pile of strings.
+    const uniqueWordas = _.map(_.mapKeys(words), (value, key) => sqlCompat(key));
+    return _.filter(uniqueWordas, word => !!_.trim(word));
 }
 
 export function getFullTextIndexWordsForItem(keyPath: string, item: any): string[] {
@@ -51,7 +53,7 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
 
         const terms = breakAndNormalizeSearchPhrase(searchPhrase);
         if (terms.length === 0) {
-            return SyncTasks.Rejected('fullTextSearch called with empty searchPhrase');
+            return SyncTasks.Resolved([]);
         }
 
         const promises = _.map(terms, term => {
