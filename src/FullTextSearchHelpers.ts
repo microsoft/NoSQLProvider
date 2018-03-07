@@ -7,7 +7,7 @@
  */
 
 import _ = require('lodash');
-import { createRegExp, Patterns } from 'regexp-i18n';
+import { Ranges, trim } from 'regexp-i18n';
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
@@ -16,11 +16,11 @@ import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
 const _whitespaceRegexMatch = /\S+/g;
 
-// Ignore all special characters
-const sqlCompatRegex = createRegExp(Patterns.STRIP_SPECIAL, 'g');
+// Range which excludes all numbers and digits
+const stripSpecialRange = Ranges.LETTERS_DIGITS_AND_DIACRITICS.invert();
 
 function sqlCompat(value: string): string {
-    return value.replace(sqlCompatRegex, '');
+    return trim(value, stripSpecialRange);
 }
 
 export function breakAndNormalizeSearchPhrase(phrase: string): string[] {
