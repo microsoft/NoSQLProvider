@@ -278,7 +278,8 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             // Each item may be non-unique so store as an array of items for each key
             let keys: string[]|undefined;
             if (this._indexSchema!!!.fullText) {
-                keys = _.map(FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>this._keyPath, item), val =>
+                keys = _.map(FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>this._keyPath, item, 
+                    this._indexSchema!!!.fullTextIndexProcessor), val =>
                     NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
             } else if (this._indexSchema!!!.multiEntry) {
                 // Have to extract the multiple entries into this alternate table...

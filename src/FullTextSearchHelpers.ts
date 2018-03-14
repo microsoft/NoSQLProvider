@@ -31,9 +31,11 @@ export function breakAndNormalizeSearchPhrase(phrase: string): string[] {
     return _.filter(uniqueWordas, word => !!_.trim(word));
 }
 
-export function getFullTextIndexWordsForItem(keyPath: string, item: any): string[] {
-    const rawString = NoSqlProviderUtils.getValueForSingleKeypath(item, keyPath);
-
+export function getFullTextIndexWordsForItem(keyPath: string, item: any, ftsPreprocessor?: (text: string) => string): string[] {
+    let rawString = NoSqlProviderUtils.getValueForSingleKeypath(item, keyPath);
+    if (ftsPreprocessor) {
+        rawString = ftsPreprocessor(rawString);
+    }
     return breakAndNormalizeSearchPhrase(rawString);
 }
 

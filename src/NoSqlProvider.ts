@@ -26,6 +26,8 @@ export interface IndexSchema {
     unique?: boolean;
     multiEntry?: boolean;
     fullText?: boolean;
+    // Function to be called for every full text index entry. If defined it's output puted to the index instead of input.
+    fullTextIndexProcessor?: (text: string) => string;
     includeDataInIndex?: boolean;
 }
 

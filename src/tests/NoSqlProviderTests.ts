@@ -1738,7 +1738,14 @@ describe('NoSqlProvider', function () {
                             indexes: [{
                                 name: 'i',
                                 keyPath: 'txt',
-                                fullText: true
+                                fullText: true,
+                                fullTextIndexProcessor: (text: string) => {
+                                    if (text === 'ReplaceMeNot') {
+                                        return 'Replaced';
+                                    } else {
+                                        return text;
+                                    }
+                                }
                             }]
                         }
                     ]
@@ -1765,6 +1772,10 @@ describe('NoSqlProvider', function () {
                                 // Test data to make sure that we don't search for empty strings (... used to put empty string to the index)
                                 id: 'a7',
                                 txt: 'User1, User2, User3 ...'
+                            },
+                            {
+                                id: 'a8',
+                                txt: 'ReplaceMeNot'
                             }
                         ]).then(() => {
                         const p1 = prov.fullTextSearch('test', 'i', 'brown').then((res: any[]) => {
@@ -1881,10 +1892,14 @@ describe('NoSqlProvider', function () {
                         // This is an empty string test. All special symbols will be replaced so this is technically empty string search.
                         const p31 = prov.fullTextSearch('test', 'i', '!@#$%$', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 0);
-                        }); 
+                        });
+
+                        const p32 = prov.fullTextSearch('test', 'i', 'Replaced', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                            assert.equal(res.length, 1);
+                        });
 
                         return SyncTasks.all([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20,
-                                p21, p22, p23, p24, p25, p26, p27, p28, p29, p30, p31]).then(() => {
+                                p21, p22, p23, p24, p25, p26, p27, p28, p29, p30, p31, p32]).then(() => {
                             return prov.close();
                         });
                     });

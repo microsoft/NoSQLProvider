@@ -645,7 +645,8 @@ class SqlStore implements NoSqlProvider.DbStore {
 
                     if (index.fullText && !this._supportsFTS3) {
                         args.push(FakeFTSJoinToken +
-                            FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(FakeFTSJoinToken));
+                            FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item, 
+                                index.fullTextIndexProcessor).join(FakeFTSJoinToken));
                     } else if (!index.multiEntry) {
                         args.push(NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath));
                     }
@@ -685,7 +686,8 @@ class SqlStore implements NoSqlProvider.DbStore {
 
                     if (index.fullText && this._supportsFTS3) {
                         // FTS3 terms go in a separate virtual table...
-                        serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(' ')];
+                        serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item,
+                            index.fullTextIndexProcessor).join(' ')];
                     } else if (index.multiEntry) {
                         // Have to extract the multiple entries into the alternate table...
                         const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
