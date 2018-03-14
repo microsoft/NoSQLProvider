@@ -471,7 +471,8 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
 
                             let keys: any[];
                             if (index.fullText) {
-                                keys = FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item);
+                                keys = FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item,
+                                     index.fullTextIndexProcessor);
                             } else {
                                 // Get each value of the multientry and put it into the index store
                                 const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
@@ -526,7 +527,8 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                     _.each(this._schema.indexes, index => {
                         if (index.fullText) {
                             (item as any)[IndexPrefix + index.name] =
-                                FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item);
+                                FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item, 
+                                    index.fullTextIndexProcessor);
                         }
                     });
                 }
