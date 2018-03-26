@@ -15,6 +15,9 @@ import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
 
+export type SqliteSuccessCallback = () => void;
+export type SqliteErrorCallback = (e: Error) => void;
+
 export interface SqlitePluginDbOptionalParams {
     createFromLocation?: number;
     androidDatabaseImplementation?: number;
@@ -31,14 +34,14 @@ export interface SqliteDatabase {
     openDBs: string[];
     transaction(transaction: CordovaTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
     readTransaction(transaction: CordovaTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
-    open(success: Function, error: Function): void;
-    close(success: Function, error: Function): void;
+    open(success: SqliteSuccessCallback, error: SqliteErrorCallback): void;
+    close(success: SqliteSuccessCallback, error: SqliteErrorCallback): void;
     executeSql(statement: string, params?: any[], success?: SQLStatementCallback, error?: SQLStatementErrorCallback): void;
 }
 
 export interface SqlitePlugin {
-    openDatabase(dbInfo: SqlitePluginDbParams, success?: Function, error?: Function): SqliteDatabase;
-    deleteDatabase(dbInfo: SqlitePluginDbParams, successCallback?: Function, errorCallback?: Function): void;
+    openDatabase(dbInfo: SqlitePluginDbParams, success?: SqliteSuccessCallback, error?: SqliteErrorCallback): SqliteDatabase;
+    deleteDatabase(dbInfo: SqlitePluginDbParams, success?: SqliteSuccessCallback, error?: SqliteErrorCallback): void;
     sqliteFeatures: { isSQLitePlugin: boolean };
 }
 
