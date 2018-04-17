@@ -164,6 +164,11 @@ class CordovaNativeSqliteTransaction extends SqlProviderBase.SqliteSqlTransactio
         (this._trans as CordovaTransaction).abort('Manually Aborted');
     }
 
+    getErrorHandlerReturnValue(): boolean {
+        // react-native-sqlite-storage throws on anything but false
+        return false;
+    }
+
     protected _requiresUnicodeReplacement(): boolean {
         // TODO dadere (#333863): Possibly limit this to just iOS, since Android seems to handle it properly
         return true;
