@@ -467,6 +467,8 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
         super(schema, verbose, maxVariables, supportsFTS3);
     }
 
+    abstract getErrorHandlerReturnValue(): boolean;    
+
     // If an external provider of the transaction determines that the transaction has failed but won't report its failures
     // (i.e. in the case of WebSQL), we need a way to kick the hanging queries that they're going to fail since otherwise
     // they'll never respond.
@@ -519,8 +521,7 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
                     console.error('SQL statement resolved twice (this time with failure)');
                 }
 
-                // Causes a rollback on websql
-                return true;
+                return this.getErrorHandlerReturnValue();
             });
         });
 

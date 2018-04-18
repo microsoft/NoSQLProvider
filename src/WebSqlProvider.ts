@@ -152,4 +152,9 @@ class WebSqlTransaction extends SqlProviderBase.SqliteSqlTransaction {
         // http://stackoverflow.com/questions/16225320/websql-dont-rollback
         this.runQuery('ERROR ME TO DEATH').always(_.noop);
     }
+
+    getErrorHandlerReturnValue(): boolean {
+        // Causes a rollback on websql
+        return true;
+    }
 }
