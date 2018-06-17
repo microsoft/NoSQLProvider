@@ -12,11 +12,23 @@ import SyncTasks = require('synctasks');
 import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 
+// Extending interfaces that should be in lib.d.ts but aren't for some reason.
+export interface SQLDatabaseCallback {
+    (database: SqlProviderBase.SQLDatabase): void;
+}
+
+declare global {
+    interface Window {
+        openDatabase(database_name: string, database_version: string, database_displayname: string,
+            database_size?: number, creationCallback?: SQLDatabaseCallback): SqlProviderBase.SQLDatabase;
+    }
+}
+
 // The DbProvider implementation for WebSQL.  This provider does a bunch of awkward stuff to pretend that a relational SQL store
 // is actually a NoSQL store.  We store the raw object as a JSON.encoded string in the nsp_data column, and have an nsp_pk column
 // for the primary keypath value, then nsp_i_[index name] columns for each of the indexes.
 export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
-    private _db: Database|undefined;
+    private _db: SqlProviderBase.SQLDatabase|undefined;
 
     constructor(supportsFTS3 = true) {
         super(supportsFTS3);
@@ -104,11 +116,11 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
         let ourTrans: SqlProviderBase.SqliteSqlTransaction|undefined;
         let finishDefer: SyncTasks.Deferred<void>|undefined = SyncTasks.Defer<void>();
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db,
-            (trans: SQLTransaction) => {
+            (trans: SqlProviderBase.SQLTransaction) => {
                 ourTrans = new WebSqlTransaction(trans, finishDefer!!!.promise(), this._schema!!!, this._verbose!!!, 999,
                     this._supportsFTS3);
                 deferred.resolve(ourTrans);
-            }, (err: SQLError) => {
+            }, (err: SqlProviderBase.SQLError) => {
                 if (ourTrans) {
                     // Got an error from inside the transaction.  Error out all pending queries on the 
                     // transaction since they won't exit out gracefully for whatever reason.
@@ -134,7 +146,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
 }
 
 class WebSqlTransaction extends SqlProviderBase.SqliteSqlTransaction {
-    constructor(protected trans: SQLTransaction,
+    constructor(protected trans: SqlProviderBase.SQLTransaction,
                 private _completionPromise: SyncTasks.Promise<void>, 
                 schema: NoSqlProvider.DbSchema,
                 verbose: boolean,

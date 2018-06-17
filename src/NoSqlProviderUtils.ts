@@ -10,6 +10,13 @@ import _ = require('lodash');
 
 import { KeyComponentType, KeyPathType, KeyType } from './NoSqlProvider';
 
+// Extending interfaces that should be in lib.d.ts but aren't for some reason.
+declare global {
+    interface Document {
+        documentMode: number;
+    }
+}
+
 export function isIE() {
     return (typeof (document) !== 'undefined' && document.all !== null && document.documentMode <= 11) ||
         (typeof (navigator) !== 'undefined' && !!navigator.userAgent && navigator.userAgent.indexOf('Edge/') !== -1);

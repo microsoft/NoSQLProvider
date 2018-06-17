@@ -15,6 +15,41 @@ import NoSqlProvider = require('./NoSqlProvider');
 import SqlProviderBase = require('./SqlProviderBase');
 import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
 
+// Extending interfaces that should be in lib.d.ts but aren't for some reason.
+declare global {
+    interface Window {
+        sqlitePlugin: any;
+    }
+}
+
+// declare enum SQLErrors {
+//     UNKNOWN_ERR = 0,
+//     DATABASE_ERR = 1,
+//     VERSION_ERR = 2,
+//     TOO_LARGE_ERR = 3,
+//     QUOTA_ERR = 4,
+//     SYNTAX_ERR = 5,
+//     CONSTRAINT_ERR = 6,
+//     TIMEOUT_ERR = 7
+// }
+
+interface SQLError {
+    code: number;
+    message: string;
+}
+
+interface SQLStatementCallback {
+    (transaction: SQLTransaction, resultSet: SqlProviderBase.SQLResultSet): void;
+}
+
+interface SQLStatementErrorCallback {
+    (transaction: SQLTransaction, error: SQLError): void;
+}
+
+interface SQLTransaction {
+    executeSql(sqlStatement: string, args?: any[], callback?: SQLStatementCallback, errorCallback?: SQLStatementErrorCallback): void;
+}
+
 export type SqliteSuccessCallback = () => void;
 export type SqliteErrorCallback = (e: Error) => void;
 
@@ -32,11 +67,14 @@ export interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
 
 export interface SqliteDatabase {
     openDBs: string[];
-    transaction(transaction: CordovaTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
-    readTransaction(transaction: CordovaTransaction, error: SQLTransactionErrorCallback, success: SQLTransactionCallback): void;
+    transaction(transaction: CordovaTransaction, error: SqlProviderBase.SQLTransactionErrorCallback,
+        success: SqlProviderBase.SQLTransactionCallback): void;
+    readTransaction(transaction: CordovaTransaction, error: SqlProviderBase.SQLTransactionErrorCallback,
+        success: SqlProviderBase.SQLTransactionCallback): void;
     open(success: SqliteSuccessCallback, error: SqliteErrorCallback): void;
     close(success: SqliteSuccessCallback, error: SqliteErrorCallback): void;
-    executeSql(statement: string, params?: any[], success?: SQLStatementCallback, error?: SQLStatementErrorCallback): void;
+    executeSql(statement: string, params?: any[], success?: SqlProviderBase.SQLStatementCallback,
+        error?: SqlProviderBase.SQLStatementErrorCallback): void;
 }
 
 export interface SqlitePlugin {
@@ -45,7 +83,7 @@ export interface SqlitePlugin {
     sqliteFeatures: { isSQLitePlugin: boolean };
 }
 
-export interface CordovaTransaction extends SQLTransaction {
+export interface CordovaTransaction extends SqlProviderBase.SQLTransaction {
     abort(err?: any): void;
 }
 

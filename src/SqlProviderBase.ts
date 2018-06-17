@@ -14,6 +14,30 @@ import NoSqlProvider = require('./NoSqlProvider');
 import { ItemType } from './NoSqlProvider';
 import NoSqlProviderUtils = require('./NoSqlProviderUtils');
 
+// Extending interfaces that should be in lib.d.ts but aren't for some reason.
+export interface SQLVoidCallback {
+    (): void;
+}
+
+export interface SQLTransactionCallback {
+    (transaction: SQLTransaction): void;
+}
+
+export interface SQLTransactionErrorCallback {
+    (error: SQLError): void;
+}
+
+export interface SQLDatabase {
+    version: string;
+
+    changeVersion(oldVersion: string, newVersion: string, callback?: SQLTransactionCallback,
+        errorCallback?: SQLTransactionErrorCallback, successCallback?: SQLVoidCallback): void;
+    transaction(callback?: SQLTransactionCallback, errorCallback?: SQLTransactionErrorCallback,
+        successCallback?: SQLVoidCallback): void;
+    readTransaction(callback?: SQLTransactionCallback, errorCallback?: SQLTransactionErrorCallback,
+        successCallback?: SQLVoidCallback): void;
+}
+
 const schemaVersionKey = 'schemaVersion';
 
 // This was taked from the sqlite documentation

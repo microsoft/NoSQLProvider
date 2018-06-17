@@ -17,6 +17,16 @@ import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper
 
 const IndexPrefix = 'nsp_i_';
 
+// Extending interfaces that should be in lib.d.ts but aren't for some reason.
+declare global {
+    interface Window {
+        _indexedDB: IDBFactory;
+        mozIndexedDB: IDBFactory;
+        webkitIndexedDB: IDBFactory;
+        msIndexedDB: IDBFactory;
+    }
+}
+
 // The DbProvider implementation for IndexedDB.  This one is fairly straightforward since the library's access patterns pretty
 // closely mirror IndexedDB's.  We mostly do a lot of wrapping of the APIs into JQuery promises and have some fancy footwork to
 // do semi-automatic schema upgrades.
