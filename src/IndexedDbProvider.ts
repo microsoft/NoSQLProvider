@@ -45,7 +45,8 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             this._dbFactory = explicitDbFactory;
             this._fakeComplicatedKeys = !explicitDbFactorySupportsCompoundKeys;
         } else {
-            this._dbFactory = window._indexedDB || window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB;
+            const win = this.getWindow();
+            this._dbFactory = win._indexedDB || win.indexedDB || win.mozIndexedDB || win.webkitIndexedDB || win.msIndexedDB;
 
             if (typeof explicitDbFactorySupportsCompoundKeys !== 'undefined') {
                 this._fakeComplicatedKeys = !explicitDbFactorySupportsCompoundKeys;
@@ -55,6 +56,20 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                 this._fakeComplicatedKeys = NoSqlProviderUtils.isIE();
             }
         }
+    }
+
+    /**
+     * Gets global window object - whether operating in worker or UI thread context.
+     * Adapted from: https://stackoverflow.com/questions/7931182/reliably-detect-if-the-script-is-executing-in-a-web-worker
+     */
+    getWindow() {
+        if (typeof window === 'object' && window.document) {
+            return window;
+        } else if (self && self.document === undefined) {
+            return self;
+        }
+
+        throw new Error('Undefined context');
     }
 
     static WrapRequest<T>(req: IDBRequest): SyncTasks.Promise<T> {
