@@ -623,7 +623,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                     joinedKeys.length);
             });
         }
-        return promise;
+        return promise.then(_.compact);
     }
 
     private static _unicodeFixer = new RegExp('[\u2028\u2029]', 'g');
@@ -928,10 +928,10 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
                     (Date.now() - startTime) + 'ms)');
             });
         }
-        return promise;
+        return promise.then(_.compact);
     }
 
-    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<(ItemType|undefined)[]> {
         let joinedKey: string;
         const err = _.attempt(() => {
             joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
@@ -983,7 +983,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
                     (Date.now() - startTime) + 'ms)');
             });
         }
-        return promise;
+        return promise.then(_.compact);
     }
 
     // Warning: This function can throw, make sure to trap.

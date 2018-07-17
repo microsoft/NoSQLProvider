@@ -53,7 +53,7 @@ export enum FullTextTermResolution {
 // Interface type describing an index being opened for querying.
 export interface DbIndex {
     getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
-    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
+    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<(ItemType|undefined)[]>;
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
         reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
     countAll(): SyncTasks.Promise<number>;
@@ -189,7 +189,7 @@ export abstract class DbProvider {
     }
 
     getOnly(storeName: string, indexName: string|undefined, key: KeyType, reverse?: boolean, limit?: number, offset?: number)
-            : SyncTasks.Promise<ItemType[]> {
+            : SyncTasks.Promise<(ItemType|undefined)[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.getOnly(key, reverse, limit, offset);
         });

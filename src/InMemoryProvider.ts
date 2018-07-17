@@ -319,7 +319,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         return this._returnResultsFromKeys(data!!!, sortedKeys, reverse, limit, offset);
     }
 
-    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<(ItemType|undefined)[]> {
         return this.getRange(key, key, false, false, reverse, limit, offset);
     }
 
@@ -366,7 +366,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         }
 
         let results = _.map(sortedKeys, key => data[key]);
-        return SyncTasks.Resolved(_.flatten(results));
+        return SyncTasks.Resolved(_.compact(_.flatten(results)));
     }
 
     countAll(): SyncTasks.Promise<number> {

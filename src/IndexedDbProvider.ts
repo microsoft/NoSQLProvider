@@ -694,7 +694,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
                 return SyncTasks.all(getters);
             });
         } else {
-            return IndexedDbIndex.getFromCursorRequest(req, limit, offset);
+            return IndexedDbIndex.getFromCursorRequest(req, limit, offset).then(_.compact);
         }
     }
 
@@ -703,10 +703,10 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         const req = this._store.openCursor(null!!!, reverse ? 'prev' : 'next');
-        return this._resolveCursorResult(req, limit, offset);
+        return this._resolveCursorResult(req, limit, offset).then(_.compact);
     }
 
-    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<(ItemType|undefined)[]> {
         let keyRange: any;
         const err = _.attempt(() => {
             keyRange = this._getKeyRangeForOnly(key);
@@ -738,7 +738,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         }
 
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
-        return this._resolveCursorResult(req, limit, offset);
+        return this._resolveCursorResult(req, limit, offset).then(_.compact);
     }
 
     // Warning: This function can throw, make sure to trap.

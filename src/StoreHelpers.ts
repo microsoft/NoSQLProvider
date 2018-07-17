@@ -31,7 +31,7 @@ export class SimpleTransactionIndexHelper<ObjectType extends ItemType, IndexKeyF
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
-    getOnly(key: IndexKeyFormat, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ObjectType[]> {
+    getOnly(key: IndexKeyFormat, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<(ObjectType|undefined)[]> {
         let promise = this._index.getOnly(key, reverse, limit, offset) as SyncTasks.Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
@@ -84,7 +84,7 @@ export class SimpleTransactionStoreHelper<StoreName extends string, ObjectType e
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
-    getOnly(key: KeyFormat, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ObjectType[]> {
+    getOnly(key: KeyFormat, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<(ObjectType|undefined)[]> {
         let promise = this._store.openPrimaryKey().getOnly(key, reverse, limit, offset) as SyncTasks.Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
