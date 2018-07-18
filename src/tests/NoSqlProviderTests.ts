@@ -63,10 +63,16 @@ function sleep(timeMs: number): SyncTasks.Promise<void> {
 
 describe('NoSqlProvider', function () {
     //this.timeout(60000);
-    after(() => {
+    after(callback => {
         if (cleanupFile) {
             var fs = require('fs');
-            fs.unlink('test');
+            fs.unlink('test', (err: any) => {
+                if (err) {
+                    throw err;
+                }
+                console.log('path/file.txt was deleted');
+                callback();
+              });
         }
     });
 
