@@ -22,7 +22,7 @@ export type DBStore<Name extends string, ObjectType, KeyFormat> = string & { nam
 export type DBIndex<Store extends DBStore<string, any, any>, IndexKeyFormat> = string & { store?: Store, indexKeyFormat?: IndexKeyFormat };
 
 export class SimpleTransactionIndexHelper<ObjectType extends ItemType, IndexKeyFormat extends KeyType> {
-    constructor(private _index: NoSqlProvider.DbIndex) {
+    constructor(protected _index: NoSqlProvider.DbIndex) {
         // Nothing to see here
     }
 
@@ -70,7 +70,7 @@ export class SimpleTransactionIndexHelper<ObjectType extends ItemType, IndexKeyF
 }
 
 export class SimpleTransactionStoreHelper<StoreName extends string, ObjectType extends ItemType, KeyFormat extends KeyType> {
-    constructor(private _store: NoSqlProvider.DbStore, storeName /* Force type-checking */: DBStore<StoreName, ObjectType, KeyFormat>) {
+    constructor(protected _store: NoSqlProvider.DbStore, storeName /* Force type-checking */: DBStore<StoreName, ObjectType, KeyFormat>) {
         // Nothing to see here
     }
 
