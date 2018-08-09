@@ -38,6 +38,10 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
         return SyncTasks.Resolved<void>();
     }
 
+    protected _deleteDatabaseInternal() {
+        return SyncTasks.Resolved();
+    }
+
     openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
         return this._lockHelper!!!.openTransaction(storeNames, writeNeeded).then(token =>
             new InMemoryTransaction(this, this._lockHelper!!!, token));

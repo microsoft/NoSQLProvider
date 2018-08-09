@@ -1,4 +1,4 @@
-﻿/**
+/**
  * NoSqlProvider.ts
  * Author: David de Regt
  * Copyright: Microsoft 2016
@@ -94,11 +94,13 @@ export interface DbTransaction {
 // Abstract base type for a database provider.  Has accessors for opening transactions and one-off accesor helpers.
 // Note: this is a different concept than a DbStore or DbIndex, although it provides a similar (or identical) interface.
 export abstract class DbProvider {
+    protected _dbName: string|undefined;
     protected _schema: DbSchema|undefined;
     protected _verbose: boolean|undefined;
 
     open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
         // virtual call
+        this._dbName = dbName;
         this._schema = schema;
         this._verbose = verbose;
         return undefined!!!;
@@ -111,6 +113,10 @@ export abstract class DbProvider {
     // careful using deferrals/promises that may wait for the main thread to close out before handling your response.
     // Undefined for storeNames means ALL stores.
     abstract openTransaction(storeNames: string[]|undefined, writeNeeded: boolean): SyncTasks.Promise<DbTransaction>;
+
+    deleteDatabase(): SyncTasks.Promise<void> {
+        return this.close().always(() => this._deleteDatabaseInternal());
+    }
 
     clearAllData(): SyncTasks.Promise<void> {
         var storeNames = this._schema!!!.stores.map(store => store.name);
@@ -129,6 +135,8 @@ export abstract class DbProvider {
             return SyncTasks.all(clearers).then(_.noop);
         });
     }
+
+    protected abstract _deleteDatabaseInternal(): SyncTasks.Promise<void>;
 
     private _getStoreTransaction(storeName: string, readWrite: boolean): SyncTasks.Promise<DbStore> {
         return this.openTransaction([storeName], readWrite).then(trans => {

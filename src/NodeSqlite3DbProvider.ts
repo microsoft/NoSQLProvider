@@ -1,4 +1,4 @@
-﻿/**
+/**
  * NodeSqlite3DbProvider.ts
  * Author: David de Regt
  * Copyright: Microsoft 2015
@@ -76,6 +76,10 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBa
             });
             return task.promise();
         });
+    }
+
+    protected _deleteDatabaseInternal(): SyncTasks.Promise<void> {
+        return SyncTasks.Rejected<void>('No support for deleting');
     }
 }
 
