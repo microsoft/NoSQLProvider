@@ -287,6 +287,29 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         return SyncTasks.Resolved<void>();
     }
 
+    protected _deleteDatabaseInternal(): SyncTasks.Promise<void> {
+        let trans: IDBOpenDBRequest;
+
+        const err = _.attempt(() => {
+            trans = this._dbFactory.deleteDatabase(this._dbName!!!);
+        });
+
+        if (err) {
+            return SyncTasks.Rejected(err);
+        }
+        
+        const deferred = SyncTasks.Defer<void>();
+
+        trans!!!.onsuccess = () => {
+            deferred.resolve(void 0);
+        };
+        trans!!!.onerror = (ev) => {
+            deferred.reject(ev);
+        };
+
+        return deferred.promise();
+    }
+
     openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<NoSqlProvider.DbTransaction> {
         if (!this._db) {
             return SyncTasks.Rejected('Can\'t openTransaction, database is closed');

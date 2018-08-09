@@ -106,6 +106,10 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
         return SyncTasks.Resolved<void>();
     }
 
+    protected _deleteDatabaseInternal(): SyncTasks.Promise<void> {
+        return SyncTasks.Rejected<void>('No support for deleting');
+    }
+
     openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
         if (!this._db) {
             return SyncTasks.Rejected('Database closed');

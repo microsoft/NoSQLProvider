@@ -97,6 +97,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
 
     private _db: SqliteDatabase|undefined;
 
+    private _dbParams: SqlitePluginDbParams|undefined;
     private _closingDefer: SyncTasks.Deferred<void>|undefined;
 
     open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
@@ -111,13 +112,13 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             return SyncTasks.Rejected<void>('Android NativeSqlite is broken, skipping');
         }
 
-        const dbParams = _.extend<SqlitePluginDbParams>({
+        this._dbParams = _.extend<SqlitePluginDbParams>({
             name: dbName + '.db',
             location: 2
         }, this._openOptions);
 
         const task = SyncTasks.Defer<void>();
-        this._db = this._plugin.openDatabase(dbParams, () => {
+        this._db = this._plugin.openDatabase(this._dbParams, () => {
             task.resolve(void 0);
         }, (err: any) => {
             task.reject('Couldn\'t open database: ' + dbName + ', error: ' + JSON.stringify(err));
@@ -146,6 +147,19 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase.SqlProviderBase
             });
             return def.promise();
         });
+    }
+    
+    protected _deleteDatabaseInternal(): SyncTasks.Promise<void> {
+        if (!this._plugin || !this._plugin.deleteDatabase) {
+            return SyncTasks.Rejected<void>('No support for deleting');
+        }
+        let task = SyncTasks.Defer<void>();
+        this._plugin.deleteDatabase(this._dbParams!!!, () => {
+            task.resolve(void 0);
+        }, err => {
+            task.reject('Couldn\'t delete the database ' + this._dbName + ', error: ' + JSON.stringify(err));
+        });
+        return task.promise();
     }
 
     openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {

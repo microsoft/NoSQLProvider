@@ -136,6 +136,74 @@ describe('NoSqlProvider', function () {
 
     provsToTest.forEach(provName => {
         describe('Provider: ' + provName, () => {
+
+            describe('Delete database', () => {
+                if (provName.indexOf('memory') !== -1) {
+                    xit('Skip delete test for in memory DB', () => {
+                        //noop
+                    });
+                } else if (provName.indexOf('indexeddb') === 0) {
+                    it('Deletes the database', () => {
+                        const schema = {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        };
+                        return openProvider(provName, schema, true)
+                        .then(prov => {
+                            // insert some stuff
+                            return prov.put('test', { id: 'a', val: 'b' })
+                            //then delete
+                            .then(() => prov.deleteDatabase());
+                        })
+                        .then(() => openProvider(provName, schema, false))
+                        .then(prov => {
+                            return prov.get('test', 'a').then(retVal => {
+                                const ret = retVal as TestObj;
+                                // not found
+                                assert(!ret);
+                                return prov.close();
+                            });
+                        });
+
+                    });
+                } else {
+                    it('Rejects with an error', () => {
+                        const schema = {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id'
+                                }
+                            ]
+                        };
+                        return openProvider(provName, schema, true).
+                        then(prov => {
+                            // insert some stuff
+                            return prov.put('test', { id: 'a', val: 'b' })
+                            .then(() => prov.deleteDatabase());
+                        })
+                        .then(() => {
+                            //this should not happen
+                            assert(false, 'Should fail');
+                        }).catch(() => {
+                            // as expected, didn't delete anything
+                            return openProvider(provName, schema, false)
+                            .then(prov => prov.get('test', 'a').then(retVal => {
+                                const ret = retVal as TestObj;
+                                assert.equal(ret.val, 'b');
+                                return prov.close();
+                            }));
+                        });
+                    });
+                }
+            });
+
             describe('Data Manipulation', () => {
                 // Setter should set the testable parameter on the first param to the value in the second param, and third param to the
                 // second index column for compound indexes.
