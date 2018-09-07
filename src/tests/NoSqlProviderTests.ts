@@ -1799,6 +1799,204 @@ describe('NoSqlProvider', function () {
                             });
                         });
                     });
+
+                    // indexed db might backfill anyway behind the scenes
+                    if (provName.indexOf('indexeddb') !== 0) {
+
+                        it('Adding an index that does not require backfill', () => {
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, true).then(prov => {
+                                return prov.put('test', { id: 'abc', tt: 'a' }).then(() => {
+                                    return prov.close();
+                                });
+                            }).then(() => {
+                                return openProvider(provName, {
+                                    version: 2,
+                                    stores: [
+                                        {
+                                            name: 'test',
+                                            primaryKeyPath: 'id',
+                                            indexes: [{
+                                                name: 'ind1',
+                                                keyPath: 'tt',
+                                                doNotBackfill: true
+                                            }]
+                                        }
+                                    ]
+                                }, false).then(prov => prov.put('test', { id: 'bcd', tt: 'b' }).then(() => {
+                                    const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
+                                        // item not found, we didn't backfill the first item
+                                        assert.equal(items.length, 0);
+                                    });
+                                    const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                        assert.equal(items[0].tt, 'a');
+                                    });
+                                    const p3 = prov.getOnly('test', 'ind1', 'b').then((items: any[]) => {
+                                        // index works properly for the new item
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'bcd');
+                                        assert.equal(items[0].tt, 'b');
+                                    });
+                                    return SyncTasks.all([p1, p2, p3]).then(() => {
+                                        return prov.close();
+                                    });
+                                }));
+                            });
+                        });
+
+                        it('Adding two indexes at once - backfill and not', () => {
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, true).then(prov => {
+                                return prov.put('test', { id: 'abc', tt: 'a', zz: 'b' }).then(() => {
+                                    return prov.close();
+                                });
+                            }).then(() => {
+                                return openProvider(provName, {
+                                    version: 2,
+                                    stores: [
+                                        {
+                                            name: 'test',
+                                            primaryKeyPath: 'id',
+                                            indexes: [
+                                                {
+                                                    name: 'ind1',
+                                                    keyPath: 'tt',
+                                                    doNotBackfill: true,
+                                                },
+                                                {
+                                                    name: 'ind2',
+                                                    keyPath: 'zz',
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }, false).then(prov => {
+                                    const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
+                                        // we had to backfill, so we filled all 
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                        assert.equal(items[0].tt, 'a');
+                                        assert.equal(items[0].zz, 'b');
+                                    });
+                                    const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                        assert.equal(items[0].tt, 'a');
+                                        assert.equal(items[0].zz, 'b');
+                                    });
+                                    const p3 = prov.getOnly('test', 'ind2', 'b').then((items: any[]) => {
+                                        // index works properly for the second index
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                        assert.equal(items[0].tt, 'a');
+                                        assert.equal(items[0].zz, 'b');
+                                    });
+                                    return SyncTasks.all([p1, p2, p3]).then(() => {
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+
+                        it('Perform two updates which require no backfill', () => {
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id'
+                                    }
+                                ]
+                            }, true)
+                            .then(prov => {
+                                return prov.put('test', { id: 'abc', tt: 'a' , zz: 'aa'}).then(() => {
+                                    return prov.close();
+                                });
+                            })
+                            .then(() => {
+                                return openProvider(provName, {
+                                    version: 2,
+                                    stores: [
+                                        {
+                                            name: 'test',
+                                            primaryKeyPath: 'id',
+                                            indexes: [{
+                                                name: 'ind1',
+                                                keyPath: 'tt',
+                                                doNotBackfill: true
+                                            }]
+                                        }
+                                    ]
+                                }, false)
+                                .then(prov => {
+                                    return prov.put('test', { id: 'bcd', tt: 'b' , zz: 'bb'}).then(() => {
+                                        return prov.close();
+                                    });
+                                });
+                            })
+                            .then(() => {
+                                    return openProvider(provName, {
+                                    version: 3,
+                                    stores: [
+                                        {
+                                            name: 'test',
+                                            primaryKeyPath: 'id',
+                                            indexes: [{
+                                                name: 'ind1',
+                                                keyPath: 'tt',
+                                                doNotBackfill: true
+                                            }, {
+                                                name: 'ind2',
+                                                keyPath: 'zz',
+                                                doNotBackfill: true
+                                            }]
+                                        }
+                                    ]
+                                }, false)
+                                .then(prov => {
+                                    const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
+                                        // item not found, we didn't backfill the first item
+                                        assert.equal(items.length, 0);
+                                    });
+                                    const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                        assert.equal(items[0].tt, 'a');
+                                        assert.equal(items[0].zz, 'aa');
+                                    });
+                                    const p3 = prov.getOnly('test', 'ind1', 'b').then((items: any[]) => {
+                                        // first index works properly for the second item
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'bcd');
+                                        assert.equal(items[0].tt, 'b');
+                                    });
+                                    const p4 = prov.getOnly('test', 'ind2', 'bb').then((items: any[]) => {
+                                        // second index wasn't backfilled
+                                        assert.equal(items.length, 0);
+                                    });
+                                    return SyncTasks.all([p1, p2, p3, p4]).then(() => {
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+                    }
                 });
             }
 

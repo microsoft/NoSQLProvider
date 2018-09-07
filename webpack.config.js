@@ -25,7 +25,9 @@ var webpackConfig = {
             exclude: /node_modules/,
             loader: 'awesome-typescript-loader'
         }]
-    }  
+    },
+
+    mode: 'development'
 };
 
 module.exports = webpackConfig;

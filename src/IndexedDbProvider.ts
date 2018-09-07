@@ -119,7 +119,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         dbOpen.onupgradeneeded = (event) => {
             const db: IDBDatabase = dbOpen.result;
             const target = <IDBOpenDBRequest>(event.currentTarget || event.target);
-            const trans = target.transaction;
+            const trans = target.transaction!!!;
 
             if (schema.lastUsableVersion && event.oldVersion < schema.lastUsableVersion) {
                 // Clear all stores if it's past the usable version
@@ -139,8 +139,8 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             // Create all stores
             _.each(schema.stores, storeSchema => {
                 let store: IDBObjectStore;
-                let migrateData = false;
-                if (!_.includes(db.objectStoreNames, storeSchema.name)) {
+                let storeExistedBefore = false;
+                if (!_.includes(db.objectStoreNames, storeSchema.name)) { // store doesn't exist yet
                     let primaryKeyPath = storeSchema.primaryKeyPath;
                     if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(primaryKeyPath)) {
                         // Going to have to hack the compound primary key index into a column, so here it is.
@@ -149,9 +149,9 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
 
                     // Any is to fix a lib.d.ts issue in TS 2.0.3 - it doesn't realize that keypaths can be compound for some reason...
                     store = db.createObjectStore(storeSchema.name, { keyPath: primaryKeyPath } as any);
-                } else {
+                } else { // store exists, might need to update indexes and migrate the data
+                    storeExistedBefore = true;
                     store = trans.objectStore(storeSchema.name);
-                    migrateData = true;
 
                     // Check for any indexes no longer in the schema or have been changed
                     _.each(store.indexNames, indexName => {
@@ -185,8 +185,10 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                     });
                 }
 
-                // Check any indexes in the schema that need to be created
+                // IndexedDB deals well with adding new indexes on the fly, so we don't need to force migrate, 
+                // unless adding multiEntry or fullText index
                 let needsMigrate = false;
+                // Check any indexes in the schema that need to be created
                 _.each(storeSchema.indexes, indexSchema => {
                     if (!_.includes(store.indexNames, indexSchema.name)) {
                         const keyPath = indexSchema.keyPath;
@@ -201,7 +203,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                                     indexStore.createIndex('key', 'key');
                                     indexStore.createIndex('refkey', 'refkey');
 
-                                    if (migrateData) {
+                                    if (storeExistedBefore && !indexSchema.doNotBackfill) {
                                         needsMigrate = true;
                                     }
                                 }
@@ -221,7 +223,7 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                                 multiEntry: true
                             });
 
-                            if (migrateData) {
+                            if (storeExistedBefore && !indexSchema.doNotBackfill) {
                                 needsMigrate = true;
                             }
                         } else {

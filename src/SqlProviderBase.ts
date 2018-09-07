@@ -208,10 +208,13 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                         dropQueries = _.map(tableNames, name => trans.runQuery('DROP TABLE ' + name));
 
-                        // Drop all existing metadata
-                        const metaToDropArg = _.map(indexMetadata, meta => meta.key).join(', ');
-                        dropQueries.push(trans.runQuery('DELETE FROM metadata where name in (?) ', [metaToDropArg]));
-                        indexMetadata = [];
+                        if (indexMetadata.length > 0) {
+                            // Drop all existing metadata
+                            const placeholder = Array.apply(null, new Array(indexMetadata.length)).map(() => '?').join(',');
+                            dropQueries.push(trans.runQuery('DELETE FROM metadata WHERE name IN (' + placeholder + ')',
+                                _.map(indexMetadata, meta => meta.key)));
+                            indexMetadata = [];
+                        }
                         tableNames = [];
                     } else {
                         // Just delete tables we don't care about anymore. Preserve multi-entry tables, they may not be changed
@@ -232,7 +235,9 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                             // Clean up metas
                             if (metasToDelete.length > 0) {
-                                transList.push(trans.runQuery('DELETE FROM metadata where name in (?)', [metasToDelete.join(', ')]));
+                                const placeholder = Array.apply(null, new Array(metasToDelete.length)).map(() => '?').join(',');
+                                transList.push(trans.runQuery('DELETE FROM metadata where name in (' + placeholder + ')',
+                                    _.map(metasToDelete, meta => meta.key)));
                                 indexMetadata = _.filter(indexMetadata, meta => !_.includes(metaKeysToDelete, meta.key));
                             }
                             return transList;
@@ -246,9 +251,11 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                         // Go over each store and see what needs changing
                         _.each(this._schema!!!.stores, storeSchema => {
-                            const indexMaker = () => {
+
+                            // creates indexes for provided schemas 
+                            const indexMaker = (indexes: NoSqlProvider.IndexSchema[] = []) => {
                                 let metaQueries: SyncTasks.Promise<any>[] = [];
-                                const indexQueries = _.map(storeSchema.indexes, index => {
+                                const indexQueries = _.map(indexes, index => {
                                     const indexIdentifier = getIndexIdentifier(storeSchema, index);
 
                                     // Store meta for the index
@@ -293,29 +300,62 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                             const columnBasedIndexes = _.filter(storeSchema.indexes, index =>
                                 !indexUsesSeparateTable(index, this._supportsFTS3));
+                                
                             const indexColumns = _.map(columnBasedIndexes, index => 'nsp_i_' + index.name + ' TEXT');
                             fieldList = fieldList.concat(indexColumns);
                             const tableMakerSql = 'CREATE TABLE ' + storeSchema.name + ' (' + fieldList.join(', ') + ')';
+                            
+                            const currentIndexMetas = _.filter(indexMetadata, meta => meta.storeName === storeSchema.name);
+
+                            // find new indices which don't require backfill
+                            const newNoBackfillIndices = _.filter(storeSchema.indexes, index => {
+                                const indexIdentifier = getIndexIdentifier(storeSchema, index);
+                                return !!index.doNotBackfill && !_.some(currentIndexMetas, meta => meta.key === indexIdentifier);
+                            });
+
+                            // columns requiring no backfill could be simply added to the table
+                            const newIndexColumnsNoBackfill = _.intersection(newNoBackfillIndices, columnBasedIndexes);
+
+                            const columnAdder = () => {
+                                const addQueries = _.map(newIndexColumnsNoBackfill, index => 
+                                    trans.runQuery('ALTER TABLE ' + storeSchema.name + ' ADD COLUMN ' + 'nsp_i_' + index.name + ' TEXT')
+                                );
+
+                                return SyncTasks.all(addQueries);
+                            };
 
                             const tableMaker = () => {
                                 // Create the table
                                 return trans.runQuery(tableMakerSql)
-                                    .then(indexMaker);
+                                    .then(() => indexMaker(storeSchema.indexes));
                             };
 
-                            const needsMigration = () => {
-                                // Check if sql used to create the base table has changed
-                                if (tableSqlStatements[storeSchema.name] !== tableMakerSql) {
+                            const needsDataMigration = () => {
+                                //  If some indices have been removed - migration is needed
+                                const areIndicesRemoved = _.some(currentIndexMetas, meta => 
+                                    !_.some(storeSchema.indexes, newIndex => getIndexIdentifier(storeSchema, newIndex) === meta.key));
+                                if (areIndicesRemoved) {
                                     return true;
                                 }
 
-                                // Check if indicies are missing
+                                // Check all the indices in the schema
                                 return _.some(storeSchema.indexes, index => {
-                                    // Check if key paths agree
                                     const indexIdentifier = getIndexIdentifier(storeSchema, index);
                                     const indexMeta = _.find(indexMetadata, meta => meta.key === indexIdentifier);
-                                    if (!indexMeta || !_.isEqual(indexMeta.index, index)) {
+                                    
+                                    // if there's a new index that doesn't require backfill, continue
+                                    if (!indexMeta && index.doNotBackfill) {
+                                        return false;
+                                    }
+
+                                    // If we have a new index that requires backfill - we need to migrate 
+                                    if (!indexMeta) {
                                         return true;
+                                    }
+
+                                    // If the index schemas don't match - we need to migrate
+                                    if (!_.isEqual(indexMeta.index, index)) {
+                                        return true;    
                                     }
 
                                     // Check that indicies actually exist in the right place
@@ -336,7 +376,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             // If the table exists, check if we can view the sql statement used to create this table. Use it to determine
                             // if a migration is needed, otherwise just make a copy and fully migrate the data over.
                             const tableExists = _.includes(tableNames, storeSchema.name);
-                            const tableRequiresMigration = tableExists && needsMigration();
+                            const tableRequiresMigration = tableExists && needsDataMigration();
 
                             if (tableExists && tableRequiresMigration) {
                                 // Nuke old indexes on the original table (since they don't change names and we don't need them anymore).
@@ -364,6 +404,9 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 };
 
                                 tableQueries.push(nukeIndexesAndRename.then(tableMaker).then(migrator));
+                            } else if (tableExists && newNoBackfillIndices.length > 0) {
+                                // we can add new indices without migrating
+                                tableQueries.push(columnAdder().then(() => indexMaker(newNoBackfillIndices)));
                             } else if (!tableExists) {
                                 // Table doesn't exist -- just go ahead and create it without the migration path
                                 tableQueries.push(tableMaker());
