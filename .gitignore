@@ -4,5 +4,4 @@
 /src/obj
 *.user
 /NoSQLProviderTestsPack.js
-/.vscode
 /dist
