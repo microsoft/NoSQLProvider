@@ -119,7 +119,11 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         dbOpen.onupgradeneeded = (event) => {
             const db: IDBDatabase = dbOpen.result;
             const target = <IDBOpenDBRequest>(event.currentTarget || event.target);
-            const trans = target.transaction!!!;
+            const trans = target.transaction;
+
+            if (!trans) {
+                throw new Error('onupgradeneeded: target is null!');
+            }
 
             if (schema.lastUsableVersion && event.oldVersion < schema.lastUsableVersion) {
                 // Clear all stores if it's past the usable version
