@@ -209,8 +209,12 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         dropQueries = _.map(tableNames, name => trans.runQuery('DROP TABLE ' + name));
 
                         if (indexMetadata.length > 0) {
+                            // Generate as many '?' as there are params
+                            let placeholder = '?';
+                            for (let i = 1; i < indexMetadata.length; i++) {
+                                placeholder += ',?';
+                            }
                             // Drop all existing metadata
-                            const placeholder = Array.apply(null, new Array(indexMetadata.length)).map(() => '?').join(',');
                             dropQueries.push(trans.runQuery('DELETE FROM metadata WHERE name IN (' + placeholder + ')',
                                 _.map(indexMetadata, meta => meta.key)));
                             indexMetadata = [];
@@ -235,7 +239,11 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                             // Clean up metas
                             if (metasToDelete.length > 0) {
-                                const placeholder = Array.apply(null, new Array(metasToDelete.length)).map(() => '?').join(',');
+                                // Generate as many '?' as there are params
+                                let placeholder = '?';
+                                for (let i = 1; i < metasToDelete.length; i++) {
+                                    placeholder += ',?';
+                                }
                                 transList.push(trans.runQuery('DELETE FROM metadata where name in (' + placeholder + ')',
                                     _.map(metasToDelete, meta => meta.key)));
                                 indexMetadata = _.filter(indexMetadata, meta => !_.includes(metaKeysToDelete, meta.key));
@@ -846,18 +854,25 @@ class SqlStore implements NoSqlProvider.DbStore {
         const queries = _.map(arrayOfParams, params => {
             let queries: SyncTasks.Promise<void>[] = [];
 
+            if (params.length === 0) {
+                return undefined;
+            }
+
             // Generate as many '?' as there are params
-            let sqlPart = Array.apply(null, new Array(params.length)).map(() => '?').join(',');
+            let placeholder = '?';
+            for (let i = 1; i < params.length; i++) {
+                placeholder += ',?';
+            }
 
             _.each(this._schema.indexes, index => {
                 if (indexUsesSeparateTable(index, this._supportsFTS3)) {
                     queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
-                        ' WHERE nsp_refpk IN (' + sqlPart + ')', params));
+                        ' WHERE nsp_refpk IN (' + placeholder + ')', params));
                 }
             });
 
             queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name +
-                ' WHERE nsp_pk IN (' + sqlPart + ')', params));
+                ' WHERE nsp_pk IN (' + placeholder + ')', params));
 
             return SyncTasks.all(queries).then(_.noop);
         });

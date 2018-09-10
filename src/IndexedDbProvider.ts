@@ -139,8 +139,8 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             // Create all stores
             _.each(schema.stores, storeSchema => {
                 let store: IDBObjectStore;
-                let storeExistedBefore = false;
-                if (!_.includes(db.objectStoreNames, storeSchema.name)) { // store doesn't exist yet
+                const storeExistedBefore = _.includes(db.objectStoreNames, storeSchema.name);
+                if (!storeExistedBefore) { // store doesn't exist yet
                     let primaryKeyPath = storeSchema.primaryKeyPath;
                     if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(primaryKeyPath)) {
                         // Going to have to hack the compound primary key index into a column, so here it is.
@@ -150,7 +150,6 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
                     // Any is to fix a lib.d.ts issue in TS 2.0.3 - it doesn't realize that keypaths can be compound for some reason...
                     store = db.createObjectStore(storeSchema.name, { keyPath: primaryKeyPath } as any);
                 } else { // store exists, might need to update indexes and migrate the data
-                    storeExistedBefore = true;
                     store = trans.objectStore(storeSchema.name);
 
                     // Check for any indexes no longer in the schema or have been changed

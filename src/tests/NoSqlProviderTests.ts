@@ -1914,6 +1914,62 @@ describe('NoSqlProvider', function () {
                             });
                         });
 
+                        it('Change no backfill index into a normal index', () => {
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [
+                                            {
+                                                name: 'ind1',
+                                                keyPath: 'tt',
+                                                doNotBackfill: true,
+                                            },
+                                        ]
+                                    }
+                                ]
+                            }, true).then(prov => {
+                                return prov.put('test', { id: 'abc', tt: 'a', zz: 'b' }).then(() => {
+                                    return prov.close();
+                                });
+                            }).then(() => {
+                                return openProvider(provName, {
+                                    version: 2,
+                                    stores: [
+                                        {
+                                            name: 'test',
+                                            primaryKeyPath: 'id',
+                                            indexes: [
+                                                {
+                                                    name: 'ind1',
+                                                    keyPath: 'tt',
+                                                },
+                                            ]
+                                        }
+                                    ]
+                                }, false).then(prov => {
+                                    const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
+                                        // we backfilled 
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                        assert.equal(items[0].tt, 'a');
+                                        assert.equal(items[0].zz, 'b');
+                                    });
+                                    const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                        assert.equal(items[0].tt, 'a');
+                                        assert.equal(items[0].zz, 'b');
+                                    });
+                                    return SyncTasks.all([p1, p2]).then(() => {
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+
                         it('Perform two updates which require no backfill', () => {
                             return openProvider(provName, {
                                 version: 1,
