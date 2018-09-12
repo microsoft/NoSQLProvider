@@ -27,6 +27,7 @@ export interface IndexSchema {
     multiEntry?: boolean;
     fullText?: boolean;
     includeDataInIndex?: boolean;
+    doNotBackfill?: boolean;
 }
 
 // Schema type describing a data store.  Must give a keypath for the primary key for the store.  Further indexes are optional.

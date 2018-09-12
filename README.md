@@ -31,3 +31,4 @@ npm run webtest
 ## Testing
 1. Compile tests
 1. Open test.html in browser
+1. You can add `?grep=foo` to the URL to run only tests containing 'foo' in the name
