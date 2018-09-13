@@ -199,6 +199,10 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     });
 
                     const deleteFromMeta = (metasToDelete: IndexMetadata[]) => {
+                        if (metasToDelete.length === 0) {
+                            return SyncTasks.Resolved([]);
+                        }
+
                         // Generate as many '?' as there are params
                         let placeholder = '?';
                         for (let i = 1; i < metasToDelete.length; i++) {
@@ -318,17 +322,17 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             const currentIndexMetas = _.filter(indexMetadata, meta => meta.storeName === storeSchema.name);
                             
                             const indexIdentifierDictionary = _.keyBy(storeSchema.indexes, index => getIndexIdentifier(storeSchema, index));
-                            const indexMetaKeyDictionary = _.keyBy(currentIndexMetas, 'key');
+                            const indexMetaDictionary = _.keyBy(currentIndexMetas, meta => meta.key);
 
                             // find indices in the schema that did not exist before
                             const newIndices = _.filter(storeSchema.indexes, index =>
-                                !indexMetaKeyDictionary[getIndexIdentifier(storeSchema, index)]);
+                                !indexMetaDictionary[getIndexIdentifier(storeSchema, index)]);
 
                             // find indices in the meta that do not exist in the new schema
-                            const removedIndexMetas = _.filter(currentIndexMetas, meta => 
+                            const allRemovedIndexMetas = _.filter(currentIndexMetas, meta => 
                                 !indexIdentifierDictionary[meta.key]);
 
-                            const [removedTableIndexMetas, removedColumnIndexMetas] = _.partition(removedIndexMetas, 
+                            const [removedTableIndexMetas, removedColumnIndexMetas] = _.partition(allRemovedIndexMetas, 
                                 meta => indexUsesSeparateTable(meta.index, this._supportsFTS3));
 
                             // find new indices which don't require backfill
@@ -357,16 +361,12 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 // Check all the indices in the schema
                                 return _.some(storeSchema.indexes, index => {
                                     const indexIdentifier = getIndexIdentifier(storeSchema, index);
-                                    const indexMeta = _.find(indexMetadata, meta => meta.key === indexIdentifier);
+                                    const indexMeta = indexMetaDictionary[indexIdentifier];
                                     
                                     // if there's a new index that doesn't require backfill, continue
-                                    if (!indexMeta && index.doNotBackfill) {
-                                        return false;
-                                    }
-
-                                    // If we have a new index that requires backfill - we need to migrate 
+                                    // If there's a new index that requires backfill - we need to migrate 
                                     if (!indexMeta) {
-                                        return true;
+                                        return !index.doNotBackfill;
                                     }
 
                                     // If the index schemas don't match - we need to migrate
@@ -416,23 +416,21 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             const tableExists = _.includes(tableNames, storeSchema.name);
                             const doFullMigration = tableExists && needsFullMigration();
                             const doSqlInPlaceMigration = tableExists && !doFullMigration && removedColumnIndexMetas.length > 0;
-                            const adddNewColumns = tableExists && !doSqlInPlaceMigration && newNoBackfillIndices.length > 0;
+                            const adddNewColumns = tableExists && !doFullMigration && !doSqlInPlaceMigration 
+                                && newNoBackfillIndices.length > 0;
+
+                            const indexTableAndMetaDropper = () => {
+                                const indexTablesToDrop = doFullMigration 
+                                    ? indexTables[storeSchema.name] : removedTableIndexMetas.map(meta => meta.key);
+                                return SyncTasks.all([deleteFromMeta(allRemovedIndexMetas), ...dropIndexTables(indexTablesToDrop)]);
+                            };
 
                             if (!tableExists) {
                                 // Table doesn't exist -- just go ahead and create it without the migration path
                                 tableQueries.push(tableMaker());
-                            } else if (doFullMigration) {
-                                // Nuke old indexes on the original table (since they don't change names and we don't need them anymore).
-                                // Also nuke no longer needed old multientry/FTS tables
-                                const indexDroppers: SyncTasks.Promise<any[]>[] = _.concat(
-                                    dropColumnIndices(), 
-                                    dropIndexTables(indexTables[storeSchema.name])
-                                );
-
-                                if (removedIndexMetas.length > 0) {
-                                    indexDroppers.push(deleteFromMeta(removedIndexMetas));
-                                }
-
+                            } 
+                            
+                            if (doFullMigration) {
                                 // Migrate the data over using our existing put functions
                                 // (since it will do the right things with the indexes)
                                 // and delete the temp table.
@@ -445,14 +443,18 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 };
 
                                 tableQueries.push(
-                                    SyncTasks.all(indexDroppers)
-                                        .then(createTempTable)
-                                        .then(tableMaker)
-                                        .then(jsMigrator)
-                                        .then(dropTempTable)
+                                    SyncTasks.all([
+                                        indexTableAndMetaDropper(),
+                                        dropColumnIndices(),
+                                    ])
+                                    .then(createTempTable)
+                                    .then(tableMaker)
+                                    .then(jsMigrator)
+                                    .then(dropTempTable)
                                 );
-                            } else if (doSqlInPlaceMigration) {
-                                  
+                            } 
+                            
+                            if (doSqlInPlaceMigration) {
                                 const sqlInPlaceMigrator = () => {
                                     return trans.runQuery('INSERT INTO ' + storeSchema.name +
                                         ' SELECT ' + ['nsp_pk', 'nsp_data', ...indexColumns].join(', ') + 
@@ -460,33 +462,24 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                                 };
 
-                                const indexDroppers = 
-                                    dropIndexTables(removedTableIndexMetas.map(meta => getIndexIdentifier(storeSchema, meta.index)));
-                                if (removedIndexMetas.length > 0) {
-                                    indexDroppers.push(deleteFromMeta(removedIndexMetas));
-                                }
-
                                 tableQueries.push(
-                                    SyncTasks.all(indexDroppers)
-                                    .then(createTempTable)
-                                    .then(tableMaker)
-                                    .then(sqlInPlaceMigrator)
-                                    .then(dropTempTable)
+                                    indexTableAndMetaDropper(),
+                                    createTempTable()
+                                        .then(tableMaker)
+                                        .then(sqlInPlaceMigrator)
+                                        .then(dropTempTable)
                                 );
 
-                            } else if (adddNewColumns) {
-                                const indexDroppers = 
-                                    dropIndexTables(removedTableIndexMetas.map(meta => getIndexIdentifier(storeSchema, meta.index)));
-                                if (removedIndexMetas.length > 0) {
-                                    indexDroppers.push(deleteFromMeta(removedIndexMetas));
-                                }
-
+                            }
+                            
+                            if (adddNewColumns) {
                                 const newIndexMaker = () => indexMaker(newNoBackfillIndices);
 
                                 tableQueries.push(
-                                    SyncTasks.all(indexDroppers)
-                                    .then(columnAdder)
-                                    .then(newIndexMaker));
+                                    indexTableAndMetaDropper(),
+                                    columnAdder()
+                                        .then(newIndexMaker)
+                                );
                             }
 
                         });
