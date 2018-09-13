@@ -56,7 +56,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             return SyncTasks.Rejected<void>('Couldn\'t open database: ' + dbName);
         }
 
-        const deferred = SyncTasks.Defer<void>();
+        const upgradeDbDeferred = SyncTasks.Defer<void>();
         let changeVersionDeferred: SyncTasks.Deferred<void> | undefined;
         let oldVersion = Number(this._db.version);
         if (oldVersion !== this._schema!!!.version) {
@@ -74,14 +74,14 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                     this._supportsFTS3);
 
                 this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => {
-                    deferred.resolve(void 0);
+                    upgradeDbDeferred.resolve(void 0);
                 }, err => {
                     errorDetail = err && err.message ? err.message : err.toString();
                     // Got a promise error.  Force the transaction to abort.
                     trans.abort();
                 });
             }, (err) => {
-                deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
+                upgradeDbDeferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
             }, () => {
                 changeVersionDeferred!!!.resolve(void 0);
             } );
@@ -90,19 +90,19 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             let errorDetail: string;
             this.openTransaction([], true).then(trans => {
                 this._upgradeDb(trans, oldVersion, true).then(() => {
-                    deferred.resolve(void 0);
+                    upgradeDbDeferred.resolve(void 0);
                 }, err => {
                     errorDetail = err && err.message ? err.message : err.toString();
                     // Got a promise error.  Force the transaction to abort.
                     trans.abort();
                 });
             }, (err) => {
-                deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
+                upgradeDbDeferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
             });
         } else {
-            deferred.resolve(void 0);
+            upgradeDbDeferred.resolve(void 0);
         }
-        return deferred.promise().then(() => changeVersionDeferred ? changeVersionDeferred.promise() : undefined);
+        return upgradeDbDeferred.promise().then(() => changeVersionDeferred ? changeVersionDeferred.promise() : undefined);
     }
 
     close(): SyncTasks.Promise<void> {

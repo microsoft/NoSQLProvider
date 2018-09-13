@@ -317,15 +317,16 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             
                             const currentIndexMetas = _.filter(indexMetadata, meta => meta.storeName === storeSchema.name);
                             
+                            const indexIdentifierDictionary = _.keyBy(storeSchema.indexes, index => getIndexIdentifier(storeSchema, index));
+                            const indexMetaKeyDictionary = _.keyBy(currentIndexMetas, 'key');
+
                             // find indices in the schema that did not exist before
-                            const newIndices = _.filter(storeSchema.indexes, index => {
-                                const indexIdentifier = getIndexIdentifier(storeSchema, index);
-                                return !_.some(currentIndexMetas, meta => meta.key === indexIdentifier);
-                            });
+                            const newIndices = _.filter(storeSchema.indexes, index =>
+                                !indexMetaKeyDictionary[getIndexIdentifier(storeSchema, index)]);
 
                             // find indices in the meta that do not exist in the new schema
                             const removedIndexMetas = _.filter(currentIndexMetas, meta => 
-                                !_.some(storeSchema.indexes, newIndex => getIndexIdentifier(storeSchema, newIndex) === meta.key));
+                                !indexIdentifierDictionary[meta.key]);
 
                             const [removedTableIndexMetas, removedColumnIndexMetas] = _.partition(removedIndexMetas, 
                                 meta => indexUsesSeparateTable(meta.index, this._supportsFTS3));
@@ -480,10 +481,12 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     indexDroppers.push(deleteFromMeta(removedIndexMetas));
                                 }
 
+                                const newIndexMaker = () => indexMaker(newNoBackfillIndices);
+
                                 tableQueries.push(
                                     SyncTasks.all(indexDroppers)
                                     .then(columnAdder)
-                                    .then(() => indexMaker(newNoBackfillIndices)));
+                                    .then(newIndexMaker));
                             }
 
                         });

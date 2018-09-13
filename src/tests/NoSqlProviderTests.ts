@@ -2057,6 +2057,7 @@ describe('NoSqlProvider', function () {
                         });
 
                         it('Removes index without pulling data to JS', () => {
+                            let storeSpy: sinon.SinonSpy|undefined;
                             return openProvider(provName, {
                                 version: 1,
                                 stores: [
@@ -2076,8 +2077,8 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             }).then(() => {
-                            const storeSpy = sinon.spy(SqlTransaction.prototype, 'getStore');
-                            return openProvider(provName, {
+                                storeSpy = sinon.spy(SqlTransaction.prototype, 'getStore');
+                                return openProvider(provName, {
                                     version: 2,
                                     stores: [
                                         {
@@ -2085,9 +2086,10 @@ describe('NoSqlProvider', function () {
                                             primaryKeyPath: 'id'
                                         }
                                     ]
-                                }, false).then(prov => {
+                                }, false)
+                                .then(prov => {
                                     // NOTE - the line below tests an implementation detail
-                                    sinon.assert.notCalled(storeSpy);
+                                    sinon.assert.notCalled(storeSpy!!!);
 
                                     // check the index was actually removed
                                     const p1 = prov.get('test', 'abc').then((item: any) => {
@@ -2105,10 +2107,12 @@ describe('NoSqlProvider', function () {
                                     });
                                     return SyncTasks.all([p1, p2]).then(() => {
                                         return prov.close();
-                                    }).always(() => {
-                                        storeSpy.restore();
                                     });
                                 });
+                            }).always(() => {
+                                if (storeSpy) {
+                                    storeSpy.restore();
+                                }
                             });
                         });
 
@@ -2150,7 +2154,7 @@ describe('NoSqlProvider', function () {
                                             });
                                         });
                                     });
-                                    return SyncTasks.all([p1]).then(() => {
+                                    return p1.then(() => {
                                         return prov.close();
                                     });
                                 });
