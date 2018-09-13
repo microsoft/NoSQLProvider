@@ -35,6 +35,8 @@ export interface StoreSchema {
     name: string;
     indexes?: IndexSchema[];
     primaryKeyPath: KeyPathType;
+    // Estimated object size to enable batched data migration. Default = 200
+    estimatedObjBytes?: number;
 }
 
 // Schema representing a whole database (a collection of stores).  Change your version number whenever you change your schema or

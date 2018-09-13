@@ -12,6 +12,7 @@ import { IndexedDbProvider } from '../IndexedDbProvider';
 import { WebSqlProvider } from '../WebSqlProvider';
 
 import NoSqlProviderUtils = require('../NoSqlProviderUtils');
+import { SqlTransaction } from '../SqlProviderBase';
 
 import { SqlTransaction } from '../SqlProviderBase';
 
@@ -1198,6 +1199,75 @@ describe('NoSqlProvider', function () {
                                 });
                             });
                         });
+                    });
+
+                    function testBatchUpgrade(expectedCallCount: number, itemByteSize: number): SyncTasks.Promise<void> {
+                        const recordCount = 2000;
+                        const data: { id: string, tt: string }[] = [];
+                        for (let i = 0; i < recordCount; i++) {
+                            data.push({
+                                id: i.toString(),
+                                tt: 'tt' + i.toString()
+                            });
+                        }
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    estimatedObjBytes: itemByteSize
+                                }
+                            ]
+                        }, true).then(prov => {
+                            return prov.put('test', data).then(() => {
+                                return prov.close();
+                            });
+                        }).then(() => {
+                            let transactionSpy: sinon.SinonSpy | undefined;
+                            if (provName.indexOf('sql') !== -1) {
+                                // Check that we batch the upgrade
+                                transactionSpy = sinon.spy(SqlTransaction.prototype, 'internal_getResultsFromQuery');
+                            }
+                            return openProvider(provName, {
+                                version: 2,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        estimatedObjBytes: itemByteSize,
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt'
+                                        }]
+                                    }
+                                ]
+                            }, false).then(prov => {
+                                if (transactionSpy) {
+                                    assert.ok(transactionSpy.callCount === expectedCallCount);
+                                    transactionSpy.restore();
+                                }
+                                return prov.getAll('test', undefined).then((records: any) => {
+                                    assert.equal(records.length, data.length);
+                                    _.each(data, recordToValidate => {
+                                        const dbRecord = _.find(records, record => record.id === recordToValidate.id);
+                                        assert.ok(!!dbRecord);
+                                        assert.equal(dbRecord.id, recordToValidate.id);
+                                        assert.equal(dbRecord.tt, recordToValidate.tt);
+                                    });
+                                }).then(() => {
+                                    return prov.close();
+                                });
+                            });
+                        });
+                    }
+
+                    it('Add index - Large records - batched upgrade', () => {
+                        return testBatchUpgrade(21, 10000);
+                    });
+
+                    it('Add index - small records - No batch upgrade', () => {
+                        return testBatchUpgrade(1, 1);
                     });
 
                     if (provName.indexOf('indexeddb') !== 0) {
