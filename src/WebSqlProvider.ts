@@ -98,7 +98,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                 });
             }, (err) => {
                 deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
-            }, );
+            });
         } else {
             deferred.resolve(void 0);
         }
