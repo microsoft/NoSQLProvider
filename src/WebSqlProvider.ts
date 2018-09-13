@@ -1,4 +1,4 @@
-﻿/**
+/**
  * WebSqlProvider.ts
  * Author: David de Regt
  * Copyright: Microsoft 2015
@@ -57,6 +57,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
         }
 
         const deferred = SyncTasks.Defer<void>();
+        let changeVersionDeferred: SyncTasks.Deferred<void> | undefined;
         let oldVersion = Number(this._db.version);
         if (oldVersion !== this._schema!!!.version) {
             // Needs a schema upgrade/change
@@ -65,6 +66,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                 // Note: the reported DB version won't change back to the older number until after you do a put command onto the DB.
                 wipeIfExists = true;
             }
+            changeVersionDeferred = SyncTasks.Defer<void>();
 
             let errorDetail: string;
             this._db.changeVersion(this._db.version, this._schema!!!.version.toString(), (t) => {
@@ -80,7 +82,9 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                 });
             }, (err) => {
                 deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
-            });
+            }, () => {
+                changeVersionDeferred!!!.resolve(void 0);
+            } );
         } else if (wipeIfExists) {
             // No version change, but wipe anyway
             let errorDetail: string;
@@ -94,11 +98,11 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                 });
             }, (err) => {
                 deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
-            });
+            }, );
         } else {
             deferred.resolve(void 0);
         }
-        return deferred.promise();
+        return deferred.promise().then(() => changeVersionDeferred ? changeVersionDeferred.promise() : undefined);
     }
 
     close(): SyncTasks.Promise<void> {
