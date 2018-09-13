@@ -2109,7 +2109,7 @@ describe('NoSqlProvider', function () {
                                         return prov.close();
                                     });
                                 });
-                            }).always(() => {
+                            }).finally(() => {
                                 if (storeSpy) {
                                     storeSpy.restore();
                                 }
@@ -2144,7 +2144,7 @@ describe('NoSqlProvider', function () {
                                     ]
                                 }, false)
                                 .then(prov => {
-                                    const p1 = prov.openTransaction(undefined, false).then(trans => {
+                                    return prov.openTransaction(undefined, false).then(trans => {
                                         return (trans as SqlTransaction).runQuery('SELECT name, value from metadata').then(fullMeta => {
                                             _.each(fullMeta, (meta: any) => {
                                                 let metaObj = JSON.parse(meta.value);
@@ -2153,8 +2153,7 @@ describe('NoSqlProvider', function () {
                                                 }
                                             });
                                         });
-                                    });
-                                    return p1.then(() => {
+                                    }).then(() => {
                                         return prov.close();
                                     });
                                 });
