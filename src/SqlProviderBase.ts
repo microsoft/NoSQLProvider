@@ -439,7 +439,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 // and delete the temp table.
                                 const jsMigrator = (batchOffset = 0): SyncTasks.Promise<any> => {
                                     let esimatedSize = storeSchema.estimatedObjBytes || DB_SIZE_ESIMATE_DEFAULT;
-                                    let batchSize = Math.floor(DB_MIGRATION_MAX_BYTE_TARGET / esimatedSize);
+                                    let batchSize = Math.max(1, Math.floor(DB_MIGRATION_MAX_BYTE_TARGET / esimatedSize));
                                     let store = trans.getStore(storeSchema.name);
                                     return trans.internal_getResultsFromQuery('SELECT nsp_data FROM temp_' + storeSchema.name + ' LIMIT ' +
                                             batchSize + ' OFFSET ' + batchOffset)
