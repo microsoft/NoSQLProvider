@@ -43,6 +43,9 @@ const schemaVersionKey = 'schemaVersion';
 // This was taked from the sqlite documentation
 const SQLITE_MAX_SQL_LENGTH_IN_BYTES = 1000000;
 
+const DB_SIZE_ESIMATE_DEFAULT = 200;
+const DB_MIGRATION_MAX_BYTE_TARGET = 1000000;
+
 interface IndexMetadata {
     key: string;
     storeName: string;
@@ -434,11 +437,20 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 // Migrate the data over using our existing put functions
                                 // (since it will do the right things with the indexes)
                                 // and delete the temp table.
-                                const jsMigrator = () => {
+                                const jsMigrator = (batchOffset = 0): SyncTasks.Promise<any> => {
+                                    let esimatedSize = storeSchema.estimatedObjBytes || DB_SIZE_ESIMATE_DEFAULT;
+                                    let batchSize = Math.max(1, Math.floor(DB_MIGRATION_MAX_BYTE_TARGET / esimatedSize));
                                     let store = trans.getStore(storeSchema.name);
-                                    return trans.internal_getResultsFromQuery('SELECT nsp_data FROM temp_' + storeSchema.name)
-                                    .then(objs => {
-                                        return store.put(objs);
+                                    return trans.internal_getResultsFromQuery('SELECT nsp_data FROM temp_' + storeSchema.name + ' LIMIT ' +
+                                            batchSize + ' OFFSET ' + batchOffset)
+                                        .then(objs => {
+                                            return store.put(objs).then(() => {
+                                                // Are we done migrating?
+                                                if (objs.length < batchSize) {
+                                                    return undefined;
+                                                }
+                                                return jsMigrator(batchOffset + batchSize);
+                                            });
                                     });
                                 };
 
@@ -449,7 +461,9 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     ])
                                     .then(createTempTable)
                                     .then(tableMaker)
-                                    .then(jsMigrator)
+                                    .then(() => {
+                                        return jsMigrator();
+                                    })
                                     .then(dropTempTable)
                                 );
                             } 
