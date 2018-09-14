@@ -447,14 +447,12 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                             return store.put(objs).then(() => {
                                                 // Are we done migrating?
                                                 if (objs.length < batchSize) {
-                                                    return trans.runQuery('DROP TABLE temp_' + storeSchema.name);
+                                                    return undefined;
                                                 }
-                                                return migrator(batchOffset + batchSize);
+                                                return jsMigrator(batchOffset + batchSize);
                                             });
                                     });
                                 };
-
-
 
                                 tableQueries.push(
                                     SyncTasks.all([
@@ -463,7 +461,9 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     ])
                                     .then(createTempTable)
                                     .then(tableMaker)
-                                    .then(jsMigrator)
+                                    .then(() => {
+                                        return jsMigrator();
+                                    })
                                     .then(dropTempTable)
                                 );
                             } 

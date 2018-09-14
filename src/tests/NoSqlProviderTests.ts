@@ -14,8 +14,6 @@ import { WebSqlProvider } from '../WebSqlProvider';
 import NoSqlProviderUtils = require('../NoSqlProviderUtils');
 import { SqlTransaction } from '../SqlProviderBase';
 
-import { SqlTransaction } from '../SqlProviderBase';
-
 // Don't trap exceptions so we immediately see them with a stack trace
 SyncTasks.config.catchExceptions = false;
 
@@ -1202,14 +1200,14 @@ describe('NoSqlProvider', function () {
                     });
 
                     function testBatchUpgrade(expectedCallCount: number, itemByteSize: number): SyncTasks.Promise<void> {
-                        const recordCount = 2000;
-                        const data: { id: string, tt: string }[] = [];
-                        for (let i = 0; i < recordCount; i++) {
-                            data.push({
-                                id: i.toString(),
-                                tt: 'tt' + i.toString()
-                            });
-                        }
+                        const recordCount = 5000;
+                        const data: { [id: string]: { id: string, tt: string } } = {};
+                        _.times(recordCount, num => {
+                            data[num.toString()] = {
+                                id: num.toString(),
+                                tt: 'tt' + num.toString()
+                            };
+                        });
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1220,13 +1218,14 @@ describe('NoSqlProvider', function () {
                                 }
                             ]
                         }, true).then(prov => {
-                            return prov.put('test', data).then(() => {
+                            return prov.put('test', _.values(data)).then(() => {
                                 return prov.close();
                             });
                         }).then(() => {
                             let transactionSpy: sinon.SinonSpy | undefined;
                             if (provName.indexOf('sql') !== -1) {
-                                // Check that we batch the upgrade
+                                // Check that we batch the upgrade by spying on number of queries indirectly
+                                // This only affects sql-based tests
                                 transactionSpy = sinon.spy(SqlTransaction.prototype, 'internal_getResultsFromQuery');
                             }
                             return openProvider(provName, {
@@ -1244,16 +1243,16 @@ describe('NoSqlProvider', function () {
                                 ]
                             }, false).then(prov => {
                                 if (transactionSpy) {
-                                    assert.equal(transactionSpy.callCount, expectedCallCount);
+                                    assert.equal(transactionSpy.callCount, expectedCallCount, 'Incorrect transaction count');
                                     transactionSpy.restore();
                                 }
                                 return prov.getAll('test', undefined).then((records: any) => {
-                                    assert.equal(records.length, data.length);
-                                    _.each(data, recordToValidate => {
-                                        const dbRecord = _.find(records, record => record.id === recordToValidate.id);
-                                        assert.ok(!!dbRecord);
-                                        assert.equal(dbRecord.id, recordToValidate.id);
-                                        assert.equal(dbRecord.tt, recordToValidate.tt);
+                                    assert.equal(records.length, _.keys(data).length, 'Incorrect record count');
+                                    _.each(records, dbRecordToValidate => {
+                                        const originalRecord = data[dbRecordToValidate.id];
+                                        assert.ok(!!originalRecord);
+                                        assert.equal(originalRecord.id, dbRecordToValidate.id);
+                                        assert.equal(originalRecord.tt, dbRecordToValidate.tt);
                                     });
                                 }).then(() => {
                                     return prov.close();
@@ -1263,7 +1262,7 @@ describe('NoSqlProvider', function () {
                     }
 
                     it('Add index - Large records - batched upgrade', () => {
-                        return testBatchUpgrade(21, 10000);
+                        return testBatchUpgrade(51, 10000);
                     });
 
                     it('Add index - small records - No batch upgrade', () => {
