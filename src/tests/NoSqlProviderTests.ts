@@ -1,5 +1,6 @@
 import assert = require('assert');
 import _ = require('lodash');
+import sinon = require('sinon');
 import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('../NoSqlProvider');
@@ -11,6 +12,8 @@ import { IndexedDbProvider } from '../IndexedDbProvider';
 import { WebSqlProvider } from '../WebSqlProvider';
 
 import NoSqlProviderUtils = require('../NoSqlProviderUtils');
+
+import { SqlTransaction } from '../SqlProviderBase';
 
 // Don't trap exceptions so we immediately see them with a stack trace
 SyncTasks.config.catchExceptions = false;
@@ -2047,6 +2050,110 @@ describe('NoSqlProvider', function () {
                                         assert.equal(items.length, 0);
                                     });
                                     return SyncTasks.all([p1, p2, p3, p4]).then(() => {
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+
+                        it('Removes index without pulling data to JS', () => {
+                            let storeSpy: sinon.SinonSpy|undefined;
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [
+                                            {
+                                                name: 'ind1',
+                                                keyPath: 'content',
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }, true).then(prov => {
+                                return prov.put('test', { id: 'abc', content: 'ghi' }).then(() => {
+                                    return prov.close();
+                                });
+                            }).then(() => {
+                                storeSpy = sinon.spy(SqlTransaction.prototype, 'getStore');
+                                return openProvider(provName, {
+                                    version: 2,
+                                    stores: [
+                                        {
+                                            name: 'test',
+                                            primaryKeyPath: 'id'
+                                        }
+                                    ]
+                                }, false)
+                                .then(prov => {
+                                    // NOTE - the line below tests an implementation detail
+                                    sinon.assert.notCalled(storeSpy!!!);
+
+                                    // check the index was actually removed
+                                    const p1 = prov.get('test', 'abc').then((item: any) => {
+                                        assert.ok(item);
+                                        assert.equal(item.id, 'abc');
+                                        assert.equal(item.content, 'ghi');
+                                    });
+                                    const p2 = prov.getOnly('test', 'ind1', 'ghi').then((items: any[]) => {
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                    }).then(() => {
+                                        assert.ok(false, 'should not work');
+                                    }, err => {
+                                        return SyncTasks.Resolved();
+                                    });
+                                    return SyncTasks.all([p1, p2]).then(() => {
+                                        return prov.close();
+                                    });
+                                });
+                            }).finally(() => {
+                                if (storeSpy) {
+                                    storeSpy.restore();
+                                }
+                            });
+                        });
+
+                        it('Cleans up stale indices from metadata', () => {
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [
+                                            {
+                                                name: 'ind1',
+                                                keyPath: 'content',
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }, true)
+                            .then(prov =>  prov.close())
+                            .then(() => {
+                                return openProvider(provName, {
+                                    version: 2,
+                                    stores: [
+                                        {
+                                            name: 'test',
+                                            primaryKeyPath: 'id'
+                                        }
+                                    ]
+                                }, false)
+                                .then(prov => {
+                                    return prov.openTransaction(undefined, false).then(trans => {
+                                        return (trans as SqlTransaction).runQuery('SELECT name, value from metadata').then(fullMeta => {
+                                            _.each(fullMeta, (meta: any) => {
+                                                let metaObj = JSON.parse(meta.value);
+                                                if (metaObj.storeName === 'test' && !!metaObj.index && metaObj.index.name === 'ind1') {
+                                                    assert.fail('Removed index should not exist in the meta!');
+                                                }
+                                            });
+                                        });
+                                    }).then(() => {
                                         return prov.close();
                                     });
                                 });

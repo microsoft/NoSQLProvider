@@ -1,4 +1,4 @@
-﻿/**
+/**
  * WebSqlProvider.ts
  * Author: David de Regt
  * Copyright: Microsoft 2015
@@ -56,7 +56,8 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
             return SyncTasks.Rejected<void>('Couldn\'t open database: ' + dbName);
         }
 
-        const deferred = SyncTasks.Defer<void>();
+        const upgradeDbDeferred = SyncTasks.Defer<void>();
+        let changeVersionDeferred: SyncTasks.Deferred<void> | undefined;
         let oldVersion = Number(this._db.version);
         if (oldVersion !== this._schema!!!.version) {
             // Needs a schema upgrade/change
@@ -65,6 +66,7 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                 // Note: the reported DB version won't change back to the older number until after you do a put command onto the DB.
                 wipeIfExists = true;
             }
+            changeVersionDeferred = SyncTasks.Defer<void>();
 
             let errorDetail: string;
             this._db.changeVersion(this._db.version, this._schema!!!.version.toString(), (t) => {
@@ -72,33 +74,35 @@ export class WebSqlProvider extends SqlProviderBase.SqlProviderBase {
                     this._supportsFTS3);
 
                 this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => {
-                    deferred.resolve(void 0);
+                    upgradeDbDeferred.resolve(void 0);
                 }, err => {
                     errorDetail = err && err.message ? err.message : err.toString();
                     // Got a promise error.  Force the transaction to abort.
                     trans.abort();
                 });
             }, (err) => {
-                deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
-            });
+                upgradeDbDeferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
+            }, () => {
+                changeVersionDeferred!!!.resolve(void 0);
+            } );
         } else if (wipeIfExists) {
             // No version change, but wipe anyway
             let errorDetail: string;
             this.openTransaction([], true).then(trans => {
                 this._upgradeDb(trans, oldVersion, true).then(() => {
-                    deferred.resolve(void 0);
+                    upgradeDbDeferred.resolve(void 0);
                 }, err => {
                     errorDetail = err && err.message ? err.message : err.toString();
                     // Got a promise error.  Force the transaction to abort.
                     trans.abort();
                 });
             }, (err) => {
-                deferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
+                upgradeDbDeferred.reject(err.message + (errorDetail ? ', Detail: ' + errorDetail : ''));
             });
         } else {
-            deferred.resolve(void 0);
+            upgradeDbDeferred.resolve(void 0);
         }
-        return deferred.promise();
+        return upgradeDbDeferred.promise().then(() => changeVersionDeferred ? changeVersionDeferred.promise() : undefined);
     }
 
     close(): SyncTasks.Promise<void> {
