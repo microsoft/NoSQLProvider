@@ -1244,7 +1244,7 @@ describe('NoSqlProvider', function () {
                                 ]
                             }, false).then(prov => {
                                 if (transactionSpy) {
-                                    assert.ok(transactionSpy.callCount === expectedCallCount);
+                                    assert.equal(transactionSpy.callCount, expectedCallCount);
                                     transactionSpy.restore();
                                 }
                                 return prov.getAll('test', undefined).then((records: any) => {
