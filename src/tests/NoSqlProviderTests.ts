@@ -2228,6 +2228,62 @@ describe('NoSqlProvider', function () {
                                 });
                             });
                         });
+
+                        it('Add and remove index in the same upgrade', () => {
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt',
+                                            doNotBackfill: true
+                                        }]
+                                    }
+                                ]
+                            }, true)
+                            .then(prov => {
+                                return prov.put('test', { id: 'abc', tt: 'a' , zz: 'aa'}).then(() => {
+                                    return prov.close();
+                                });
+                            })
+                            .then(() => {
+                                return openProvider(provName, {
+                                    version: 2,
+                                    stores: [
+                                        {
+                                            name: 'test',
+                                            primaryKeyPath: 'id',
+                                            indexes: [{
+                                                name: 'ind2',
+                                                keyPath: 'zz',
+                                                doNotBackfill: true
+                                            }]
+                                        }
+                                    ]
+                                }, false)
+                                .then(prov => {
+                                    const p1 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                        assert.equal(items[0].tt, 'a');
+                                        assert.equal(items[0].zz, 'aa');
+                                    });
+                                    const p2 = prov.getOnly('test', 'ind1', 'a').then(items => {
+                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                    }, () => {
+                                        // Expected to fail, so chain from failure to success
+                                        return undefined;
+                                    });
+
+                                    return SyncTasks.all([p1, p2]).then(() => {
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
                     }
                 });
             }
