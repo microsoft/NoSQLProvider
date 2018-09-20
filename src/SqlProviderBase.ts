@@ -327,7 +327,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             const indexIdentifierDictionary = _.keyBy(storeSchema.indexes, index => getIndexIdentifier(storeSchema, index));
                             const indexMetaDictionary = _.keyBy(currentIndexMetas, meta => meta.key);
 
-                            // find indices in the schema that did not exist before
+                            // find which indices in the schema existed / did not exist before
                             const [newIndices, existingIndices] = _.partition(storeSchema.indexes, index =>
                                 !indexMetaDictionary[getIndexIdentifier(storeSchema, index)]);
 
