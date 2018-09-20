@@ -327,8 +327,8 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             const indexIdentifierDictionary = _.keyBy(storeSchema.indexes, index => getIndexIdentifier(storeSchema, index));
                             const indexMetaDictionary = _.keyBy(currentIndexMetas, meta => meta.key);
 
-                            // find indices in the schema that did not exist before
-                            const newIndices = _.filter(storeSchema.indexes, index =>
+                            // find which indices in the schema existed / did not exist before
+                            const [newIndices, existingIndices] = _.partition(storeSchema.indexes, index =>
                                 !indexMetaDictionary[getIndexIdentifier(storeSchema, index)]);
 
                             // find indices in the meta that do not exist in the new schema
@@ -470,10 +470,13 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             
                             if (doSqlInPlaceMigration) {
                                 const sqlInPlaceMigrator = () => {
-                                    return trans.runQuery('INSERT INTO ' + storeSchema.name +
-                                        ' SELECT ' + ['nsp_pk', 'nsp_data', ...indexColumns].join(', ') + 
-                                        ' FROM temp_' + storeSchema.name);
+                                    const columnsToCopy = ['nsp_pk', 'nsp_data',  
+                                        ..._.map(existingIndices, index => getIndexIdentifier(storeSchema, index))
+                                    ].join(', ');
 
+                                    return trans.runQuery('INSERT INTO ' + storeSchema.name + '(' + columnsToCopy + ')' +
+                                        ' SELECT ' + columnsToCopy + 
+                                        ' FROM temp_' + storeSchema.name);
                                 };
 
                                 tableQueries.push(
