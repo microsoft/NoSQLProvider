@@ -318,8 +318,8 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             const columnBasedIndices = _.filter(storeSchema.indexes, index =>
                                 !indexUsesSeparateTable(index, this._supportsFTS3));
 
-                            const indexColumns = _.map(columnBasedIndices, index => 'nsp_i_' + index.name + ' TEXT');
-                            fieldList = fieldList.concat(indexColumns);
+                            const indexColumnsNames = _.map(columnBasedIndices, index => 'nsp_i_' + index.name + ' TEXT');
+                            fieldList = fieldList.concat(indexColumnsNames);
                             const tableMakerSql = 'CREATE TABLE ' + storeSchema.name + ' (' + fieldList.join(', ') + ')';
                             
                             const currentIndexMetas = _.filter(indexMetadata, meta => meta.storeName === storeSchema.name);
@@ -330,6 +330,8 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             // find which indices in the schema existed / did not exist before
                             const [newIndices, existingIndices] = _.partition(storeSchema.indexes, index =>
                                 !indexMetaDictionary[getIndexIdentifier(storeSchema, index)]);
+
+                            const existingIndexColumns = _.intersection(existingIndices, columnBasedIndices);
 
                             // find indices in the meta that do not exist in the new schema
                             const allRemovedIndexMetas = _.filter(currentIndexMetas, meta => 
@@ -471,10 +473,10 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             if (doSqlInPlaceMigration) {
                                 const sqlInPlaceMigrator = () => {
                                     const columnsToCopy = ['nsp_pk', 'nsp_data',  
-                                        ..._.map(existingIndices, index => getIndexIdentifier(storeSchema, index))
+                                        ..._.map(existingIndexColumns, index => 'nsp_i_' + index.name)
                                     ].join(', ');
 
-                                    return trans.runQuery('INSERT INTO ' + storeSchema.name + '(' + columnsToCopy + ')' +
+                                    return trans.runQuery('INSERT INTO ' + storeSchema.name + ' (' + columnsToCopy + ')' +
                                         ' SELECT ' + columnsToCopy + 
                                         ' FROM temp_' + storeSchema.name);
                                 };

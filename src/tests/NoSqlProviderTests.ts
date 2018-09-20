@@ -2284,6 +2284,76 @@ describe('NoSqlProvider', function () {
                                 });
                             });
                         });
+
+                        it('Add remove index in the same upgrade, while preserving other indices', () => {
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt',
+                                            doNotBackfill: true
+                                        }, {
+                                            name: 'ind2',
+                                            keyPath: 'zz',
+                                            doNotBackfill: true
+                                        }]
+                                    }
+                                ]
+                            }, true)
+                            .then(prov => {
+                                return prov.put('test', { id: 'abc', tt: 'a' , zz: 'aa'}).then(() => {
+                                    return prov.close();
+                                });
+                            })
+                            .then(() => {
+                                return openProvider(provName, {
+                                    version: 2,
+                                    stores: [
+                                        {
+                                            name: 'test',
+                                            primaryKeyPath: 'id',
+                                            indexes: [{
+                                                name: 'ind2',
+                                                keyPath: 'zz',
+                                                doNotBackfill: true
+                                            }, {
+                                                name: 'ind3',
+                                                keyPath: 'zz',
+                                                doNotBackfill: true
+                                            }]
+                                        }
+                                    ]
+                                }, false)
+                                .then(prov => {
+                                    const p1 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                        assert.equal(items[0].tt, 'a');
+                                        assert.equal(items[0].zz, 'aa');
+                                    });
+                                    const p2 = prov.getOnly('test', 'ind2', 'aa').then((items: any[]) => {
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                        assert.equal(items[0].tt, 'a');
+                                        assert.equal(items[0].zz, 'aa');
+                                    });
+                                    const p3 = prov.getOnly('test', 'ind1', 'a').then(items => {
+                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                    }, () => {
+                                        // Expected to fail, so chain from failure to success
+                                        return undefined;
+                                    });
+
+                                    return SyncTasks.all([p1, p2, p3]).then(() => {
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
                     }
                 });
             }
