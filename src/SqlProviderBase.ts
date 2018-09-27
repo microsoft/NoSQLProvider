@@ -135,7 +135,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
     }
 
     protected _upgradeDb(trans: SqlTransaction, oldVersion: number, wipeAnyway: boolean): SyncTasks.Promise<void> {
-        // Get a list of all tables and indexes on the tables
+        // Get a list of all tables, columns and indexes on the tables
         return this._getMetadata(trans).then(fullMeta => {
             // Get Index metadatas
             let indexMetadata: IndexMetadata[] =
@@ -147,6 +147,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     return metaObj;
                 })
                 .filter(meta => !!meta && !!meta.storeName) as IndexMetadata[];
+
             return trans.runQuery('SELECT type, name, tbl_name, sql from sqlite_master', [])
                 .then(rows => {
                     let tableNames: string[] = [];
@@ -171,7 +172,6 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         if (row['type'] === 'table') {
                             tableNames.push(row['name']);
                             tableSqlStatements[row['name']] = row['sql'];
-
                             const nameSplit = row['name'].split('_');
                             if (nameSplit.length === 1) {
                                 if (!indexNames[row['name']]) {
@@ -260,7 +260,24 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         tableNames = _.filter(tableNames, name => _.includes(tableNamesNeeded, name));
                     }
 
+                    const tableColumns: { [table: string]: string[] } = {};
+
+                    const getColumnNames = (tableName: string): string[] => {
+                        // Try to get all the column names from SQL create statement
+                        const r = /CREATE\s+TABLE\s+\w+\s+\(([^\)]+)\)/;
+                        const columnPart = tableSqlStatements[tableName].match(r);
+                        if (columnPart) {
+                            return columnPart[1].split(',').map(p => p.trim().split(/\s+/)[0]);
+                        }
+                        return [];
+                    };
+
+                    _.each(tableNames, table => {
+                        tableColumns[table] = getColumnNames(table);
+                    });
+
                     return SyncTasks.all(dropQueries).then(() => {
+
                         let tableQueries: SyncTasks.Promise<any>[] = [];
 
                         // Go over each store and see what needs changing
@@ -362,6 +379,10 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     .then(() => indexMaker(storeSchema.indexes));
                             };
 
+                            const columnExists = (tableName: string, columnName: string) => {
+                                return _.includes(tableColumns[tableName], columnName);
+                            };
+
                             const needsFullMigration = () => {
                                 // Check all the indices in the schema
                                 return _.some(storeSchema.indexes, index => {
@@ -385,7 +406,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                             return true;
                                         }
                                     } else {
-                                        if (!_.includes(indexNames[storeSchema.name], indexIdentifier)) {
+                                        if (!columnExists(storeSchema.name, 'nsp_i_' + index.name)) {
                                             return true;
                                         }
                                     }
@@ -414,6 +435,13 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 return trans.runQuery('DROP TABLE temp_' + storeSchema.name);
                             };
 
+                            // find is there are some columns that should be, but are not indices
+                            // this is to fix a mismatch between the schema in metadata and the actual table state
+                            const someIndicesMissing = _.some(columnBasedIndices, index => 
+                                columnExists(storeSchema.name, 'nsp_i_' + index.name) 
+                                    && !_.includes(indexNames[storeSchema.name], getIndexIdentifier(storeSchema, index))
+                            );
+
                             // If the table exists, check if we can to determine if a migration is needed
                             // If a full migration is needed, we have to copy all the data over and re-populate indices
                             // If a in-place migration is enough, we can just copy the data
@@ -423,6 +451,14 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             const doSqlInPlaceMigration = tableExists && !doFullMigration && removedColumnIndexMetas.length > 0;
                             const adddNewColumns = tableExists && !doFullMigration && !doSqlInPlaceMigration 
                                 && newNoBackfillIndices.length > 0;
+                            const recreateIndices = tableExists && !doFullMigration && !doSqlInPlaceMigration && someIndicesMissing;
+
+                            const indexFixer = () => {
+                                if (recreateIndices) {
+                                    return indexMaker(storeSchema.indexes);
+                                }
+                                return SyncTasks.Resolved([]);
+                            };
 
                             const indexTableAndMetaDropper = () => {
                                 const indexTablesToDrop = doFullMigration 
@@ -482,11 +518,14 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 };
 
                                 tableQueries.push(
-                                    indexTableAndMetaDropper(),
-                                    createTempTable()
-                                        .then(tableMaker)
-                                        .then(sqlInPlaceMigrator)
-                                        .then(dropTempTable)
+                                    SyncTasks.all([
+                                        indexTableAndMetaDropper(),
+                                        dropColumnIndices(),
+                                    ])
+                                    .then(createTempTable)
+                                    .then(tableMaker)
+                                    .then(sqlInPlaceMigrator)
+                                    .then(dropTempTable)
                                 );
 
                             }
@@ -498,7 +537,10 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     indexTableAndMetaDropper(),
                                     columnAdder()
                                         .then(newIndexMaker)
+                                        .then(indexFixer)
                                 );
+                            } else if (recreateIndices) {
+                                tableQueries.push(indexFixer());
                             }
 
                         });

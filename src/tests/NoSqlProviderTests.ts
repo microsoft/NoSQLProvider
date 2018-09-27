@@ -2196,6 +2196,10 @@ describe('NoSqlProvider', function () {
                                             {
                                                 name: 'ind1',
                                                 keyPath: 'content',
+                                            },
+                                            {
+                                                name: 'ind2',
+                                                keyPath: 'content',
                                             }
                                         ]
                                     }
@@ -2285,6 +2289,80 @@ describe('NoSqlProvider', function () {
                             });
                         });
 
+                        it('Recreates missing indices', () => {
+                            return openProvider(provName, {
+                                version: 1,
+                                stores: [
+                                    {
+                                        name: 'test',
+                                        primaryKeyPath: 'id',
+                                        indexes: [{
+                                            name: 'ind1',
+                                            keyPath: 'tt',
+                                            doNotBackfill: true
+                                        }]
+                                    }
+                                ]
+                            }, true)
+                            .then(prov => {
+                                return prov.put('test', { id: 'abc', tt: 'a' , zz: 'aa'})
+                                .then(() => {
+                                    return prov.openTransaction(['test'], true).then(trans => {
+                                        // simulate broken index
+                                        return (trans as SqlTransaction).runQuery('DROP INDEX test_ind1');
+                                    });
+                                })
+                                .then(() => {
+                                    return prov.close();
+                                });
+                            })
+                            .then(() => {
+                                return openProvider(provName, {
+                                    version: 2,
+                                    stores: [
+                                        {
+                                            name: 'test',
+                                            primaryKeyPath: 'id',
+                                            indexes: [{
+                                                name: 'ind1',
+                                                keyPath: 'tt',
+                                                doNotBackfill: true
+                                            }]
+                                        }
+                                    ]
+                                }, false)
+                                .then(prov => {
+                                    const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
+                                        assert.equal(items.length, 1);
+                                        assert.equal(items[0].id, 'abc');
+                                        assert.equal(items[0].tt, 'a');
+                                        assert.equal(items[0].zz, 'aa');
+                                    });
+
+                                    const p2 = prov.openTransaction(undefined, false).then(trans => {
+                                        return (trans as SqlTransaction).runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
+                                        .then(fullMeta => {
+                                            const oldIndexReallyExists = _.some(fullMeta, (metaObj: any) => {
+                                                if (metaObj.type === 'index' && metaObj.tbl_name === 'test' 
+                                                        && metaObj.name === 'test_ind1') {
+                                                    return true;
+                                                }
+                                                return false;
+                                            });
+                                            if (!oldIndexReallyExists) {
+                                                return SyncTasks.Rejected('Unchanged index should still exist!');
+                                            }
+                                            return SyncTasks.Resolved(undefined);
+                                        });
+                                    });
+
+                                    return SyncTasks.all([p1, p2]).then(() => {
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+
                         it('Add remove index in the same upgrade, while preserving other indices', () => {
                             return openProvider(provName, {
                                 version: 1,
@@ -2348,7 +2426,24 @@ describe('NoSqlProvider', function () {
                                         return undefined;
                                     });
 
-                                    return SyncTasks.all([p1, p2, p3]).then(() => {
+                                    const p4 = prov.openTransaction(undefined, false).then(trans => {
+                                        return (trans as SqlTransaction).runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
+                                        .then(fullMeta => {
+                                            const oldIndexReallyExists = _.some(fullMeta, (metaObj: any) => {
+                                                if (metaObj.type === 'index' && metaObj.tbl_name === 'test' 
+                                                        && metaObj.name === 'test_ind2') {
+                                                    return true;
+                                                }
+                                                return false;
+                                            });
+                                            if (!oldIndexReallyExists) {
+                                                return SyncTasks.Rejected('Unchanged index should still exist!');
+                                            }
+                                            return SyncTasks.Resolved(undefined);
+                                        });
+                                    });
+
+                                    return SyncTasks.all([p1, p2, p3, p4]).then(() => {
                                         return prov.close();
                                     });
                                 });
