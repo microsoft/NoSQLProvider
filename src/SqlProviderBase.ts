@@ -140,13 +140,15 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
             // Get Index metadatas
             let indexMetadata: IndexMetadata[] =
                 _.map(fullMeta, meta => {
-                    let metaObj: IndexMetadata|undefined;
-                    _.attempt(() => {
-                        metaObj = JSON.parse(meta.value);
+                    const metaObj = _.attempt(() => {
+                        return JSON.parse(meta.value);
                     });
+                    if (_.isError(metaObj)) {
+                        return undefined;
+                    }
                     return metaObj;
                 })
-                .filter(meta => !!meta && !!meta.storeName) as IndexMetadata[];
+                .filter(meta => !!meta && !!meta.storeName);
 
             return trans.runQuery('SELECT type, name, tbl_name, sql from sqlite_master', [])
                 .then(rows => {
@@ -747,12 +749,11 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     get(key: KeyType): SyncTasks.Promise<ItemType|undefined> {
-        let joinedKey: string;
-        const err = _.attempt(() => {
-            joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath);
+        const joinedKey = _.attempt(() => {
+            return NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath);
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(joinedKey)) {
+            return SyncTasks.Rejected(joinedKey);
         }
 
         let startTime: number;
@@ -761,7 +762,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         }
 
         let promise = this._trans.internal_getResultFromQuery('SELECT nsp_data FROM ' + this._schema.name +
-            ' WHERE nsp_pk = ?', [joinedKey!!!]);
+            ' WHERE nsp_pk = ?', [joinedKey]);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStore (' + this._schema.name + ') get: (' + (Date.now() - startTime) + 'ms)');
@@ -771,15 +772,14 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     getMultiple(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]> {
-        let joinedKeys: string[];
-        const err = _.attempt(() => {
-            joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
+        const joinedKeys = _.attempt(() => {
+            return NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(joinedKeys)) {
+            return SyncTasks.Rejected(joinedKeys);
         }
 
-        if (joinedKeys!!!.length === 0) {
+        if (joinedKeys.length === 0) {
             return SyncTasks.Resolved([]);
         }
 
@@ -871,12 +871,11 @@ class SqlStore implements NoSqlProvider.DbStore {
         // Also prepare mulltiEntry and FullText indexes
         if (_.some(this._schema.indexes, index => indexUsesSeparateTable(index, this._supportsFTS3))) {
             _.each(items, (item, itemIndex) => {
-                let key: string;
-                const err = _.attempt(() => {
-                    key = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath)!!!;
+                const key = _.attempt(() => {
+                    return NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath)!!!;
                 });
-                if (err) {
-                    queries.push(SyncTasks.Rejected<void>(err));
+                if (_.isError(key)) {
+                    queries.push(SyncTasks.Rejected<void>(key));
                     return;
                 }
 
@@ -936,12 +935,11 @@ class SqlStore implements NoSqlProvider.DbStore {
     }
 
     remove(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<void> {
-        let joinedKeys: string[] = [];
-        const err = _.attempt(() => {
-            joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
+        const joinedKeys = _.attempt(() => {
+            return NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
         });
-        if (err) {
-            return SyncTasks.Rejected<void>(err);
+        if (_.isError(joinedKeys)) {
+            return SyncTasks.Rejected<void>(joinedKeys);
         }
 
         let startTime: number;
@@ -1114,12 +1112,11 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
-        let joinedKey: string;
-        const err = _.attempt(() => {
-            joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+        const joinedKey = _.attempt(() => {
+            return NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(joinedKey)) {
+            return SyncTasks.Rejected(joinedKey);
         }
 
         let startTime: number;
@@ -1128,7 +1125,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         }
 
         let promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?',
-            [joinedKey!!!],
+            [joinedKey],
             reverse, limit, offset);
         if (this._verbose) {
             promise = promise.finally(() => {
@@ -1201,12 +1198,11 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     countOnly(key: KeyType): SyncTasks.Promise<number> {
-        let joinedKey: string;
-        const err = _.attempt(() => {
-            joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
+        const joinedKey = _.attempt(() => {
+            return NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(joinedKey)) {
+            return SyncTasks.Rejected(joinedKey);
         }
 
         let startTime: number;
@@ -1215,7 +1211,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         }
 
         let promise = this._trans.runQuery('SELECT COUNT(*) cnt FROM ' + this._tableName + ' WHERE ' + this._queryColumn
-            + ' = ?', [joinedKey!!!]).then(result => result[0]['cnt']);
+            + ' = ?', [joinedKey]).then(result => result[0]['cnt']);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') countOnly: (' +
