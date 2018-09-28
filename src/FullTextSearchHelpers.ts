@@ -61,18 +61,16 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
             return this.getRange(term, upperEnd, false, true, false, limit);
         });
         return SyncTasks.all(promises).then(results => {
-            let uniquers: _.Dictionary<ItemType>[];
-
-            const err = _.attempt(() => {
-                uniquers = _.map(results, resultSet => _.keyBy(resultSet, item =>
+            const uniquers = _.attempt(() => {
+                return _.map(results, resultSet => _.keyBy(resultSet, item =>
                     NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._primaryKeyPath)));
             });
-            if (err) {
-                return SyncTasks.Rejected(err);
+            if (_.isError(uniquers)) {
+                return SyncTasks.Rejected(uniquers);
             }
 
             if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
-                const data = _.values(_.assign({}, ...uniquers!!!));
+                const data = _.values(_.assign({}, ...uniquers));
                 if (limit) {
                     return _.take(data, limit);
                 }
@@ -80,7 +78,7 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
             }
 
             if (resolution === NoSqlProvider.FullTextTermResolution.And) {
-                const [first, ...others] = uniquers!!!;
+                const [first, ...others] = uniquers;
                 const dic = _.pickBy(first, (value, key) => _.every(others, set => key in set)) as _.Dictionary<ItemType>;
                 const data = _.values(dic);
                 if (limit) {

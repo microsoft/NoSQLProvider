@@ -293,22 +293,20 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
     }
 
     protected _deleteDatabaseInternal(): SyncTasks.Promise<void> {
-        let trans: IDBOpenDBRequest;
-
-        const err = _.attempt(() => {
-            trans = this._dbFactory.deleteDatabase(this._dbName!!!);
+        const trans = _.attempt(() => {
+            return this._dbFactory.deleteDatabase(this._dbName!!!);
         });
 
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(trans)) {
+            return SyncTasks.Rejected(trans);
         }
         
         const deferred = SyncTasks.Defer<void>();
 
-        trans!!!.onsuccess = () => {
+        trans.onsuccess = () => {
             deferred.resolve(void 0);
         };
-        trans!!!.onerror = (ev) => {
+        trans.onerror = (ev) => {
             deferred.reject(ev);
         };
 
@@ -348,15 +346,14 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
         }
 
         return this._lockHelper!!!.openTransaction(storeNames, writeNeeded).then(transToken => {
-            let trans: IDBTransaction;
-            const err = _.attempt(() => {
-                trans = this._db!!!.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
+            const trans = _.attempt(() => {
+                return this._db!!!.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
             });
-            if (err) {
-                return SyncTasks.Rejected(err);
+            if (_.isError(trans)) {
+                return SyncTasks.Rejected(trans);
             }
 
-            return new IndexedDbTransaction(trans!!!, this._lockHelper, transToken, this._schema!!!, this._fakeComplicatedKeys);
+            return new IndexedDbTransaction(trans, this._lockHelper, transToken, this._schema!!!, this._fakeComplicatedKeys);
         });
     }
 }
@@ -483,20 +480,20 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
     }
 
     getMultiple(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]> {
-        let keys: any[];
-        const err = _.attempt(() => {
-            keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
+        const keys = _.attempt(() => {
+            const keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
 
             if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._schema.primaryKeyPath)) {
-                keys = _.map(keys, key => NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath));
+                return _.map(keys, key => NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath));
             }
+            return keys;
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(keys)) {
+            return SyncTasks.Rejected(keys);
         }
 
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
-        return SyncTasks.all(_.map(keys!!!, key =>
+        return SyncTasks.all(_.map(keys, key =>
             IndexedDbProvider.WrapRequest(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))))
             .then(_.compact);
     }
@@ -612,19 +609,19 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
     }
 
     remove(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<void> {
-        let keys: any[];
-        const err = _.attempt(() => {
-            keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
+        const keys = _.attempt(() => {
+            const keys = NoSqlProviderUtils.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
 
             if (this._fakeComplicatedKeys && NoSqlProviderUtils.isCompoundKeyPath(this._schema.primaryKeyPath)) {
-                keys = _.map(keys, key => NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath));
+                return _.map(keys, key => NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath));
             }
+            return keys;
         });
-        if (err) {
-            return SyncTasks.Rejected<void>(err);
+        if (_.isError(keys)) {
+            return SyncTasks.Rejected<void>(keys);
         }
 
-        return SyncTasks.all(_.map(keys!!!, key => {
+        return SyncTasks.all(_.map(keys, key => {
             if (this._fakeComplicatedKeys && _.some(this._schema.indexes, index => index.multiEntry || index.fullText)) {
                 // If we're faking keys and there's any multientry indexes, we have to do the way more complicated version...
                 return IndexedDbProvider.WrapRequest<any>(this._store.get(key)).then(item => {
@@ -632,24 +629,21 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
                         // Go through each multiEntry index and nuke the referenced items from the sub-stores
                         let promises = _.map(_.filter(this._schema.indexes, index => !!index.multiEntry), index => {
                             let indexStore = _.find(this._indexStores, store => store.name === this._schema.name + '_' + index.name)!!!;
-
-                            let refKey: KeyType;
-                            const err = _.attempt(() => {
-
+                            const refKey = _.attempt(() => {
                                 // We need to reference the PK of the actual row we're using here, so calculate the actual PK -- if it's
                                 // compound, we're already faking complicated keys, so we know to serialize it to a string.  If not, use the
                                 // raw value.
                                 const tempRefKey = NoSqlProviderUtils.getKeyForKeypath(item, this._schema.primaryKeyPath)!!!;
-                                refKey = _.isArray(this._schema.primaryKeyPath) ? 
+                                return _.isArray(this._schema.primaryKeyPath) ? 
                                     NoSqlProviderUtils.serializeKeyToString(tempRefKey, this._schema.primaryKeyPath) :
                                     tempRefKey;
                             });
-                            if (err) {
-                                return SyncTasks.Rejected<void>(err);
+                            if (_.isError(refKey)) {
+                                return SyncTasks.Rejected<void>(refKey);
                             }
 
                             // First clear out the old values from the index store for the refkey
-                            const cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey!!!));
+                            const cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey));
                             return IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
                                 cursor['delete']();
                             });
@@ -735,12 +729,11 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
-        let keyRange: any;
-        const err = _.attempt(() => {
-            keyRange = this._getKeyRangeForOnly(key);
+        const keyRange = _.attempt(() => {
+            return this._getKeyRangeForOnly(key);
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(keyRange)) {
+            return SyncTasks.Rejected(keyRange);
         }
 
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
@@ -757,12 +750,11 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
             reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
-        let keyRange: any;
-        const err = _.attempt(() => {
-            keyRange = this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        const keyRange = _.attempt(() => {
+            return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(keyRange)) {
+            return SyncTasks.Rejected(keyRange);
         }
 
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
@@ -788,12 +780,11 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     countOnly(key: KeyType): SyncTasks.Promise<number> {
-        let keyRange: any;
-        const err = _.attempt(() => {
-            keyRange = this._getKeyRangeForOnly(key);
+        const keyRange = _.attempt(() => {
+            return this._getKeyRangeForOnly(key);
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(keyRange)) {
+            return SyncTasks.Rejected(keyRange);
         }
 
         const req = this._store.count(keyRange);
@@ -802,12 +793,11 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
 
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
             : SyncTasks.Promise<number> {
-        let keyRange: any;
-        const err = _.attempt(() => {
-            keyRange = this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        let keyRange = _.attempt(() => {
+            return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(keyRange)) {
+            return SyncTasks.Rejected(keyRange);
         }
 
         const req = this._store.count(keyRange);
