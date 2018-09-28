@@ -167,15 +167,14 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
 
-        let joinedKey: string;
-        const err = _.attempt(() => {
-            joinedKey = NoSqlProviderUtils.serializeKeyToString(key, this._storeSchema.primaryKeyPath);
+        const joinedKey = _.attempt(() => {
+            return NoSqlProviderUtils.serializeKeyToString(key, this._storeSchema.primaryKeyPath);
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(joinedKey)) {
+            return SyncTasks.Rejected(joinedKey);
         }
 
-        return SyncTasks.Resolved(this._mergedData[joinedKey!!!]);
+        return SyncTasks.Resolved(this._mergedData[joinedKey]);
     }
 
     getMultiple(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]> {
@@ -183,15 +182,14 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
 
-        let joinedKeys: string[];
-        const err = _.attempt(() => {
-            joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeSchema.primaryKeyPath);
+        const joinedKeys = _.attempt(() => {
+            return NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeSchema.primaryKeyPath);
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(joinedKeys)) {
+            return SyncTasks.Rejected(joinedKeys);
         }
 
-        return SyncTasks.Resolved(_.compact(_.map(joinedKeys!!!, key => this._mergedData[key])));
+        return SyncTasks.Resolved(_.compact(_.map(joinedKeys, key => this._mergedData[key])));
     }
 
     put(itemOrItems: ItemType|ItemType[]): SyncTasks.Promise<void> {
@@ -219,15 +217,14 @@ class InMemoryStore implements NoSqlProvider.DbStore {
         }
         this._checkDataClone();
 
-        let joinedKeys: string[];
-        const err = _.attempt(() => {
-            joinedKeys = NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeSchema.primaryKeyPath);
+        const joinedKeys = _.attempt(() => {
+            return NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeSchema.primaryKeyPath);
         });
-        if (err) {
-            return SyncTasks.Rejected<void>(err);
+        if (_.isError(joinedKeys)) {
+            return SyncTasks.Rejected(joinedKeys);
         }
 
-        _.each(joinedKeys!!!, key => {
+        _.each(joinedKeys, key => {
             this._pendingCommitDataChanges!!![key] = undefined;
             delete this._mergedData[key];
         });
@@ -311,16 +308,15 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
 
-        let data: _.Dictionary<ItemType[]>|_.Dictionary<ItemType>;
-        const err = _.attempt(() => {
-            data = this._calcChunkedData();
+        const data = _.attempt(() => {
+            return this._calcChunkedData();
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(data)) {
+            return SyncTasks.Rejected(data);
         }
 
-        const sortedKeys = _.keys(data!!!).sort();
-        return this._returnResultsFromKeys(data!!!, sortedKeys, reverse, limit, offset);
+        const sortedKeys = _.keys(data).sort();
+        return this._returnResultsFromKeys(data, sortedKeys, reverse, limit, offset);
     }
 
     getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
@@ -377,14 +373,13 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         if (!this._trans.internal_isOpen()) {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
-        let data: _.Dictionary<ItemType[]>|_.Dictionary<ItemType>;
-        const err = _.attempt(() => {
-            data = this._calcChunkedData();
+        const data = _.attempt(() => {
+            return this._calcChunkedData();
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(data)) {
+            return SyncTasks.Rejected(data);
         }
-        return SyncTasks.Resolved(_.keys(data!!!).length);
+        return SyncTasks.Resolved(_.keys(data).length);
     }
 
     countOnly(key: KeyType): SyncTasks.Promise<number> {
@@ -397,15 +392,14 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
 
-        let keys: string[];
-        const err = _.attempt(() => {
+        const keys = _.attempt(() => {
             const data = this._calcChunkedData();
-            keys = this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+            return this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
-        if (err) {
-            return SyncTasks.Rejected(err);
+        if (_.isError(keys)) {
+            return SyncTasks.Rejected(keys);
         }
 
-        return SyncTasks.Resolved(keys!!!.length);
+        return SyncTasks.Resolved(keys.length);
     }
 }

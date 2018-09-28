@@ -126,11 +126,10 @@ export abstract class DbProvider {
 
         return this.openTransaction(storeNames, true).then(trans => {
             const clearers = storeNames.map(storeName => {
-                let store: DbStore|undefined;
-                _.attempt(() => {
-                    store = trans.getStore(storeName);
+                const store = _.attempt(() => {
+                    return trans.getStore(storeName);
                 });
-                if (!store) {
+                if (!store || _.isError(store)) {
                     return SyncTasks.Rejected<void>('Store "' + storeName + '" not found');
                 }
                 return store.clearAllData();
@@ -143,11 +142,10 @@ export abstract class DbProvider {
 
     private _getStoreTransaction(storeName: string, readWrite: boolean): SyncTasks.Promise<DbStore> {
         return this.openTransaction([storeName], readWrite).then(trans => {
-            let store: DbStore|undefined;
-            _.attempt(() => {
-                store = trans.getStore(storeName);
+            const store = _.attempt(() => {
+                return trans.getStore(storeName);
             });
-            if (!store) {
+            if (!store || _.isError(store)) {
                 return SyncTasks.Rejected('Store "' + storeName + '" not found');
             }
             return store;
@@ -181,11 +179,10 @@ export abstract class DbProvider {
 
     private _getStoreIndexTransaction(storeName: string, readWrite: boolean, indexName: string|undefined): SyncTasks.Promise<DbIndex> {
         return this._getStoreTransaction(storeName, readWrite).then(store => {
-            let index: DbIndex|undefined;
-            _.attempt(() => {
-                index = indexName ? store.openIndex(indexName) : store.openPrimaryKey();
+            const index = _.attempt(() => {
+                return indexName ? store.openIndex(indexName) : store.openPrimaryKey();
             });
-            if (!index) {
+            if (!index || _.isError(index)) {
                 return SyncTasks.Rejected('Index "' + indexName + '" not found');
             }
             return index;
