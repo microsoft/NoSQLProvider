@@ -6,6 +6,7 @@
  * Abstract helpers for all NoSqlProvider DbProviders that are based on SQL backings.
  */
 
+import assert = require('assert');
 import _ = require('lodash');
 import SyncTasks = require('synctasks');
 
@@ -64,11 +65,9 @@ function indexUsesSeparateTable(indexSchema: NoSqlProvider.IndexSchema, supports
 }
 
 function generateParamPlaceholder(count: number): string {
-    let placeholder = '?';
-    for (let i = 1; i < count; i++) {
-        placeholder += ',?';
-    }
-    return placeholder;
+    assert.ok(count >= 1, 'Must provide at least one parameter to SQL statement');
+    // Generate correct count of ?'s and slice off trailing comma
+    return _.repeat('?,', count).slice(0, -1);
 }
 
 const FakeFTSJoinToken = '^$^';
@@ -890,7 +889,7 @@ class SqlStore implements NoSqlProvider.DbStore {
 
                     if (index.fullText && this._supportsFTS3) {
                         // FTS3 terms go in a separate virtual table...
-                        serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(' ')];
+                        serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item).join(' ')];
                     } else if (index.multiEntry) {
                         // Have to extract the multiple entries into the alternate table...
                         const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
@@ -949,25 +948,27 @@ class SqlStore implements NoSqlProvider.DbStore {
                 }
             });
 
-            queries.push(...deleteQueries);
-
-            const allDeleteQueries = SyncTasks.all(deleteQueries);
+            // Delete and insert tracking - cannot insert until delete is completed
+            queries.push(SyncTasks.all(deleteQueries).then(() => {
+                const insertQueries: SyncTasks.Promise<void>[] = [];
+                _.each(dataToInsertByIndex, (data, indexIndex) => {
+                    // We know indexes are defined if we have data to insert for them
+                    // _.each spits dictionary keys out as string, needs to turn into a number
+                    const index = this._schema.indexes!!![Number(indexIndex)];
+                    const insertParamCount = index.includeDataInIndex ? 3 : 2;
+                    const itemPageSize = Math.floor(this._trans.internal_getMaxVariables() / insertParamCount);
+                    // data contains all the input parameters
+                    for (let i = 0; i < (data.length / insertParamCount); i += itemPageSize) {
+                        const thisPageCount = Math.min(itemPageSize, (data.length / insertParamCount)) - i;
+                        const qmarksValues = _.fill(new Array(thisPageCount), generateParamPlaceholder(insertParamCount));
+                        insertQueries.push(this._trans.internal_nonQuery('INSERT INTO ' +
+                            this._schema.name + '_' + index.name + ' (nsp_key, nsp_refpk' + (index.includeDataInIndex ? ', nsp_data' : '') +
+                            ') VALUES ' + '(' + qmarksValues.join('),(') + ')', data.splice(0, thisPageCount * insertParamCount)));
+                    }
+                });
+                return SyncTasks.all(insertQueries).then(_.noop);
+            }));
             
-            _.each(dataToInsertByIndex, (data, indexIndex) => {
-                // We know indexes are defined if we have data to insert for them
-                // _.each spits dictionary keys out as string, needs to turn into a number
-                const index = this._schema.indexes!!![Number(indexIndex)];
-                const insertParamCount = index.includeDataInIndex ? 3 : 2;
-                const itemPageSize = Math.floor(this._trans.internal_getMaxVariables() / insertParamCount);
-                // data contains all the input parameters
-                for (let i = 0; i < (data.length / insertParamCount); i += itemPageSize) {
-                    const thisPageCount = Math.min(itemPageSize, (data.length / insertParamCount)) - i;
-                    const qmarksValues = _.fill(new Array(thisPageCount), generateParamPlaceholder(insertParamCount));
-                    queries.push(allDeleteQueries.then(() => this._trans.internal_nonQuery('INSERT INTO ' +
-                        this._schema.name + '_' + index.name + ' (nsp_key, nsp_refpk' + (index.includeDataInIndex ? ', nsp_data' : '') +
-                        ') VALUES ' + '(' + qmarksValues.join('),(') + ')', data.splice(0, thisPageCount * insertParamCount))));
-                }
-            });
         }
 
         let promise = SyncTasks.all(queries);
