@@ -721,10 +721,10 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     getAll(reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
-        // ************************* Don't change this null to undefined, IE chokes on it... *****************************
-        // ************************* Don't change this null to undefined, IE chokes on it... *****************************
-        // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         const reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
+        // ************************* Don't change this null to undefined, IE chokes on it... *****************************
+        // ************************* Don't change this null to undefined, IE chokes on it... *****************************
+        // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         const req = this._store.openCursor(null!!!, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     }
