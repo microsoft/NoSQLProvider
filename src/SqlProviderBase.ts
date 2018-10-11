@@ -1118,8 +1118,13 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         }
     }
 
-    private _handleQuery(sql: string, args?: any[], reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
-        sql += ' ORDER BY ' + this._queryColumn + (reverse ? ' DESC' : ' ASC');
+    private _handleQuery(sql: string, args?: any[], reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number,
+            offset?: number): SyncTasks.Promise<ItemType[]> {
+        // Check if we must do some sort of ordering
+        if (reverseOrSortOrder !== NoSqlProvider.QuerySortOrder.None) {
+            const reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
+            sql += ' ORDER BY ' + this._queryColumn + (reverse ? ' DESC' : ' ASC');
+        }
 
         if (limit) {
             if (limit > LimitMax) {
@@ -1138,13 +1143,13 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         return this._trans.internal_getResultsFromQuery(sql, args);
     }
 
-    getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    getAll(reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         let startTime: number;
         if (this._verbose) {
             startTime = Date.now();
         }
 
-        let promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName, undefined, reverse, limit, offset);
+        let promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName, undefined, reverseOrSortOrder, limit, offset);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getAll: (' +
@@ -1154,7 +1159,8 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         return promise;
     }
 
-    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    getOnly(key: KeyType, reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
+            : SyncTasks.Promise<ItemType[]> {
         const joinedKey = _.attempt(() => {
             return NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
         });
@@ -1168,8 +1174,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         }
 
         let promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' = ?',
-            [joinedKey],
-            reverse, limit, offset);
+            [joinedKey], reverseOrSortOrder, limit, offset);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getOnly: (' +
@@ -1180,7 +1185,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+            reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         let checks: string;
         let args: string[];
         const err = _.attempt(() => {
@@ -1198,7 +1203,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         }
 
         let promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + checks!!!, args!!!,
-            reverse, limit, offset);
+            reverseOrSortOrder, limit, offset);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStoreIndex (' + this._rawTableName + '/' + this._indexTableName + ') getRange: (' +

@@ -720,22 +720,24 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         }
     }
 
-    getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    getAll(reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
+        const reverse = reverseOrSortOrder === false || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
         const req = this._store.openCursor(null!!!, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     }
 
-    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    getOnly(key: KeyType, reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
+            : SyncTasks.Promise<ItemType[]> {
         const keyRange = _.attempt(() => {
             return this._getKeyRangeForOnly(key);
         });
         if (_.isError(keyRange)) {
             return SyncTasks.Rejected(keyRange);
         }
-
+        const reverse = reverseOrSortOrder === false || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     }
@@ -749,7 +751,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+            reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         const keyRange = _.attempt(() => {
             return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
@@ -757,6 +759,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             return SyncTasks.Rejected(keyRange);
         }
 
+        const reverse = reverseOrSortOrder === false || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     }

@@ -26,21 +26,21 @@ export class SimpleTransactionIndexHelper<ObjectType extends ItemType, IndexKeyF
         // Nothing to see here
     }
 
-    getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ObjectType[]> {
-        let promise = this._index.getAll(reverse, limit, offset) as SyncTasks.Promise<ObjectType[]>;
+    getAll(reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ObjectType[]> {
+        let promise = this._index.getAll(reverseOrSortOrder, limit, offset) as SyncTasks.Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
-    getOnly(key: IndexKeyFormat, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ObjectType[]> {
-        let promise = this._index.getOnly(key, reverse, limit, offset) as SyncTasks.Promise<ObjectType[]>;
-        return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
-    }
-
-    getRange(keyLowRange: IndexKeyFormat, keyHighRange: IndexKeyFormat,
-            lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverse?: boolean, limit?: number, offset?: number)
+    getOnly(key: IndexKeyFormat, reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
             : SyncTasks.Promise<ObjectType[]> {
+        let promise = this._index.getOnly(key, reverseOrSortOrder, limit, offset) as SyncTasks.Promise<ObjectType[]>;
+        return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
+    }
+
+    getRange(keyLowRange: IndexKeyFormat, keyHighRange: IndexKeyFormat, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
+        reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ObjectType[]> {
         let promise = this._index.getRange(keyLowRange, keyHighRange, lowRangeExclusive,
-            highRangeExclusive, reverse, limit, offset) as SyncTasks.Promise<ObjectType[]>;
+            highRangeExclusive, reverseOrSortOrder, limit, offset) as SyncTasks.Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
@@ -84,16 +84,16 @@ export class SimpleTransactionStoreHelper<StoreName extends string, ObjectType e
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
-    getOnly(key: KeyFormat, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ObjectType[]> {
-        let promise = this._store.openPrimaryKey().getOnly(key, reverse, limit, offset) as SyncTasks.Promise<ObjectType[]>;
+    getOnly(key: KeyFormat, reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
+            : SyncTasks.Promise<ObjectType[]> {
+        let promise = this._store.openPrimaryKey().getOnly(key, reverseOrSortOrder, limit, offset) as SyncTasks.Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
-    getRange(keyLowRange: KeyFormat, keyHighRange: KeyFormat,
-            lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverse?: boolean, limit?: number, offset?: number)
-            : SyncTasks.Promise<ObjectType[]> {
+    getRange(keyLowRange: KeyFormat, keyHighRange: KeyFormat, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
+            reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ObjectType[]> {
         let promise = this._store.openPrimaryKey().getRange(keyLowRange, keyHighRange,
-            lowRangeExclusive, highRangeExclusive, reverse, limit, offset) as SyncTasks.Promise<ObjectType[]>;
+            lowRangeExclusive, highRangeExclusive, reverseOrSortOrder, limit, offset) as SyncTasks.Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 

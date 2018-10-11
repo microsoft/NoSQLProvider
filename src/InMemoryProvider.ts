@@ -303,7 +303,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         return data;
     }
 
-    getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    getAll(reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
@@ -316,15 +316,16 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         }
 
         const sortedKeys = _.keys(data).sort();
-        return this._returnResultsFromKeys(data, sortedKeys, reverse, limit, offset);
+        return this._returnResultsFromKeys(data, sortedKeys, reverseOrSortOrder, limit, offset);
     }
 
-    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
-        return this.getRange(key, key, false, false, reverse, limit, offset);
+    getOnly(key: KeyType, reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
+            : SyncTasks.Promise<ItemType[]> {
+        return this.getRange(key, key, false, false, reverseOrSortOrder, limit, offset);
     }
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+            reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return SyncTasks.Rejected('InMemoryTransaction already closed');
         }
@@ -339,7 +340,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             return SyncTasks.Rejected(err);
         }
 
-        return this._returnResultsFromKeys(data!!!, sortedKeys!!!, reverse, limit, offset);
+        return this._returnResultsFromKeys(data!!!, sortedKeys!!!, reverseOrSortOrder, limit, offset);
     }
 
     // Warning: This function can throw, make sure to trap.
@@ -351,9 +352,9 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             (key > keyLow || (key === keyLow && !lowRangeExclusive)) && (key < keyHigh || (key === keyHigh && !highRangeExclusive)));
     }
 
-    private _returnResultsFromKeys(data: _.Dictionary<ItemType[]>|_.Dictionary<ItemType>, sortedKeys: string[], reverse?: boolean,
-            limit?: number, offset?: number) {
-        if (reverse) {
+    private _returnResultsFromKeys(data: _.Dictionary<ItemType[]> | _.Dictionary<ItemType>, sortedKeys: string[],
+            reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number) {
+        if (reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse) {
             sortedKeys = _.reverse(sortedKeys);
         }
 

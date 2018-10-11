@@ -91,10 +91,12 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
         });
     }
 
-    abstract getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
-    abstract getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
+    abstract getAll(reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
+        : SyncTasks.Promise<ItemType[]>;
+    abstract getOnly(key: KeyType, reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
+        : SyncTasks.Promise<ItemType[]>;
     abstract getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-        reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
+        reverseOrSortOrder?: boolean|NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
     abstract countAll(): SyncTasks.Promise<number>;
     abstract countOnly(key: KeyType): SyncTasks.Promise<number>;
     abstract countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
