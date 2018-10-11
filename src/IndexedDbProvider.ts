@@ -724,7 +724,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
-        const reverse = reverseOrSortOrder === false || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
+        const reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
         const req = this._store.openCursor(null!!!, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     }
@@ -737,7 +737,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         if (_.isError(keyRange)) {
             return SyncTasks.Rejected(keyRange);
         }
-        const reverse = reverseOrSortOrder === false || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
+        const reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     }
@@ -759,7 +759,7 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             return SyncTasks.Rejected(keyRange);
         }
 
-        const reverse = reverseOrSortOrder === false || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
+        const reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     }
