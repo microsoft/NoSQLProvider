@@ -79,8 +79,8 @@ export class SimpleTransactionStoreHelper<StoreName extends string, ObjectType e
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
-    getAll(): SyncTasks.Promise<ObjectType[]> {
-        let promise = this._store.openPrimaryKey().getAll() as SyncTasks.Promise<ObjectType[]>;
+    getAll(sortOrder?: NoSqlProvider.QuerySortOrder): SyncTasks.Promise<ObjectType[]> {
+        let promise = this._store.openPrimaryKey().getAll(sortOrder) as SyncTasks.Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
