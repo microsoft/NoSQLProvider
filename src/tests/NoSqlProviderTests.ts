@@ -762,6 +762,34 @@ describe('NoSqlProvider', function () {
                     });
                 });
 
+                // Ensure that we properly batch multi-key sql inserts
+                if (provName.indexOf('sql') !== -1) {
+                    it('MultiEntry multipart index - large index put', () => {
+                        return openProvider(provName, {
+                            version: 1,
+                            stores: [
+                                {
+                                    name: 'test',
+                                    primaryKeyPath: 'id',
+                                    indexes: [
+                                        {
+                                            name: 'key',
+                                            multiEntry: true,
+                                            keyPath: 'k.k',
+                                        }
+                                    ]
+                                }
+                            ]
+                        }, true).then(prov => {
+                            const keys: string[] = [];
+                            _.times(1000, () => {
+                                keys.push(_.uniqueId('multipartKey'));
+                            });
+                            return prov.put('test', { id: 'a', val: 'b', k: { k: keys } });
+                        });
+                    });
+                }
+
                 it('MultiEntry multipart indexed tests - Compound Key', () => {
                     return openProvider(provName, {
                         version: 1,
