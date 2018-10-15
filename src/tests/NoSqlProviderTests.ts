@@ -277,7 +277,23 @@ describe('NoSqlProvider', function () {
                                 [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3b2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 1)
+                        let t3b2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1)
+                            .then(retVal => {
+                                const ret = retVal as TestObj[];
+                                assert.equal(ret.length, 1, 'getRange++ lim1');
+                                [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                            });
+
+                        let t3b3 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, 
+                                NoSqlProvider.QuerySortOrder.Forward, 1)
+                            .then(retVal => {
+                                const ret = retVal as TestObj[];
+                                assert.equal(ret.length, 1, 'getRange++ lim1');
+                                [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                            });
+
+                        let t3b4 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false,
+                                NoSqlProvider.QuerySortOrder.Reverse, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1, 'getRange++ lim1 rev');
@@ -298,7 +314,24 @@ describe('NoSqlProvider', function () {
                                 [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3d2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1)
+                        let t3d2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, 
+                                NoSqlProvider.QuerySortOrder.Forward, 2, 1)
+                            .then(retVal => {
+                                const ret = retVal as TestObj[];
+                                assert.equal(ret.length, 2, 'getRange++ lim2 off1');
+                                [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                            });
+
+                        let t3d3 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1)
+                            .then(retVal => {
+                                const ret = retVal as TestObj[];
+                                assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
+                                assert.equal((ret[0] as TestObj).val, 'val3');
+                                [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                            });
+                        
+                        let t3d4 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false,
+                                NoSqlProvider.QuerySortOrder.Reverse, 2, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
@@ -336,8 +369,8 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 1, 'countRange--');
                         });
 
-                        return SyncTasks.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3c, t3d, t3d2, t4, t4count, t5,
-                                t5count, t6, t6count]).then(() => {
+                        return SyncTasks.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3b3, t3b4, t3c, t3d, t3d2, t3d3,
+                            t3d4, t4, t4count, t5, t5count, t6, t6count]).then(() => {
                             if (compound) {
                                 let tt1 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
                                     .then(retVal => {

@@ -17,7 +17,12 @@ import SyncTasks = require('synctasks');
 export type ItemType = object;
 export type KeyComponentType = string|number|Date;
 export type KeyType = KeyComponentType|KeyComponentType[];
-export type KeyPathType = string|string[];
+export type KeyPathType = string | string[];
+export enum QuerySortOrder {
+    None,
+    Forward,
+    Reverse
+}
 
 // Schema type describing an index for a store.
 export interface IndexSchema {
@@ -55,10 +60,10 @@ export enum FullTextTermResolution {
 
 // Interface type describing an index being opened for querying.
 export interface DbIndex {
-    getAll(reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
-    getOnly(key: KeyType, reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
+    getAll(reverseOrSortOrder?: boolean|QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
+    getOnly(key: KeyType, reverseOrSortOrder?: boolean|QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-        reverse?: boolean, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
+        reverseOrSortOrder?: boolean|QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
     countAll(): SyncTasks.Promise<number>;
     countOnly(key: KeyType): SyncTasks.Promise<number>;
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
@@ -189,25 +194,25 @@ export abstract class DbProvider {
         });
     }
 
-    getAll(storeName: string, indexName: string|undefined, reverse?: boolean, limit?: number, offset?: number)
+    getAll(storeName: string, indexName: string|undefined, reverseOrSortOrder?: boolean|QuerySortOrder, limit?: number, offset?: number)
             : SyncTasks.Promise<ItemType[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
-            return index.getAll(reverse, limit, offset);
+            return index.getAll(reverseOrSortOrder, limit, offset);
         });
     }
 
-    getOnly(storeName: string, indexName: string|undefined, key: KeyType, reverse?: boolean, limit?: number, offset?: number)
-            : SyncTasks.Promise<ItemType[]> {
+    getOnly(storeName: string, indexName: string | undefined, key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number,
+            offset?: number): SyncTasks.Promise<ItemType[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
-            return index.getOnly(key, reverse, limit, offset);
+            return index.getOnly(key, reverseOrSortOrder, limit, offset);
         });
     }
 
-    getRange(storeName: string, indexName: string|undefined, keyLowRange: KeyType, keyHighRange: KeyType,
-        lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverse?: boolean, limit?: number, offset?: number)
+    getRange(storeName: string, indexName: string | undefined, keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean,
+            highRangeExclusive?: boolean, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
             : SyncTasks.Promise<ItemType[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
-            return index.getRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverse, limit, offset);
+            return index.getRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverseOrSortOrder, limit, offset);
         });
     }
 
