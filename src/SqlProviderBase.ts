@@ -959,7 +959,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                     const itemPageSize = Math.floor(this._trans.internal_getMaxVariables() / insertParamCount);
                     // data contains all the input parameters
                     for (let i = 0; i < (data.length / insertParamCount); i += itemPageSize) {
-                        const thisPageCount = Math.min(itemPageSize, (data.length / insertParamCount)) - i;
+                        const thisPageCount = Math.min(itemPageSize, (data.length / insertParamCount) - i);
                         const qmarksValues = _.fill(new Array(thisPageCount), generateParamPlaceholder(insertParamCount));
                         insertQueries.push(this._trans.internal_nonQuery('INSERT INTO ' +
                             this._schema.name + '_' + index.name + ' (nsp_key, nsp_refpk' + (index.includeDataInIndex ? ', nsp_data' : '') +
