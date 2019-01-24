@@ -164,11 +164,11 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     let indexTables: { [table: string]: string[] } = {};
                     let tableSqlStatements: { [table: string]: string } = {};
 
-                    _.each(rows, row => {
+                    for (const row of rows) {
                         const tableName = row['tbl_name'];
                         // Ignore browser metadata tables for websql support
                         if (tableName === '__WebKitDatabaseInfoTable__' || tableName === 'metadata') {
-                            return;
+                            continue;
                         }
                         // Ignore FTS-generated side tables
                         const endsIn = (str: string, checkstr: string) => {
@@ -176,7 +176,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                             return i !== -1 && i === str.length - checkstr.length;
                         };
                         if (endsIn(tableName, '_content') || endsIn(tableName, '_segments') || endsIn(tableName, '_segdir')) {
-                            return;
+                            continue;
                         }
                         if (row['type'] === 'table') {
                             tableNames.push(row['name']);
@@ -201,14 +201,14 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         if (row['type'] === 'index') {
                             if (row['name'].substring(0, 17) === 'sqlite_autoindex_') {
                                 // auto-index, ignore
-                                return;
+                                continue;
                             }
                             if (!indexNames[tableName]) {
                                 indexNames[tableName] = [];
                             }
                             indexNames[tableName].push(row['name']);
                         }
-                    });
+                    }
 
                     const deleteFromMeta = (metasToDelete: IndexMetadata[]) => {
                         if (metasToDelete.length === 0) {
@@ -241,14 +241,16 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     } else {
                         // Just delete tables we don't care about anymore. Preserve multi-entry tables, they may not be changed
                         let tableNamesNeeded: string[] = [];
-                        _.each(this._schema!!!.stores, store => {
+                        for (const store of this._schema!!!.stores) {
                             tableNamesNeeded.push(store.name);
-                            _.each(store.indexes, index => {
-                                if (indexUsesSeparateTable(index, this._supportsFTS3)) {
-                                    tableNamesNeeded.push(getIndexIdentifier(store, index));
+                            if (store.indexes) {
+                                for (const index of store.indexes) {
+                                    if (indexUsesSeparateTable(index, this._supportsFTS3)) {
+                                        tableNamesNeeded.push(getIndexIdentifier(store, index));
+                                    }
                                 }
-                            });
-                        });
+                            }
+                        }
                         let tableNamesNotNeeded = _.filter(tableNames, name => !_.includes(tableNamesNeeded, name));
                         dropQueries = _.flatten(_.map(tableNamesNotNeeded, name => {
                             const transList: SyncTasks.Promise<any>[] = [trans.runQuery('DROP TABLE ' + name)];
@@ -278,16 +280,16 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         return [];
                     };
 
-                    _.each(tableNames, table => {
+                    for (const table of tableNames) {
                         tableColumns[table] = getColumnNames(table);
-                    });
+                    }
 
                     return SyncTasks.all(dropQueries).then(() => {
 
                         let tableQueries: SyncTasks.Promise<any>[] = [];
 
                         // Go over each store and see what needs changing
-                        _.each(this._schema!!!.stores, storeSchema => {
+                        for (const storeSchema of this._schema!!!.stores) {
 
                             // creates indexes for provided schemas 
                             const indexMaker = (indexes: NoSqlProvider.IndexSchema[] = []) => {
@@ -549,7 +551,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 tableQueries.push(indexFixer());
                             }
 
-                        });
+                        }
 
                         return SyncTasks.all(tableQueries);
                     });
@@ -680,9 +682,9 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
     failAllPendingQueries(error: any) {
         const list = this._pendingQueries;
         this._pendingQueries = [];
-        _.each(list, query => {
+        for (const query of list) {
             query.reject(error);
-        });
+        }
     }
 
     runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]> {
@@ -820,18 +822,19 @@ class SqlStore implements NoSqlProvider.DbStore {
         let fields: string[] = ['nsp_pk', 'nsp_data'];
         let qmarks: string[] = ['?', '?'];
         let args: any[] = [];
-        let datas: string[];
 
-        _.each(this._schema.indexes, index => {
-            if (!indexUsesSeparateTable(index, this._supportsFTS3)) {
-                qmarks.push('?');
-                fields.push('nsp_i_' + index.name);
+        if (this._schema.indexes) {
+            for (const index of this._schema.indexes) {
+                if (!indexUsesSeparateTable(index, this._supportsFTS3)) {
+                    qmarks.push('?');
+                    fields.push('nsp_i_' + index.name);
+                }
             }
-        });
+        }
 
         const qmarkString = qmarks.join(',');
-        const err = _.attempt(() => {
-            datas = _.map(<any[]>items, (item) => {
+        const datas = _.attempt(() => {
+            return _.map(<any[]>items, (item) => {
                 let serializedData = JSON.stringify(item);
                 // For now, until an issue with cordova-ios is fixed (https://issues.apache.org/jira/browse/CB-9435), have to replace
                 // \u2028 and 2029 with blanks because otherwise the command boundary with cordova-ios silently eats any strings with them.
@@ -840,24 +843,26 @@ class SqlStore implements NoSqlProvider.DbStore {
                 }
                 args.push(NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath), serializedData);
 
-                _.each(this._schema.indexes, index => {
-                    if (indexUsesSeparateTable(index, this._supportsFTS3)) {
-                        return;
-                    }
+                if (this._schema.indexes) {
+                    for (const index of this._schema.indexes) {
+                        if (indexUsesSeparateTable(index, this._supportsFTS3)) {
+                            continue;
+                        }
 
-                    if (index.fullText && !this._supportsFTS3) {
-                        args.push(FakeFTSJoinToken +
-                            FullTextSearchHelpers.getFullTextIndexWordsForItem(<string> index.keyPath, item).join(FakeFTSJoinToken));
-                    } else if (!index.multiEntry) {
-                        args.push(NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath));
+                        if (index.fullText && !this._supportsFTS3) {
+                            args.push(FakeFTSJoinToken +
+                                FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item).join(FakeFTSJoinToken));
+                        } else if (!index.multiEntry) {
+                            args.push(NoSqlProviderUtils.getSerializedKeyForKeypath(item, index.keyPath));
+                        }
                     }
-                });
+                }
 
                 return serializedData;
             });
         });
-        if (err) {
-            return SyncTasks.Rejected<void>(err);
+        if (_.isError(datas)) {
+            return SyncTasks.Rejected<void>(datas);
         }
 
         // Need to not use too many variables per insert, so batch the insert if needed.
@@ -875,64 +880,72 @@ class SqlStore implements NoSqlProvider.DbStore {
             const keysToDeleteByIndex: { [indexIndex: number]: string[] } = {};
             const dataToInsertByIndex: { [indexIndex: number]: string[] } = {};
 
-            _.each(items, (item, itemIndex) => {
+            // Track 0-based index of item we're looking at
+            let itemIndex = -1;
+            for (const item of items) {
+                itemIndex++;
                 const key = _.attempt(() => {
                     return NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath)!!!;
                 });
                 if (_.isError(key)) {
                     queries.push(SyncTasks.Rejected<void>(key));
-                    return;
+                    continue;
                 }
 
-                _.each(this._schema.indexes, (index, indexIndex) => {
-                    let serializedKeys: string[];
+                if (this._schema.indexes) {
+                    // Track 0-based index of index we're looking at
+                    let indexIndex = -1;
+                    for (const index of this._schema.indexes) {
+                        indexIndex++;
+                        let serializedKeys: string[];
 
-                    if (index.fullText && this._supportsFTS3) {
-                        // FTS3 terms go in a separate virtual table...
-                        serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item).join(' ')];
-                    } else if (index.multiEntry) {
-                        // Have to extract the multiple entries into the alternate table...
-                        const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
-                        if (valsRaw) {
-                            const serializedKeysOrErr = _.attempt(() => {
-                                return _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
-                                    NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
-                            });
-                            if (_.isError(serializedKeysOrErr)) {
-                                queries.push(SyncTasks.Rejected<void>(serializedKeysOrErr));
-                                return;
+                        if (index.fullText && this._supportsFTS3) {
+                            // FTS3 terms go in a separate virtual table...
+                            serializedKeys = [FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>index.keyPath, item).join(' ')];
+                        } else if (index.multiEntry) {
+                            // Have to extract the multiple entries into the alternate table...
+                            const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>index.keyPath);
+                            if (valsRaw) {
+                                const serializedKeysOrErr = _.attempt(() => {
+                                    return _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
+                                        NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
+                                });
+                                if (_.isError(serializedKeysOrErr)) {
+                                    queries.push(SyncTasks.Rejected<void>(serializedKeysOrErr));
+                                    continue;
+                                }
+                                serializedKeys = serializedKeysOrErr;
+                            } else {
+                                serializedKeys = [];
                             }
-                            serializedKeys = serializedKeysOrErr;
                         } else {
-                            serializedKeys = [];
+                            continue;
                         }
-                    } else {
-                        return;
-                    }
 
-                    // Capture insert data
-                    if (serializedKeys.length > 0) {
-                        if (!dataToInsertByIndex[indexIndex]) {
-                            dataToInsertByIndex[indexIndex] = [];
-                        }
-                        const dataToInsert = dataToInsertByIndex[indexIndex];
-                        _.each(serializedKeys, val => {
-                            dataToInsert.push(val);
-                            dataToInsert.push(key);
-                            if (index.includeDataInIndex) {
-                                dataToInsert.push(datas[itemIndex]);
+                        // Capture insert data
+                        if (serializedKeys.length > 0) {
+                            if (!dataToInsertByIndex[indexIndex]) {
+                                dataToInsertByIndex[indexIndex] = [];
                             }
-                        });
-                    }
+                            const dataToInsert = dataToInsertByIndex[indexIndex];
+                            for (const val of serializedKeys) {
+                                dataToInsert.push(val);
+                                dataToInsert.push(key);
+                                if (index.includeDataInIndex) {
+                                    dataToInsert.push(datas[itemIndex]);
+                                }
+                            }
+                        }
 
-                    // Capture delete keys
-                    if (!keysToDeleteByIndex[indexIndex]) {
-                        keysToDeleteByIndex[indexIndex] = [];
-                    }
+                        // Capture delete keys
+                        if (!keysToDeleteByIndex[indexIndex]) {
+                            keysToDeleteByIndex[indexIndex] = [];
+                        }
 
-                    keysToDeleteByIndex[indexIndex].push(key);
-                });
-            });
+                        keysToDeleteByIndex[indexIndex].push(key);
+                    }
+                }
+            }
 
             const deleteQueries: SyncTasks.Promise<void>[] = [];
 
@@ -1029,12 +1042,14 @@ class SqlStore implements NoSqlProvider.DbStore {
             // Generate as many '?' as there are params
             const placeholder = generateParamPlaceholder(params.length);
 
-            _.each(this._schema.indexes, index => {
-                if (indexUsesSeparateTable(index, this._supportsFTS3)) {
-                    queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
-                        ' WHERE nsp_refpk IN (' + placeholder + ')', params));
+            if (this._schema.indexes) {
+                for (const index of this._schema.indexes) {
+                    if (indexUsesSeparateTable(index, this._supportsFTS3)) {
+                        queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name +
+                            ' WHERE nsp_refpk IN (' + placeholder + ')', params));
+                    }
                 }
-            });
+            }
 
             queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name +
                 ' WHERE nsp_pk IN (' + placeholder + ')', params));

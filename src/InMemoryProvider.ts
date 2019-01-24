@@ -198,12 +198,12 @@ class InMemoryStore implements NoSqlProvider.DbStore {
         }
         this._checkDataClone();
         const err = _.attempt(() => {
-            _.each(NoSqlProviderUtils.arrayify(itemOrItems), item => {
+            for (const item of NoSqlProviderUtils.arrayify(itemOrItems)) {
                 let pk = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._storeSchema.primaryKeyPath)!!!;
 
                 this._pendingCommitDataChanges!!![pk] = item;
                 this._mergedData[pk] = item;
-            });
+            }
         });
         if (err) {
             return SyncTasks.Rejected<void>(err);
@@ -224,10 +224,10 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return SyncTasks.Rejected(joinedKeys);
         }
 
-        _.each(joinedKeys, key => {
+        for (const key of joinedKeys) {
             this._pendingCommitDataChanges!!![key] = undefined;
             delete this._mergedData[key];
-        });
+        }
         return SyncTasks.Resolved<void>();
     }
 
@@ -277,7 +277,7 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         let data: _.Dictionary<ItemType[]> = {};
         _.each(this._mergedData, item => {
             // Each item may be non-unique so store as an array of items for each key
-            let keys: string[]|undefined;
+            let keys: string[];
             if (this._indexSchema!!!.fullText) {
                 keys = _.map(FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>this._keyPath, item), val =>
                     NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
@@ -287,18 +287,20 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
                 if (valsRaw) {
                     keys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
                         NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
+                } else {
+                    keys = [];
                 }
             } else {
                 keys = [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._keyPath)!!!];
             }
 
-            _.each(keys, key => {
+            for (const key of keys) {
                 if (!data[key]) {
                     data[key] = [item];
                 } else {
                     data[key].push(item);
                 }
-            });
+            }
         });
         return data;
     }

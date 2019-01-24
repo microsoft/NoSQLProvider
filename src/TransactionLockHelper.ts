@@ -38,10 +38,10 @@ class TransactionLockHelper {
     private _pendingTransactions: PendingTransaction[] = [];
     
     constructor(private _schema: NoSqlProvider.DbSchema, private _supportsDiscreteTransactions: boolean) {
-        _.each(this._schema.stores, store => {
+        for (const store of this._schema.stores) {
             this._exclusiveLocks[store.name] = false;
             this._readOnlyCounts[store.name] = 0;
-        });
+        }
     }
 
     closeWhenPossible(): SyncTasks.Promise<void> {
@@ -143,15 +143,15 @@ class TransactionLockHelper {
 
     private _cleanTransaction(token: TransactionToken) {
         if (token.exclusive) {
-            _.each(token.storeNames, storeName => {
+            for (const storeName of token.storeNames) {
                 assert.ok(this._exclusiveLocks[storeName], 'Missing expected exclusive lock for store: ' + storeName);
                 this._exclusiveLocks[storeName] = false;
-            });
+            }
         } else {
-            _.each(token.storeNames, storeName => {
+            for (const storeName of token.storeNames) {
                 assert.ok(this._readOnlyCounts[storeName] > 0, 'Missing expected readonly lock for store: ' + storeName);
                 this._readOnlyCounts[storeName]--;
-            });
+            }
         }
 
         this._checkNextTransactions();
@@ -186,13 +186,13 @@ class TransactionLockHelper {
             trans.opened = true;
 
             if (trans.token.exclusive) {
-                _.each(trans.token.storeNames, storeName => {
+                for (const storeName of trans.token.storeNames) {
                     this._exclusiveLocks[storeName] = true;
-                });
+                }
             } else {
-                _.each(trans.token.storeNames, storeName => {
+                for (const storeName of trans.token.storeNames) {
                     this._readOnlyCounts[storeName]++;
-                });
+                }
             }
 
             trans.openDefer.resolve(trans.token);
