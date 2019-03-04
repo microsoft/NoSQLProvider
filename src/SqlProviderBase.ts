@@ -8,8 +8,6 @@
 
 import assert = require('assert');
 import _ = require('lodash');
-import SyncTasks = require('synctasks');
-
 import FullTextSearchHelpers = require('./FullTextSearchHelpers');
 import NoSqlProvider = require('./NoSqlProvider');
 import { ItemType } from './NoSqlProvider';
@@ -81,9 +79,9 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
         // NOP
     }
 
-    abstract openTransaction(storeNames: string[]|undefined, writeNeeded: boolean): SyncTasks.Promise<SqlTransaction>;
+    abstract openTransaction(storeNames: string[]|undefined, writeNeeded: boolean): Promise<SqlTransaction>;
 
-    private _getMetadata(trans: SqlTransaction): SyncTasks.Promise<{ name: string; value: string; }[]> {
+    private _getMetadata(trans: SqlTransaction): Promise<{ name: string; value: string; }[]> {
         // Create table if needed
         return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then(() => {
             return trans.runQuery('SELECT name, value from metadata', []);
@@ -95,7 +93,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
             '(\'' + meta.key + '\', ?)', [JSON.stringify(meta)]);
     }
 
-    private _getDbVersion(): SyncTasks.Promise<number> {
+    private _getDbVersion(): Promise<number> {
         return this.openTransaction(undefined, true).then(trans => {
               // Create table if needed
             return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then(() => {
@@ -109,7 +107,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
         });
     }
 
-    protected _changeDbVersion(oldVersion: number, newVersion: number): SyncTasks.Promise<SqlTransaction> {
+    protected _changeDbVersion(oldVersion: number, newVersion: number): Promise<SqlTransaction> {
         return this.openTransaction(undefined, true).then(trans => {
             return trans.runQuery('INSERT OR REPLACE into metadata (\'name\', \'value\') VALUES (\'' + schemaVersionKey + '\', ?)',
                 [newVersion])
@@ -117,7 +115,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
         });
     }
 
-    protected _ourVersionChecker(wipeIfExists: boolean): SyncTasks.Promise<void> {
+    protected _ourVersionChecker(wipeIfExists: boolean): Promise<void> {
         return this._getDbVersion()
             .then(oldVersion => {
                 if (oldVersion !== this._schema!!!.version) {
@@ -141,7 +139,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
             });
     }
 
-    protected _upgradeDb(trans: SqlTransaction, oldVersion: number, wipeAnyway: boolean): SyncTasks.Promise<void> {
+    protected _upgradeDb(trans: SqlTransaction, oldVersion: number, wipeAnyway: boolean): Promise<void> {
         // Get a list of all tables, columns and indexes on the tables
         return this._getMetadata(trans).then(fullMeta => {
             // Get Index metadatas
@@ -212,7 +210,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                     const deleteFromMeta = (metasToDelete: IndexMetadata[]) => {
                         if (metasToDelete.length === 0) {
-                            return SyncTasks.Resolved([]);
+                            return Promise.resolve([]);
                         }
 
                         // Generate as many '?' as there are params
@@ -223,7 +221,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                     };
 
                     // Check each table!
-                    let dropQueries: SyncTasks.Promise<any>[] = [];
+                    let dropQueries: Promise<any>[] = [];
                     if (wipeAnyway || (this._schema!!!.lastUsableVersion && oldVersion < this._schema!!!.lastUsableVersion!!!)) {
                         // Clear all stores if it's past the usable version
                         if (!wipeAnyway) {
@@ -251,7 +249,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         });
                         let tableNamesNotNeeded = _.filter(tableNames, name => !_.includes(tableNamesNeeded, name));
                         dropQueries = _.flatten(_.map(tableNamesNotNeeded, name => {
-                            const transList: SyncTasks.Promise<any>[] = [trans.runQuery('DROP TABLE ' + name)];
+                            const transList: Promise<any>[] = [trans.runQuery('DROP TABLE ' + name)];
                             const metasToDelete = _.filter(indexMetadata, meta => meta.storeName === name);
                             const metaKeysToDelete = _.map(metasToDelete, meta => meta.key);
 
@@ -282,16 +280,16 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                         tableColumns[table] = getColumnNames(table);
                     });
 
-                    return SyncTasks.all(dropQueries).then(() => {
+                    return Promise.all(dropQueries).then(() => {
 
-                        let tableQueries: SyncTasks.Promise<any>[] = [];
+                        let tableQueries: Promise<any>[] = [];
 
                         // Go over each store and see what needs changing
                         _.each(this._schema!!!.stores, storeSchema => {
 
                             // creates indexes for provided schemas 
                             const indexMaker = (indexes: NoSqlProvider.IndexSchema[] = []) => {
-                                let metaQueries: SyncTasks.Promise<any>[] = [];
+                                let metaQueries: Promise<any>[] = [];
                                 const indexQueries = _.map(indexes, index => {
                                     const indexIdentifier = getIndexIdentifier(storeSchema, index);
 
@@ -305,7 +303,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     // Go over each index and see if we need to create an index or a table for a multiEntry index
                                     if (index.multiEntry) {
                                         if (NoSqlProviderUtils.isCompoundKeyPath(index.keyPath)) {
-                                            return SyncTasks.Rejected('Can\'t use multiEntry and compound keys');
+                                            return Promise.reject('Can\'t use multiEntry and compound keys');
                                         } else {
                                             return trans.runQuery('CREATE TABLE IF NOT EXISTS ' + indexIdentifier +
                                                 ' (nsp_key TEXT, nsp_refpk TEXT' +
@@ -329,7 +327,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     }
                                 });
 
-                                return SyncTasks.all(indexQueries.concat(metaQueries));
+                                return Promise.all(indexQueries.concat(metaQueries));
                             };
 
                             // Form SQL statement for table creation
@@ -376,7 +374,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                     trans.runQuery('ALTER TABLE ' + storeSchema.name + ' ADD COLUMN ' + 'nsp_i_' + index.name + ' TEXT')
                                 );
 
-                                return SyncTasks.all(addQueries);
+                                return Promise.all(addQueries);
                             };
 
                             const tableMaker = () => {
@@ -463,13 +461,13 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 if (recreateIndices) {
                                     return indexMaker(storeSchema.indexes);
                                 }
-                                return SyncTasks.Resolved([]);
+                                return Promise.resolve([]);
                             };
 
                             const indexTableAndMetaDropper = () => {
                                 const indexTablesToDrop = doFullMigration 
                                     ? indexTables[storeSchema.name] : removedTableIndexMetas.map(meta => meta.key);
-                                return SyncTasks.all([deleteFromMeta(allRemovedIndexMetas), ...dropIndexTables(indexTablesToDrop)]);
+                                return Promise.all([deleteFromMeta(allRemovedIndexMetas), ...dropIndexTables(indexTablesToDrop)]);
                             };
 
                             if (!tableExists) {
@@ -481,7 +479,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 // Migrate the data over using our existing put functions
                                 // (since it will do the right things with the indexes)
                                 // and delete the temp table.
-                                const jsMigrator = (batchOffset = 0): SyncTasks.Promise<any> => {
+                                const jsMigrator = (batchOffset = 0): Promise<any> => {
                                     let esimatedSize = storeSchema.estimatedObjBytes || DB_SIZE_ESIMATE_DEFAULT;
                                     let batchSize = Math.max(1, Math.floor(DB_MIGRATION_MAX_BYTE_TARGET / esimatedSize));
                                     let store = trans.getStore(storeSchema.name);
@@ -499,7 +497,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 };
 
                                 tableQueries.push(
-                                    SyncTasks.all([
+                                    Promise.all([
                                         indexTableAndMetaDropper(),
                                         dropColumnIndices(),
                                     ])
@@ -524,7 +522,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
                                 };
 
                                 tableQueries.push(
-                                    SyncTasks.all([
+                                    Promise.all([
                                         indexTableAndMetaDropper(),
                                         dropColumnIndices(),
                                     ])
@@ -551,7 +549,7 @@ export abstract class SqlProviderBase extends NoSqlProvider.DbProvider {
 
                         });
 
-                        return SyncTasks.all(tableQueries);
+                        return Promise.all(tableQueries);
                     });
                 });
         }).then(_.noop);
@@ -584,34 +582,34 @@ export abstract class SqlTransaction implements NoSqlProvider.DbTransaction {
         this._isOpen = false;
     }
 
-    abstract getCompletionPromise(): SyncTasks.Promise<void>;
+    abstract getCompletionPromise(): Promise<void>;
     abstract abort(): void;
 
-    abstract runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]>;
+    abstract runQuery(sql: string, parameters?: any[]): Promise<any[]>;
 
     internal_getMaxVariables(): number {
         return this._maxVariables;
     }
 
-    internal_nonQuery(sql: string, parameters?: any[]): SyncTasks.Promise<void> {
+    internal_nonQuery(sql: string, parameters?: any[]): Promise<void> {
         return this.runQuery(sql, parameters).then<void>(_.noop);
     }
 
-    internal_getResultsFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T[]> {
-        return this.runQuery(sql, parameters).then(rows => {
+    internal_getResultsFromQuery<T>(sql: string, parameters?: any[]): Promise<T[]> {
+        return this.runQuery(sql, parameters).then((rows) => {
             let rets: T[] = [];
             for (let i = 0; i < rows.length; i++) {
                 try {
                     rets.push(JSON.parse(rows[i].nsp_data));
                 } catch (e) {
-                    return SyncTasks.Rejected('Error parsing database entry in getResultsFromQuery: ' + JSON.stringify(rows[i].nsp_data));
+                    return Promise.reject('Error parsing database entry in getResultsFromQuery: ' + JSON.stringify(rows[i].nsp_data));
                 }
             }
-            return rets;
+            return Promise.resolve(rets);
         });
     }
 
-    internal_getResultFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T|undefined> {
+    internal_getResultFromQuery<T>(sql: string, parameters?: any[]): Promise<T|undefined> {
         return this.internal_getResultsFromQuery<T>(sql, parameters)
             .then(rets => rets.length < 1 ? undefined : rets[0]);
     }
@@ -665,7 +663,7 @@ export interface SQLTransaction {
 // Generic base transaction for anything that matches the syntax of a SQLTransaction interface for executing sql commands.
 // Conveniently, this works for both WebSql and cordova's Sqlite plugin.
 export abstract class SqliteSqlTransaction extends SqlTransaction {
-    private _pendingQueries: SyncTasks.Deferred<any>[] = [];
+    private _pendingQueries: any[] = [];
 
     constructor(protected _trans: SQLTransaction, schema: NoSqlProvider.DbSchema, verbose: boolean, maxVariables: number,
             supportsFTS3: boolean) {
@@ -685,56 +683,56 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
         });
     }
 
-    runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]> {
+    runQuery(sql: string, parameters?: any[]): Promise<any[]> {
         if (!this._isTransactionOpen()) {
-            return SyncTasks.Rejected('SqliteSqlTransaction already closed');
+            return Promise.reject('SqliteSqlTransaction already closed');
         }
-
-        const deferred = SyncTasks.Defer<any[]>();
-        this._pendingQueries.push(deferred);
-
         let startTime: number;
-        if (this._verbose) {
-            startTime = Date.now();
-        }
+        const deferred = new Promise<any[]>((resolve, reject) => {
+            this._pendingQueries.push(deferred);
 
-        const errRet = _.attempt(() => {
-            this._trans.executeSql(sql, parameters, (t, rs) => {
-                const index = _.indexOf(this._pendingQueries, deferred);
-                if (index !== -1) {
-                    let rows = [];
-                    for (let  i = 0; i < rs.rows.length; i++) {
-                        rows.push(rs.rows.item(i));
+            if (this._verbose) {
+                startTime = Date.now();
+            }
+    
+            const errRet = _.attempt(() => {
+                this._trans.executeSql(sql, parameters, (t, rs) => {
+                    const index = _.indexOf(this._pendingQueries, deferred);
+                    if (index !== -1) {
+                        let rows = [];
+                        for (let  i = 0; i < rs.rows.length; i++) {
+                            rows.push(rs.rows.item(i));
+                        }
+                        this._pendingQueries.splice(index, 1);
+                        resolve(rows);
+                    } else {
+                        console.error('SQL statement resolved twice (success this time): ' + sql);
                     }
-                    this._pendingQueries.splice(index, 1);
-                    deferred.resolve(rows);
-                } else {
-                    console.error('SQL statement resolved twice (success this time): ' + sql);
-                }
-            }, (t, err) => {
-                if (!err) {
-                    // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error,
-                    // slightly breaking the interface.
-                    err = t as any;
-                }
-
-                const index = _.indexOf(this._pendingQueries, deferred);
-                if (index !== -1) {
-                    this._pendingQueries.splice(index, 1);
-                    deferred.reject(err);
-                } else {
-                    console.error('SQL statement resolved twice (this time with failure)');
-                }
-
-                return this.getErrorHandlerReturnValue();
+                }, (t, err) => {
+                    if (!err) {
+                        // The cordova-native-sqlite-storage plugin only passes a single parameter here, the error,
+                        // slightly breaking the interface.
+                        err = t as any;
+                    }
+    
+                    const index = _.indexOf(this._pendingQueries, deferred);
+                    if (index !== -1) {
+                        this._pendingQueries.splice(index, 1);
+                        reject(err);
+                    } else {
+                        console.error('SQL statement resolved twice (this time with failure)');
+                    }
+    
+                    return this.getErrorHandlerReturnValue();
+                });
             });
+    
+            if (errRet) {
+                reject(errRet);
+            }
         });
-
-        if (errRet) {
-            deferred.reject(errRet);
-        }
-
-        let promise = deferred.promise();
+        
+        let promise = deferred;
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlTransaction RunQuery: (' + (Date.now() - startTime) + 'ms): SQL: ' + sql);
@@ -752,12 +750,12 @@ class SqlStore implements NoSqlProvider.DbStore {
         // Empty
     }
 
-    get(key: KeyType): SyncTasks.Promise<ItemType|undefined> {
+    get(key: KeyType): Promise<ItemType|undefined> {
         const joinedKey = _.attempt(() => {
             return NoSqlProviderUtils.serializeKeyToString(key, this._schema.primaryKeyPath);
         });
         if (_.isError(joinedKey)) {
-            return SyncTasks.Rejected(joinedKey);
+            return Promise.reject(joinedKey);
         }
 
         let startTime: number;
@@ -775,16 +773,16 @@ class SqlStore implements NoSqlProvider.DbStore {
         return promise;
     }
 
-    getMultiple(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]> {
+    getMultiple(keyOrKeys: KeyType|KeyType[]): Promise<ItemType[]> {
         const joinedKeys = _.attempt(() => {
             return NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
         });
         if (_.isError(joinedKeys)) {
-            return SyncTasks.Rejected(joinedKeys);
+            return Promise.reject(joinedKeys);
         }
 
         if (joinedKeys.length === 0) {
-            return SyncTasks.Resolved([]);
+            return Promise.resolve([]);
         }
 
         let startTime: number;
@@ -805,11 +803,11 @@ class SqlStore implements NoSqlProvider.DbStore {
 
     private static _unicodeFixer = new RegExp('[\u2028\u2029]', 'g');
 
-    put(itemOrItems: ItemType|ItemType[]): SyncTasks.Promise<void> {
+    put(itemOrItems: ItemType|ItemType[]): Promise<void> {
         let items = NoSqlProviderUtils.arrayify(itemOrItems);
 
         if (items.length === 0) {
-            return SyncTasks.Resolved<void>();
+            return Promise.resolve<void>(void 0);
         }
 
         let startTime: number;
@@ -857,11 +855,11 @@ class SqlStore implements NoSqlProvider.DbStore {
             });
         });
         if (err) {
-            return SyncTasks.Rejected<void>(err);
+            return Promise.reject<void>(err);
         }
 
         // Need to not use too many variables per insert, so batch the insert if needed.
-        let queries: SyncTasks.Promise<void>[] = [];
+        let queries: Promise<void>[] = [];
         const itemPageSize = Math.floor(this._trans.internal_getMaxVariables() / fields.length);
         for (let i = 0; i < items.length; i += itemPageSize) {
             const thisPageCount = Math.min(itemPageSize, items.length - i);
@@ -880,7 +878,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                     return NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath)!!!;
                 });
                 if (_.isError(key)) {
-                    queries.push(SyncTasks.Rejected<void>(key));
+                    queries.push(Promise.reject<void>(key));
                     return;
                 }
 
@@ -899,7 +897,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                                     NoSqlProviderUtils.serializeKeyToString(val, <string>index.keyPath));
                             });
                             if (_.isError(serializedKeysOrErr)) {
-                                queries.push(SyncTasks.Rejected<void>(serializedKeysOrErr));
+                                queries.push(Promise.reject<void>(serializedKeysOrErr));
                                 return;
                             }
                             serializedKeys = serializedKeysOrErr;
@@ -934,7 +932,7 @@ class SqlStore implements NoSqlProvider.DbStore {
                 });
             });
 
-            const deleteQueries: SyncTasks.Promise<void>[] = [];
+            const deleteQueries: Promise<void>[] = [];
 
             _.each(keysToDeleteByIndex, (keysToDelete, indedIndex) => {
                 // We know indexes are defined if we have data to insert for them
@@ -949,8 +947,8 @@ class SqlStore implements NoSqlProvider.DbStore {
             });
 
             // Delete and insert tracking - cannot insert until delete is completed
-            queries.push(SyncTasks.all(deleteQueries).then(() => {
-                const insertQueries: SyncTasks.Promise<void>[] = [];
+            queries.push(Promise.all(deleteQueries).then(() => {
+                const insertQueries: Promise<void>[] = [];
                 _.each(dataToInsertByIndex, (data, indexIndex) => {
                     // We know indexes are defined if we have data to insert for them
                     // _.each spits dictionary keys out as string, needs to turn into a number
@@ -966,12 +964,12 @@ class SqlStore implements NoSqlProvider.DbStore {
                             ') VALUES ' + '(' + qmarksValues.join('),(') + ')', data.splice(0, thisPageCount * insertParamCount)));
                     }
                 });
-                return SyncTasks.all(insertQueries).then(_.noop);
+                return Promise.all(insertQueries).then(_.noop);
             }));
             
         }
 
-        let promise = SyncTasks.all(queries);
+        let promise = Promise.all(queries);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStore (' + this._schema.name + ') put: (' + (Date.now() - startTime) + 'ms): Count: ' + items.length);
@@ -980,12 +978,12 @@ class SqlStore implements NoSqlProvider.DbStore {
         return promise.then(_.noop);
     }
 
-    remove(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<void> {
+    remove(keyOrKeys: KeyType|KeyType[]): Promise<void> {
         const joinedKeys = _.attempt(() => {
             return NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
         });
         if (_.isError(joinedKeys)) {
-            return SyncTasks.Rejected<void>(joinedKeys);
+            return Promise.reject<void>(joinedKeys);
         }
 
         let startTime: number;
@@ -1020,7 +1018,7 @@ class SqlStore implements NoSqlProvider.DbStore {
         });
 
         const queries = _.map(arrayOfParams, params => {
-            let queries: SyncTasks.Promise<void>[] = [];
+            let queries: Promise<void>[] = [];
 
             if (params.length === 0) {
                 return undefined;
@@ -1039,10 +1037,10 @@ class SqlStore implements NoSqlProvider.DbStore {
             queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name +
                 ' WHERE nsp_pk IN (' + placeholder + ')', params));
 
-            return SyncTasks.all(queries).then(_.noop);
+            return Promise.all(queries).then(_.noop);
         });
 
-        let promise = SyncTasks.all(queries).then(_.noop);
+        let promise = Promise.all(queries).then(_.noop);
         if (this._verbose) {
             promise = promise.finally(() => {
                 console.log('SqlStore (' + this._schema.name + ') remove: (' + (Date.now() - startTime) + 'ms): Count: ' +
@@ -1065,14 +1063,14 @@ class SqlStore implements NoSqlProvider.DbStore {
         return new SqlStoreIndex(this._trans, this._schema, undefined, this._supportsFTS3, this._verbose);
     }
 
-    clearAllData(): SyncTasks.Promise<void> {
+    clearAllData(): Promise<void> {
         let indexes = _.filter(this._schema.indexes, index => indexUsesSeparateTable(index, this._supportsFTS3));
         let queries = _.map(indexes, index =>
             this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name + '_' + index.name));
 
         queries.push(this._trans.internal_nonQuery('DELETE FROM ' + this._schema.name));
 
-        return SyncTasks.all(queries).then(_.noop);
+        return Promise.all(queries).then(_.noop);
     }
 }
 
@@ -1119,7 +1117,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     private _handleQuery(sql: string, args?: any[], reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number,
-            offset?: number): SyncTasks.Promise<ItemType[]> {
+            offset?: number): Promise<ItemType[]> {
         // Check if we must do some sort of ordering
         if (reverseOrSortOrder !== NoSqlProvider.QuerySortOrder.None) {
             const reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse;
@@ -1143,7 +1141,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         return this._trans.internal_getResultsFromQuery(sql, args);
     }
 
-    getAll(reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    getAll(reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
         let startTime: number;
         if (this._verbose) {
             startTime = Date.now();
@@ -1160,12 +1158,12 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     getOnly(key: KeyType, reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
-            : SyncTasks.Promise<ItemType[]> {
+            : Promise<ItemType[]> {
         const joinedKey = _.attempt(() => {
             return NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
         });
         if (_.isError(joinedKey)) {
-            return SyncTasks.Rejected(joinedKey);
+            return Promise.reject(joinedKey);
         }
 
         let startTime: number;
@@ -1185,7 +1183,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+            reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
         let checks: string;
         let args: string[];
         const err = _.attempt(() => {
@@ -1194,7 +1192,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             args = ret.args;
         });
         if (err) {
-            return SyncTasks.Rejected(err);
+            return Promise.reject(err);
         }
 
         let startTime: number;
@@ -1229,7 +1227,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         return { checks: checks.join(' AND '), args };
     }
 
-    countAll(): SyncTasks.Promise<number> {
+    countAll(): Promise<number> {
         let startTime: number;
         if (this._verbose) {
             startTime = Date.now();
@@ -1245,12 +1243,12 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
         return promise;
     }
 
-    countOnly(key: KeyType): SyncTasks.Promise<number> {
+    countOnly(key: KeyType): Promise<number> {
         const joinedKey = _.attempt(() => {
             return NoSqlProviderUtils.serializeKeyToString(key, this._keyPath);
         });
         if (_.isError(joinedKey)) {
-            return SyncTasks.Rejected(joinedKey);
+            return Promise.reject(joinedKey);
         }
 
         let startTime: number;
@@ -1270,7 +1268,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
-            : SyncTasks.Promise<number> {
+            : Promise<number> {
         let checks: string;
         let args: string[];
         const err = _.attempt(() => {
@@ -1279,7 +1277,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             args = ret.args;
         });
         if (err) {
-            return SyncTasks.Rejected(err);
+            return Promise.reject(err);
         }
 
         let startTime: number;
@@ -1299,7 +1297,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
     }
 
     fullTextSearch(searchPhrase: string, resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And,
-            limit?: number): SyncTasks.Promise<ItemType[]> {
+            limit?: number): Promise<ItemType[]> {
         let startTime: number;
         if (this._verbose) {
             startTime = Date.now();
@@ -1307,10 +1305,10 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
 
         const terms = FullTextSearchHelpers.breakAndNormalizeSearchPhrase(searchPhrase);
         if (terms.length === 0) {
-            return SyncTasks.Resolved([]);
+            return Promise.resolve([]);
         }
 
-        let promise: SyncTasks.Promise<ItemType[]>;
+        let promise: Promise<ItemType[]>;
         if (this._supportsFTS3) {
             if (resolution === NoSqlProvider.FullTextTermResolution.And) {
                 promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' + this._queryColumn + ' MATCH ?',
@@ -1323,7 +1321,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
                 const args = _.map(terms, term => term + '*');
                 promise = this._handleQuery(joinedQuery, args, false, limit);
             } else {
-                return SyncTasks.Rejected('fullTextSearch called with invalid term resolution mode');
+                return Promise.reject('fullTextSearch called with invalid term resolution mode');
             }
         } else {
             let joinTerm: string;
@@ -1332,7 +1330,7 @@ class SqlStoreIndex implements NoSqlProvider.DbIndex {
             } else if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
                 joinTerm = ' OR ';
             } else {
-                return SyncTasks.Rejected('fullTextSearch called with invalid term resolution mode');
+                return Promise.reject('fullTextSearch called with invalid term resolution mode');
             }
 
             promise = this._handleQuery('SELECT nsp_data FROM ' + this._tableName + ' WHERE ' +

@@ -1,7 +1,6 @@
 import assert = require('assert');
 import _ = require('lodash');
 import sinon = require('sinon');
-import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('../NoSqlProvider');
 import { KeyComponentType } from '../NoSqlProvider';
@@ -9,13 +8,9 @@ import { KeyComponentType } from '../NoSqlProvider';
 // import { CordovaNativeSqliteProvider } from '../CordovaNativeSqliteProvider';
 import { InMemoryProvider } from '../InMemoryProvider';
 import { IndexedDbProvider } from '../IndexedDbProvider';
-import { WebSqlProvider } from '../WebSqlProvider';
 
 import NoSqlProviderUtils = require('../NoSqlProviderUtils');
 import { SqlTransaction } from '../SqlProviderBase';
-
-// Don't trap exceptions so we immediately see them with a stack trace
-SyncTasks.config.catchExceptions = false;
 
 let cleanupFile = false;
 
@@ -43,13 +38,6 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
         provider = new IndexedDbProvider();
     } else if (providerName === 'indexeddbfakekeys') {
         provider = new IndexedDbProvider(undefined, false);
-    } else if (providerName === 'websql') {
-        provider = new WebSqlProvider();
-    } else if (providerName === 'websqlnofts3') {
-        provider = new WebSqlProvider(false);
-    // } else if (providerName === 'reactnative') {
-    //     var reactNativeSqliteProvider = require('react-native-sqlite-storage');
-    //     provider = new CordovaNativeSqliteProvider(reactNativeSqliteProvider);
     } else {
         throw new Error('Provider not found for name: ' + providerName);
     }
@@ -57,10 +45,10 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
     return NoSqlProvider.openListOfProviders([provider], dbName, schema, wipeFirst, false);
 }
 
-function sleep(timeMs: number): SyncTasks.Promise<void> {
-    let defer = SyncTasks.Defer<void>();
-    setTimeout(() => { defer.resolve(void 0); }, timeMs);
-    return defer.promise();
+function sleep(timeMs: number): Promise<void> {
+   return new Promise(resolve => {
+    setTimeout(() => { resolve(void 0); }, timeMs);
+   });    
 }
 
 describe('NoSqlProvider', function () {
@@ -89,11 +77,6 @@ describe('NoSqlProvider', function () {
             // Safari has broken indexeddb support, so let's not test it there.  Everywhere else should have it.
             // In IE, indexeddb will auto-run in fake keys mode, so if all is working, this is 2x the same test (but let's make sure!)
             provsToTest.push('indexeddb', 'indexeddbfakekeys');
-        }
-
-        if (window.openDatabase) {
-            // WebSQL theoretically supported!
-            provsToTest.push('websql', 'websqlnofts3');
         }
     }
 
@@ -220,7 +203,7 @@ describe('NoSqlProvider', function () {
                         return prov.put('test', obj);
                     });
 
-                    return SyncTasks.all(putters).then(rets => {
+                    return Promise.all(putters).then(rets => {
                         let formIndex = (i: number, i2: number = i): string | string[] => {
                             if (compound) {
                                 return ['indexa' + i, 'indexb' + i2];
@@ -369,7 +352,7 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 1, 'countRange--');
                         });
 
-                        return SyncTasks.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3b3, t3b4, t3c, t3d, t3d2, t3d3,
+                        return Promise.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3b3, t3b4, t3c, t3d, t3d2, t3d3,
                             t3d4, t4, t4count, t5, t5count, t6, t6count]).then(() => {
                             if (compound) {
                                 let tt1 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
@@ -408,7 +391,7 @@ describe('NoSqlProvider', function () {
                                         assert.equal(ret, 1, 'countRange2-+');
                                     });
 
-                                return SyncTasks.all([tt1, tt1count, tt2, tt2count, tt3, tt3count]).then(() => {
+                                return Promise.all([tt1, tt1count, tt2, tt2count, tt3, tt3count]).then(() => {
                                     return prov.close();
                                 });
                             } else {
@@ -700,7 +683,7 @@ describe('NoSqlProvider', function () {
                                     assert.equal(ret.length, 2);
                                     ret.forEach(r => { assert.equal(r.val, 'b'); });
                                 });
-                                return SyncTasks.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
+                                return Promise.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
                                     return prov.close();
                                 });
                             });
@@ -841,7 +824,7 @@ describe('NoSqlProvider', function () {
                                 assert.equal(ret.length, 2);
                                 ret.forEach(r => { assert.equal(r.val, 'b'); });
                             });
-                            return SyncTasks.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
+                            return Promise.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
                                 return prov.close();
                             });
                         });
@@ -930,7 +913,7 @@ describe('NoSqlProvider', function () {
                                 });
                             }).then(() => {
                                 assert.ok(false, 'Should fail');
-                                return SyncTasks.Rejected<void>();
+                                return Promise.reject<void>();
                             }, err => {
                                 // woot
                                 return undefined;
@@ -1010,7 +993,7 @@ describe('NoSqlProvider', function () {
                                         check2 = true;
                                     });
                                 });
-                                return SyncTasks.all([p1, p2]).then(() => {
+                                return Promise.all([p1, p2]).then(() => {
                                     assert.ok(check1 && check2);
                                 });
                             }).then(() => {
@@ -1046,7 +1029,7 @@ describe('NoSqlProvider', function () {
                             }, false).then(prov => {
                                 return prov.get('test', 'abc').then(item => {
                                     return prov.close().then(() => {
-                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                        return Promise.reject<void>('Shouldn\'t have worked');
                                     });
                                 }, () => {
                                     // Expected to fail, so chain from failure to success
@@ -1131,7 +1114,7 @@ describe('NoSqlProvider', function () {
                                         assert(!!item);
                                         assert.equal(item.id, 'def');
                                     });
-                                    return SyncTasks.all([p1, p2, p3, p4]).then(() => {
+                                    return Promise.all([p1, p2, p3, p4]).then(() => {
                                         return prov.close();
                                     });
                                 });
@@ -1164,7 +1147,7 @@ describe('NoSqlProvider', function () {
                             }, false).then(prov => {
                                 return prov.get('test', 'abc').then(item => {
                                     return prov.close().then(() => {
-                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                        return Promise.reject<void>('Shouldn\'t have worked');
                                     });
                                 }, () => {
                                     // Expected to fail, so chain from failure to success
@@ -1203,7 +1186,7 @@ describe('NoSqlProvider', function () {
                             }, false).then(prov => {
                                 return prov.get('test', 'abc').then(item => {
                                     return prov.close().then(() => {
-                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                        return Promise.reject<void>('Shouldn\'t have worked');
                                     });
                                 }, () => {
                                     // Expected to fail, so chain from failure to success
@@ -1253,14 +1236,14 @@ describe('NoSqlProvider', function () {
                                 const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.all([p1, p2, p3]).then(() => {
+                                return Promise.all([p1, p2, p3]).then(() => {
                                     return prov.close();
                                 });
                             });
                         });
                     });
 
-                    function testBatchUpgrade(expectedCallCount: number, itemByteSize: number): SyncTasks.Promise<void> {
+                    function testBatchUpgrade(expectedCallCount: number, itemByteSize: number): Promise<void> {
                         const recordCount = 5000;
                         const data: { [id: string]: { id: string, tt: string } } = {};
                         _.times(recordCount, num => {
@@ -1360,9 +1343,9 @@ describe('NoSqlProvider', function () {
                                         }
                                     ]
                                 }, false).then(() => {
-                                    return SyncTasks.Rejected('Should not work');
+                                    return Promise.reject('Should not work');
                                 }, err => {
-                                    return SyncTasks.Resolved();
+                                    return Promise.resolve();
                                 });
                             });
                         });
@@ -1411,7 +1394,7 @@ describe('NoSqlProvider', function () {
                                 const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.all([p1, p1b, p2, p3]).then(() => {
+                                return Promise.all([p1, p1b, p2, p3]).then(() => {
                                     return prov.close();
                                 });
                             });
@@ -1469,7 +1452,7 @@ describe('NoSqlProvider', function () {
                                 const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.all([p1, p1b, p1c, p2, p3]).then(() => {
+                                return Promise.all([p1, p1b, p1c, p2, p3]).then(() => {
                                     return prov.close();
                                 });
                             });
@@ -1505,7 +1488,7 @@ describe('NoSqlProvider', function () {
                             }, false).then(prov => {
                                 return prov.getOnly('test', 'ind1', 'a').then(items => {
                                     return prov.close().then(() => {
-                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                        return Promise.reject<void>('Shouldn\'t have worked');
                                     });
                                 }, () => {
                                     // Expected to fail, so chain from failure to success
@@ -1556,7 +1539,7 @@ describe('NoSqlProvider', function () {
                                 const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.all([p1, p2, p3]).then(() => {
+                                return Promise.all([p1, p2, p3]).then(() => {
                                     return prov.close();
                                 });
                             });
@@ -1608,7 +1591,7 @@ describe('NoSqlProvider', function () {
                                 const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.all([p1, p2, p3]).then(() => {
+                                return Promise.all([p1, p2, p3]).then(() => {
                                     return prov.close();
                                 });
                             });
@@ -1661,7 +1644,7 @@ describe('NoSqlProvider', function () {
                                 const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.all([p1, p2, p3]).then(() => {
+                                return Promise.all([p1, p2, p3]).then(() => {
                                     return prov.close();
                                 });
                             });
@@ -1717,7 +1700,7 @@ describe('NoSqlProvider', function () {
                                 const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.all([p1, p1b, p2, p3]).then(() => {
+                                return Promise.all([p1, p1b, p2, p3]).then(() => {
                                     return prov.close();
                                 });
                             });
@@ -1774,7 +1757,7 @@ describe('NoSqlProvider', function () {
                                 const p3 = prov.getOnly('test', 'ind1', 'abc').then(items => {
                                     assert.equal(items.length, 0);
                                 });
-                                return SyncTasks.all([p1, p1b, p2, p3]).then(() => {
+                                return Promise.all([p1, p1b, p2, p3]).then(() => {
                                     return prov.close();
                                 });
                             });
@@ -1830,7 +1813,7 @@ describe('NoSqlProvider', function () {
                                         assert.equal(items.length, 1);
                                         assert.equal(items[0].id, 'def');
                                     });
-                                    return SyncTasks.all([p1, p2, p3, p4]).then(() => {
+                                    return Promise.all([p1, p2, p3, p4]).then(() => {
                                         return prov.close();
                                     });
                                 });
@@ -1876,7 +1859,7 @@ describe('NoSqlProvider', function () {
                                     assert.equal(items.length, 1);
                                     assert.equal(items[0].id, 'abc');
                                 });
-                                return SyncTasks.all([p1, p2]).then(() => {
+                                return Promise.all([p1, p2]).then(() => {
                                     return prov.close();
                                 });
                             });
@@ -1924,9 +1907,9 @@ describe('NoSqlProvider', function () {
                                 }).then(() => {
                                     assert.ok(false, 'should not work');
                                 }, err => {
-                                    return SyncTasks.Resolved();
+                                    return Promise.resolve();
                                 });
-                                return SyncTasks.all([p1, p2]).then(() => {
+                                return Promise.all([p1, p2]).then(() => {
                                     return prov.close();
                                 });
                             });
@@ -1979,7 +1962,7 @@ describe('NoSqlProvider', function () {
                                         assert.equal(items[0].id, 'bcd');
                                         assert.equal(items[0].tt, 'b');
                                     });
-                                    return SyncTasks.all([p1, p2, p3]).then(() => {
+                                    return Promise.all([p1, p2, p3]).then(() => {
                                         return prov.close();
                                     });
                                 }));
@@ -2040,7 +2023,7 @@ describe('NoSqlProvider', function () {
                                         assert.equal(items[0].tt, 'a');
                                         assert.equal(items[0].zz, 'b');
                                     });
-                                    return SyncTasks.all([p1, p2, p3]).then(() => {
+                                    return Promise.all([p1, p2, p3]).then(() => {
                                         return prov.close();
                                     });
                                 });
@@ -2096,7 +2079,7 @@ describe('NoSqlProvider', function () {
                                         assert.equal(items[0].tt, 'a');
                                         assert.equal(items[0].zz, 'b');
                                     });
-                                    return SyncTasks.all([p1, p2]).then(() => {
+                                    return Promise.all([p1, p2]).then(() => {
                                         return prov.close();
                                     });
                                 });
@@ -2179,7 +2162,7 @@ describe('NoSqlProvider', function () {
                                         // second index wasn't backfilled
                                         assert.equal(items.length, 0);
                                     });
-                                    return SyncTasks.all([p1, p2, p3, p4]).then(() => {
+                                    return Promise.all([p1, p2, p3, p4]).then(() => {
                                         return prov.close();
                                     });
                                 });
@@ -2233,9 +2216,9 @@ describe('NoSqlProvider', function () {
                                     }).then(() => {
                                         assert.ok(false, 'should not work');
                                     }, err => {
-                                        return SyncTasks.Resolved();
+                                        return Promise.resolve();
                                     });
-                                    return SyncTasks.all([p1, p2]).then(() => {
+                                    return Promise.all([p1, p2]).then(() => {
                                         return prov.close();
                                     });
                                 });
@@ -2337,13 +2320,13 @@ describe('NoSqlProvider', function () {
                                         assert.equal(items[0].zz, 'aa');
                                     });
                                     const p2 = prov.getOnly('test', 'ind1', 'a').then(items => {
-                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                        return Promise.reject<void>('Shouldn\'t have worked');
                                     }, () => {
                                         // Expected to fail, so chain from failure to success
                                         return undefined;
                                     });
 
-                                    return SyncTasks.all([p1, p2]).then(() => {
+                                    return Promise.all([p1, p2]).then(() => {
                                         return prov.close();
                                     });
                                 });
@@ -2411,13 +2394,13 @@ describe('NoSqlProvider', function () {
                                                 return false;
                                             });
                                             if (!oldIndexReallyExists) {
-                                                return SyncTasks.Rejected('Unchanged index should still exist!');
+                                                return Promise.reject('Unchanged index should still exist!');
                                             }
-                                            return SyncTasks.Resolved(undefined);
+                                            return Promise.resolve(undefined);
                                         });
                                     });
 
-                                    return SyncTasks.all([p1, p2]).then(() => {
+                                    return Promise.all([p1, p2]).then(() => {
                                         return prov.close();
                                     });
                                 });
@@ -2481,7 +2464,7 @@ describe('NoSqlProvider', function () {
                                         assert.equal(items[0].zz, 'aa');
                                     });
                                     const p3 = prov.getOnly('test', 'ind1', 'a').then(items => {
-                                        return SyncTasks.Rejected<void>('Shouldn\'t have worked');
+                                        return Promise.reject<void>('Shouldn\'t have worked');
                                     }, () => {
                                         // Expected to fail, so chain from failure to success
                                         return undefined;
@@ -2498,13 +2481,13 @@ describe('NoSqlProvider', function () {
                                                 return false;
                                             });
                                             if (!oldIndexReallyExists) {
-                                                return SyncTasks.Rejected('Unchanged index should still exist!');
+                                                return Promise.reject('Unchanged index should still exist!');
                                             }
-                                            return SyncTasks.Resolved(undefined);
+                                            return Promise.resolve(undefined);
                                         });
                                     });
 
-                                    return SyncTasks.all([p1, p2, p3, p4]).then(() => {
+                                    return Promise.all([p1, p2, p3, p4]).then(() => {
                                         return prov.close();
                                     });
                                 });
@@ -2669,7 +2652,7 @@ describe('NoSqlProvider', function () {
                             assert.equal(res.length, 0);
                         }); 
 
-                        return SyncTasks.all([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20,
+                        return Promise.all([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20,
                                 p21, p22, p23, p24, p25, p26, p27, p28, p29, p30, p31]).then(() => {
                             return prov.close();
                         });

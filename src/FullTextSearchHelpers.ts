@@ -8,7 +8,6 @@
 
 import _ = require('lodash');
 import { Ranges, trim } from 'regexp-i18n';
-import SyncTasks = require('synctasks');
 
 import NoSqlProvider = require('./NoSqlProvider');
 import { ItemType, KeyType } from './NoSqlProvider';
@@ -46,27 +45,27 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
 
     fullTextSearch(searchPhrase: string, 
         resolution: NoSqlProvider.FullTextTermResolution = NoSqlProvider.FullTextTermResolution.And, limit?: number)
-            : SyncTasks.Promise<ItemType[]> {
+            : Promise<ItemType[]> {
         if (!this._indexSchema || !this._indexSchema.fullText) {
-            return SyncTasks.Rejected('fullTextSearch performed against non-fullText index!');
+            return Promise.reject('fullTextSearch performed against non-fullText index!');
         }
 
         const terms = breakAndNormalizeSearchPhrase(searchPhrase);
         if (terms.length === 0) {
-            return SyncTasks.Resolved([]);
+            return Promise.resolve([]);
         }
 
         const promises = _.map(terms, term => {
             const upperEnd = term.substr(0, term.length - 1) + String.fromCharCode(term.charCodeAt(term.length - 1) + 1);
             return this.getRange(term, upperEnd, false, true, false, limit);
         });
-        return SyncTasks.all(promises).then(results => {
+        return Promise.all(promises).then(results => {
             const uniquers = _.attempt(() => {
                 return _.map(results, resultSet => _.keyBy(resultSet, item =>
                     NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._primaryKeyPath)));
             });
             if (_.isError(uniquers)) {
-                return SyncTasks.Rejected(uniquers);
+                return Promise.reject(uniquers);
             }
 
             if (resolution === NoSqlProvider.FullTextTermResolution.Or) {
@@ -74,7 +73,7 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
                 if (limit) {
                     return _.take(data, limit);
                 }
-                return data;
+                return Promise.resolve(data);
             }
 
             if (resolution === NoSqlProvider.FullTextTermResolution.And) {
@@ -84,21 +83,21 @@ export abstract class DbIndexFTSFromRangeQueries implements NoSqlProvider.DbInde
                 if (limit) {
                     return _.take(data, limit);
                 }
-                return data;
+                return Promise.resolve(data);
             }
 
-            return SyncTasks.Rejected('Undefined full text term resolution type');
+            return Promise.reject('Undefined full text term resolution type');
         });
     }
 
     abstract getAll(reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
-        : SyncTasks.Promise<ItemType[]>;
+        : Promise<ItemType[]>;
     abstract getOnly(key: KeyType, reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
-        : SyncTasks.Promise<ItemType[]>;
+        : Promise<ItemType[]>;
     abstract getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-        reverseOrSortOrder?: boolean|NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]>;
-    abstract countAll(): SyncTasks.Promise<number>;
-    abstract countOnly(key: KeyType): SyncTasks.Promise<number>;
+        reverseOrSortOrder?: boolean|NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
+    abstract countAll(): Promise<number>;
+    abstract countOnly(key: KeyType): Promise<number>;
     abstract countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
-        : SyncTasks.Promise<number>;
+        : Promise<number>;
 }
