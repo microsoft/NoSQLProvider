@@ -2462,7 +2462,7 @@ describe('NoSqlProvider', function () {
 
                                             const p4 = prov.openTransaction(undefined, false).then(trans => {
                                                 return (trans as SqlTransaction)
-                                                .runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
+                                                    .runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
                                                     .then(fullMeta => {
                                                         const oldIndexReallyExists = _.some(fullMeta, (metaObj: any) => {
                                                             if (metaObj.type === 'index' && metaObj.tbl_name === 'test'
