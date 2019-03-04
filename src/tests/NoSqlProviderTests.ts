@@ -5,7 +5,6 @@ import sinon = require('sinon');
 import NoSqlProvider = require('../NoSqlProvider');
 import { KeyComponentType } from '../NoSqlProvider';
 
-// import { CordovaNativeSqliteProvider } from '../CordovaNativeSqliteProvider';
 import { InMemoryProvider } from '../InMemoryProvider';
 import { IndexedDbProvider } from '../IndexedDbProvider';
 
@@ -13,26 +12,12 @@ import NoSqlProviderUtils = require('../NoSqlProviderUtils');
 import { SqlTransaction } from '../SqlProviderBase';
 
 let cleanupFile = false;
-
+import './../Promise';
 type TestObj = { id?: string, val: string };
 
 function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipeFirst: boolean) {
     let provider: NoSqlProvider.DbProvider;
-    if (providerName === 'sqlite3memory') {
-        const NSPNodeSqlite3DbProvider = require('../NodeSqlite3DbProvider');
-        provider = new NSPNodeSqlite3DbProvider.default();
-    } else if (providerName === 'sqlite3memorynofts3') {
-        const NSPNodeSqlite3DbProvider = require('../NodeSqlite3DbProvider');
-        provider = new NSPNodeSqlite3DbProvider.default(false);
-    } else if (providerName === 'sqlite3disk') {
-        cleanupFile = true;
-        const NSPNodeSqlite3DbProvider = require('../NodeSqlite3DbProvider');
-        provider = new NSPNodeSqlite3DbProvider.default();
-    } else if (providerName === 'sqlite3disknofts3') {
-        cleanupFile = true;
-        const NSPNodeSqlite3DbProvider = require('../NodeSqlite3DbProvider');
-        provider = new NSPNodeSqlite3DbProvider.default(false);
-    } else if (providerName === 'memory') {
+    if (providerName === 'memory') {
         provider = new InMemoryProvider();
     } else if (providerName === 'indexeddb') {
         provider = new IndexedDbProvider();
@@ -46,9 +31,9 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
 }
 
 function sleep(timeMs: number): Promise<void> {
-   return new Promise(resolve => {
-    setTimeout(() => { resolve(void 0); }, timeMs);
-   });    
+    return new Promise(resolve => {
+        setTimeout(() => { resolve(void 0); }, timeMs);
+    });
 }
 
 describe('NoSqlProvider', function () {
@@ -62,14 +47,16 @@ describe('NoSqlProvider', function () {
                 }
                 console.log('path/file.txt was deleted');
                 callback();
-              });
+            });
+        } else {
+            callback();
         }
     });
 
     let provsToTest: string[];
     if (typeof window === 'undefined') {
         // Non-browser environment...
-        provsToTest = ['memory', 'sqlite3memory', 'sqlite3memorynofts3', 'sqlite3disk', 'sqlite3disknofts3'];
+        provsToTest = ['memory'];
     } else {
         provsToTest = ['memory'];
 
@@ -139,21 +126,21 @@ describe('NoSqlProvider', function () {
                             ]
                         };
                         return openProvider(provName, schema, true)
-                        .then(prov => {
-                            // insert some stuff
-                            return prov.put('test', { id: 'a', val: 'b' })
-                            //then delete
-                            .then(() => prov.deleteDatabase());
-                        })
-                        .then(() => openProvider(provName, schema, false))
-                        .then(prov => {
-                            return prov.get('test', 'a').then(retVal => {
-                                const ret = retVal as TestObj;
-                                // not found
-                                assert(!ret);
-                                return prov.close();
+                            .then(prov => {
+                                // insert some stuff
+                                return prov.put('test', { id: 'a', val: 'b' })
+                                    //then delete
+                                    .then(() => prov.deleteDatabase());
+                            })
+                            .then(() => openProvider(provName, schema, false))
+                            .then(prov => {
+                                return prov.get('test', 'a').then(retVal => {
+                                    const ret = retVal as TestObj;
+                                    // not found
+                                    assert(!ret);
+                                    return prov.close();
+                                });
                             });
-                        });
 
                     });
                 } else {
@@ -168,23 +155,23 @@ describe('NoSqlProvider', function () {
                             ]
                         };
                         return openProvider(provName, schema, true).
-                        then(prov => {
-                            // insert some stuff
-                            return prov.put('test', { id: 'a', val: 'b' })
-                            .then(() => prov.deleteDatabase());
-                        })
-                        .then(() => {
-                            //this should not happen
-                            assert(false, 'Should fail');
-                        }).catch(() => {
-                            // as expected, didn't delete anything
-                            return openProvider(provName, schema, false)
-                            .then(prov => prov.get('test', 'a').then(retVal => {
-                                const ret = retVal as TestObj;
-                                assert.equal(ret.val, 'b');
-                                return prov.close();
-                            }));
-                        });
+                            then(prov => {
+                                // insert some stuff
+                                return prov.put('test', { id: 'a', val: 'b' })
+                                    .then(() => prov.deleteDatabase());
+                            })
+                            .then(() => {
+                                //this should not happen
+                                assert(false, 'Should fail');
+                            }).catch(() => {
+                                // as expected, didn't delete anything
+                                return openProvider(provName, schema, false)
+                                    .then(prov => prov.get('test', 'a').then(retVal => {
+                                        const ret = retVal as TestObj;
+                                        assert.equal(ret.val, 'b');
+                                        return prov.close();
+                                    }));
+                            });
                     });
                 }
             });
@@ -192,8 +179,8 @@ describe('NoSqlProvider', function () {
             describe('Data Manipulation', () => {
                 // Setter should set the testable parameter on the first param to the value in the second param, and third param to the
                 // second index column for compound indexes.
-                var tester = (prov: NoSqlProvider.DbProvider, indexName: string|undefined, compound: boolean,
-                        setter: (obj: any, indexval1: string, indexval2: string) => void) => {
+                var tester = (prov: NoSqlProvider.DbProvider, indexName: string | undefined, compound: boolean,
+                    setter: (obj: any, indexval1: string, indexval2: string) => void) => {
                     var putters = [1, 2, 3, 4, 5].map(v => {
                         var obj: TestObj = { val: 'val' + v };
                         if (indexName) {
@@ -267,8 +254,8 @@ describe('NoSqlProvider', function () {
                                 [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3b3 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, 
-                                NoSqlProvider.QuerySortOrder.Forward, 1)
+                        let t3b3 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false,
+                            NoSqlProvider.QuerySortOrder.Forward, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1, 'getRange++ lim1');
@@ -276,7 +263,7 @@ describe('NoSqlProvider', function () {
                             });
 
                         let t3b4 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false,
-                                NoSqlProvider.QuerySortOrder.Reverse, 1)
+                            NoSqlProvider.QuerySortOrder.Reverse, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1, 'getRange++ lim1 rev');
@@ -297,8 +284,8 @@ describe('NoSqlProvider', function () {
                                 [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
 
-                        let t3d2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, 
-                                NoSqlProvider.QuerySortOrder.Forward, 2, 1)
+                        let t3d2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false,
+                            NoSqlProvider.QuerySortOrder.Forward, 2, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1');
@@ -312,9 +299,9 @@ describe('NoSqlProvider', function () {
                                 assert.equal((ret[0] as TestObj).val, 'val3');
                                 [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
                             });
-                        
+
                         let t3d4 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false,
-                                NoSqlProvider.QuerySortOrder.Reverse, 2, 1)
+                            NoSqlProvider.QuerySortOrder.Reverse, 2, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
@@ -354,50 +341,50 @@ describe('NoSqlProvider', function () {
 
                         return Promise.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3b3, t3b4, t3c, t3d, t3d2, t3d3,
                             t3d4, t4, t4count, t5, t5count, t6, t6count]).then(() => {
-                            if (compound) {
-                                let tt1 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
-                                    .then(retVal => {
-                                        const ret = retVal as TestObj[];
-                                        assert.equal(ret.length, 2, 'getRange2++');
-                                        [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                                    });
+                                if (compound) {
+                                    let tt1 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
+                                        .then(retVal => {
+                                            const ret = retVal as TestObj[];
+                                            assert.equal(ret.length, 2, 'getRange2++');
+                                            [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                        });
 
-                                let tt1count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
-                                    .then(ret => {
-                                        assert.equal(ret, 2, 'countRange2++');
-                                    });
+                                    let tt1count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
+                                        .then(ret => {
+                                            assert.equal(ret, 2, 'countRange2++');
+                                        });
 
-                                let tt2 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
-                                    .then(retVal => {
-                                        const ret = retVal as TestObj[];
-                                        assert.equal(ret.length, 2, 'getRange2+-');
-                                        [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                                    });
+                                    let tt2 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
+                                        .then(retVal => {
+                                            const ret = retVal as TestObj[];
+                                            assert.equal(ret.length, 2, 'getRange2+-');
+                                            [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                        });
 
-                                let tt2count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
-                                    .then(ret => {
-                                        assert.equal(ret, 2, 'countRange2+-');
-                                    });
+                                    let tt2count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
+                                        .then(ret => {
+                                            assert.equal(ret, 2, 'countRange2+-');
+                                        });
 
-                                let tt3 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
-                                    .then(retVal => {
-                                        const ret = retVal as TestObj[];
-                                        assert.equal(ret.length, 1, 'getRange2-+');
-                                        [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
-                                    });
+                                    let tt3 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
+                                        .then(retVal => {
+                                            const ret = retVal as TestObj[];
+                                            assert.equal(ret.length, 1, 'getRange2-+');
+                                            [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                        });
 
-                                let tt3count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
-                                    .then(ret => {
-                                        assert.equal(ret, 1, 'countRange2-+');
-                                    });
+                                    let tt3count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
+                                        .then(ret => {
+                                            assert.equal(ret, 1, 'countRange2-+');
+                                        });
 
-                                return Promise.all([tt1, tt1count, tt2, tt2count, tt3, tt3count]).then(() => {
+                                    return Promise.all([tt1, tt1count, tt2, tt2count, tt3, tt3count]).then(() => {
+                                        return prov.close();
+                                    });
+                                } else {
                                     return prov.close();
-                                });
-                            } else {
-                                return prov.close();
-                            }
-                        });
+                                }
+                            });
                     });
                 };
 
@@ -650,43 +637,43 @@ describe('NoSqlProvider', function () {
                             ]
                         }, true).then(prov => {
                             return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
-                            // Insert data without multi-entry key defined
-                            .then(() => prov.put('test', { id: 'c', val: 'd', k: [] }))
-                            .then(() => prov.put('test', { id: 'e', val: 'f' }))
-                            .then(() => {
-                                var g1 = prov.get('test', 'a').then(retVal => {
-                                    const ret = retVal as TestObj;
-                                    assert.equal(ret.val, 'b');
+                                // Insert data without multi-entry key defined
+                                .then(() => prov.put('test', { id: 'c', val: 'd', k: [] }))
+                                .then(() => prov.put('test', { id: 'e', val: 'f' }))
+                                .then(() => {
+                                    var g1 = prov.get('test', 'a').then(retVal => {
+                                        const ret = retVal as TestObj;
+                                        assert.equal(ret.val, 'b');
+                                    });
+                                    var g2 = prov.getAll('test', 'key').then(retVal => {
+                                        const ret = retVal as TestObj[];
+                                        assert.equal(ret.length, 4);
+                                        ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                    });
+                                    var g2b = prov.getAll('test', 'key', false, 2).then(retVal => {
+                                        const ret = retVal as TestObj[];
+                                        assert.equal(ret.length, 2);
+                                        ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                    });
+                                    var g2c = prov.getAll('test', 'key', false, 2, 1).then(retVal => {
+                                        const ret = retVal as TestObj[];
+                                        assert.equal(ret.length, 2);
+                                        ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                    });
+                                    var g3 = prov.getOnly('test', 'key', 'x').then(retVal => {
+                                        const ret = retVal as TestObj[];
+                                        assert.equal(ret.length, 1);
+                                        assert.equal(ret[0].val, 'b');
+                                    });
+                                    var g4 = prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
+                                        const ret = retVal as TestObj[];
+                                        assert.equal(ret.length, 2);
+                                        ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                    });
+                                    return Promise.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
+                                        return prov.close();
+                                    });
                                 });
-                                var g2 = prov.getAll('test', 'key').then(retVal => {
-                                    const ret = retVal as TestObj[];
-                                    assert.equal(ret.length, 4);
-                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
-                                });
-                                var g2b = prov.getAll('test', 'key', false, 2).then(retVal => {
-                                    const ret = retVal as TestObj[];
-                                    assert.equal(ret.length, 2);
-                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
-                                });
-                                var g2c = prov.getAll('test', 'key', false, 2, 1).then(retVal => {
-                                    const ret = retVal as TestObj[];
-                                    assert.equal(ret.length, 2);
-                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
-                                });
-                                var g3 = prov.getOnly('test', 'key', 'x').then(retVal => {
-                                    const ret = retVal as TestObj[];
-                                    assert.equal(ret.length, 1);
-                                    assert.equal(ret[0].val, 'b');
-                                });
-                                var g4 = prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
-                                    const ret = retVal as TestObj[];
-                                    assert.equal(ret.length, 2);
-                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
-                                });
-                                return Promise.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
-                                    return prov.close();
-                                });
-                            });
                         });
                     });
                 }
@@ -709,39 +696,39 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return prov.put('test', { id: 'a', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
-                        .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
-                                const ret = retVal as TestObj[];
-                                assert.equal(ret.length, 2);
-                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            .then(() => {
+                                return prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 2);
+                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                });
+                            })
+                            .then(() => {
+                                return prov.put('test', { id: 'a', val: 'b', k: { k: ['z'] } });
+                            })
+                            .then(() => {
+                                return prov.getRange('test', 'key', 'x', 'y', false, false).then(ret => {
+                                    assert.equal(ret.length, 0);
+                                });
+                            })
+                            .then(() => {
+                                return prov.getRange('test', 'key', 'x', 'z', false, false).then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 1);
+                                    assert.equal(ret[0].val, 'b');
+                                });
+                            })
+                            .then(() => {
+                                return prov.remove('test', 'a');
+                            })
+                            .then(() => {
+                                return prov.getRange('test', 'key', 'x', 'z', false, false).then(ret => {
+                                    assert.equal(ret.length, 0);
+                                });
+                            })
+                            .then(() => {
+                                return prov.close();
                             });
-                        })
-                        .then(() => {
-                            return prov.put('test', { id: 'a', val: 'b', k: { k: ['z'] } });
-                        })
-                        .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'y', false, false).then(ret => {
-                                assert.equal(ret.length, 0);
-                            });
-                        })
-                        .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'z', false, false).then(retVal => {
-                                const ret = retVal as TestObj[];
-                                assert.equal(ret.length, 1);
-                                assert.equal(ret[0].val, 'b');
-                            });
-                        })
-                        .then(() => {
-                            return prov.remove('test', 'a');
-                        })
-                        .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'z', false, false).then(ret => {
-                                assert.equal(ret.length, 0);
-                            });
-                        })
-                        .then(() => {
-                            return prov.close();
-                        });
                     });
                 });
 
@@ -791,43 +778,43 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
-                        // Insert data without multi-entry key defined
-                        .then(() => prov.put('test', { id: 'c', id2: '2', val: 'd', k: [] }))
-                        .then(() => prov.put('test', { id: 'e', id2: '3', val: 'f' }))
-                        .then(() => {
-                            var g1 = prov.get('test', ['a', '1']).then(retVal => {
-                                const ret = retVal as TestObj;
-                                assert.equal(ret.val, 'b');
+                            // Insert data without multi-entry key defined
+                            .then(() => prov.put('test', { id: 'c', id2: '2', val: 'd', k: [] }))
+                            .then(() => prov.put('test', { id: 'e', id2: '3', val: 'f' }))
+                            .then(() => {
+                                var g1 = prov.get('test', ['a', '1']).then(retVal => {
+                                    const ret = retVal as TestObj;
+                                    assert.equal(ret.val, 'b');
+                                });
+                                var g2 = prov.getAll('test', 'key').then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 4);
+                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                });
+                                var g2b = prov.getAll('test', 'key', false, 2).then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 2);
+                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                });
+                                var g2c = prov.getAll('test', 'key', false, 2, 1).then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 2);
+                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                });
+                                var g3 = prov.getOnly('test', 'key', 'x').then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 1);
+                                    assert.equal(ret[0].val, 'b');
+                                });
+                                var g4 = prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 2);
+                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                });
+                                return Promise.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
+                                    return prov.close();
+                                });
                             });
-                            var g2 = prov.getAll('test', 'key').then(retVal => {
-                                const ret = retVal as TestObj[];
-                                assert.equal(ret.length, 4);
-                                ret.forEach(r => { assert.equal(r.val, 'b'); });
-                            });
-                            var g2b = prov.getAll('test', 'key', false, 2).then(retVal => {
-                                const ret = retVal as TestObj[];
-                                assert.equal(ret.length, 2);
-                                ret.forEach(r => { assert.equal(r.val, 'b'); });
-                            });
-                            var g2c = prov.getAll('test', 'key', false, 2, 1).then(retVal => {
-                                const ret = retVal as TestObj[];
-                                assert.equal(ret.length, 2);
-                                ret.forEach(r => { assert.equal(r.val, 'b'); });
-                            });
-                            var g3 = prov.getOnly('test', 'key', 'x').then(retVal => {
-                                const ret = retVal as TestObj[];
-                                assert.equal(ret.length, 1);
-                                assert.equal(ret[0].val, 'b');
-                            });
-                            var g4 = prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
-                                const ret = retVal as TestObj[];
-                                assert.equal(ret.length, 2);
-                                ret.forEach(r => { assert.equal(r.val, 'b'); });
-                            });
-                            return Promise.all([g1, g2, g2b, g2c, g3, g4]).then(() => {
-                                return prov.close();
-                            });
-                        });
                     });
                 });
 
@@ -849,41 +836,41 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
-                        .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
-                                const ret = retVal as TestObj[];
-                                assert.equal(ret.length, 2);
-                                ret.forEach(r => { assert.equal(r.val, 'b'); });
+                            .then(() => {
+                                return prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 2);
+                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                });
+                            })
+                            .then(() => {
+                                return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['z'] } });
+                            })
+                            .then(() => {
+                                return prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 0);
+                                });
+                            })
+                            .then(() => {
+                                return prov.getRange('test', 'key', 'x', 'z', false, false).then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 1);
+                                    assert.equal(ret[0].val, 'b');
+                                });
+                            })
+                            .then(() => {
+                                return prov.remove('test', ['a', '1']);
+                            })
+                            .then(() => {
+                                return prov.getRange('test', 'key', 'x', 'z', false, false).then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 0);
+                                });
+                            })
+                            .then(() => {
+                                return prov.close();
                             });
-                        })
-                        .then(() => {
-                            return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['z'] } });
-                        })
-                        .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'y', false, false).then(retVal => {
-                                const ret = retVal as TestObj[];
-                                assert.equal(ret.length, 0);
-                            });
-                        })
-                        .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'z', false, false).then(retVal => {
-                                const ret = retVal as TestObj[];
-                                assert.equal(ret.length, 1);
-                                assert.equal(ret[0].val, 'b');
-                            });
-                        })
-                        .then(() => {
-                            return prov.remove('test', ['a', '1']);
-                        })
-                        .then(() => {
-                            return prov.getRange('test', 'key', 'x', 'z', false, false).then(retVal => {
-                                const ret = retVal as TestObj[];
-                                assert.equal(ret.length, 0);
-                            });
-                        })
-                        .then(() => {
-                            return prov.close();
-                        });
                     });
                 });
 
@@ -2096,81 +2083,81 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, true)
-                            .then(prov => {
-                                return prov.put('test', { id: 'abc', tt: 'a' , zz: 'aa'}).then(() => {
-                                    return prov.close();
-                                });
-                            })
-                            .then(() => {
-                                return openProvider(provName, {
-                                    version: 2,
-                                    stores: [
-                                        {
-                                            name: 'test',
-                                            primaryKeyPath: 'id',
-                                            indexes: [{
-                                                name: 'ind1',
-                                                keyPath: 'tt',
-                                                doNotBackfill: true
-                                            }]
-                                        }
-                                    ]
-                                }, false)
                                 .then(prov => {
-                                    return prov.put('test', { id: 'bcd', tt: 'b' , zz: 'bb'}).then(() => {
+                                    return prov.put('test', { id: 'abc', tt: 'a', zz: 'aa' }).then(() => {
                                         return prov.close();
                                     });
-                                });
-                            })
-                            .then(() => {
+                                })
+                                .then(() => {
                                     return openProvider(provName, {
-                                    version: 3,
-                                    stores: [
-                                        {
-                                            name: 'test',
-                                            primaryKeyPath: 'id',
-                                            indexes: [{
-                                                name: 'ind1',
-                                                keyPath: 'tt',
-                                                doNotBackfill: true
-                                            }, {
-                                                name: 'ind2',
-                                                keyPath: 'zz',
-                                                doNotBackfill: true
-                                            }]
-                                        }
-                                    ]
-                                }, false)
-                                .then(prov => {
-                                    const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
-                                        // item not found, we didn't backfill the first item
-                                        assert.equal(items.length, 0);
-                                    });
-                                    const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
-                                        assert.equal(items.length, 1);
-                                        assert.equal(items[0].id, 'abc');
-                                        assert.equal(items[0].tt, 'a');
-                                        assert.equal(items[0].zz, 'aa');
-                                    });
-                                    const p3 = prov.getOnly('test', 'ind1', 'b').then((items: any[]) => {
-                                        // first index works properly for the second item
-                                        assert.equal(items.length, 1);
-                                        assert.equal(items[0].id, 'bcd');
-                                        assert.equal(items[0].tt, 'b');
-                                    });
-                                    const p4 = prov.getOnly('test', 'ind2', 'bb').then((items: any[]) => {
-                                        // second index wasn't backfilled
-                                        assert.equal(items.length, 0);
-                                    });
-                                    return Promise.all([p1, p2, p3, p4]).then(() => {
-                                        return prov.close();
-                                    });
+                                        version: 2,
+                                        stores: [
+                                            {
+                                                name: 'test',
+                                                primaryKeyPath: 'id',
+                                                indexes: [{
+                                                    name: 'ind1',
+                                                    keyPath: 'tt',
+                                                    doNotBackfill: true
+                                                }]
+                                            }
+                                        ]
+                                    }, false)
+                                        .then(prov => {
+                                            return prov.put('test', { id: 'bcd', tt: 'b', zz: 'bb' }).then(() => {
+                                                return prov.close();
+                                            });
+                                        });
+                                })
+                                .then(() => {
+                                    return openProvider(provName, {
+                                        version: 3,
+                                        stores: [
+                                            {
+                                                name: 'test',
+                                                primaryKeyPath: 'id',
+                                                indexes: [{
+                                                    name: 'ind1',
+                                                    keyPath: 'tt',
+                                                    doNotBackfill: true
+                                                }, {
+                                                    name: 'ind2',
+                                                    keyPath: 'zz',
+                                                    doNotBackfill: true
+                                                }]
+                                            }
+                                        ]
+                                    }, false)
+                                        .then(prov => {
+                                            const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
+                                                // item not found, we didn't backfill the first item
+                                                assert.equal(items.length, 0);
+                                            });
+                                            const p2 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
+                                                assert.equal(items.length, 1);
+                                                assert.equal(items[0].id, 'abc');
+                                                assert.equal(items[0].tt, 'a');
+                                                assert.equal(items[0].zz, 'aa');
+                                            });
+                                            const p3 = prov.getOnly('test', 'ind1', 'b').then((items: any[]) => {
+                                                // first index works properly for the second item
+                                                assert.equal(items.length, 1);
+                                                assert.equal(items[0].id, 'bcd');
+                                                assert.equal(items[0].tt, 'b');
+                                            });
+                                            const p4 = prov.getOnly('test', 'ind2', 'bb').then((items: any[]) => {
+                                                // second index wasn't backfilled
+                                                assert.equal(items.length, 0);
+                                            });
+                                            return Promise.all([p1, p2, p3, p4]).then(() => {
+                                                return prov.close();
+                                            });
+                                        });
                                 });
-                            });
                         });
 
                         it('Removes index without pulling data to JS', () => {
-                            let storeSpy: sinon.SinonSpy|undefined;
+                            let storeSpy: sinon.SinonSpy | undefined;
                             return openProvider(provName, {
                                 version: 1,
                                 stores: [
@@ -2200,28 +2187,28 @@ describe('NoSqlProvider', function () {
                                         }
                                     ]
                                 }, false)
-                                .then(prov => {
-                                    // NOTE - the line below tests an implementation detail
-                                    sinon.assert.notCalled(storeSpy!!!);
+                                    .then(prov => {
+                                        // NOTE - the line below tests an implementation detail
+                                        sinon.assert.notCalled(storeSpy!!!);
 
-                                    // check the index was actually removed
-                                    const p1 = prov.get('test', 'abc').then((item: any) => {
-                                        assert.ok(item);
-                                        assert.equal(item.id, 'abc');
-                                        assert.equal(item.content, 'ghi');
+                                        // check the index was actually removed
+                                        const p1 = prov.get('test', 'abc').then((item: any) => {
+                                            assert.ok(item);
+                                            assert.equal(item.id, 'abc');
+                                            assert.equal(item.content, 'ghi');
+                                        });
+                                        const p2 = prov.getOnly('test', 'ind1', 'ghi').then((items: any[]) => {
+                                            assert.equal(items.length, 1);
+                                            assert.equal(items[0].id, 'abc');
+                                        }).then(() => {
+                                            assert.ok(false, 'should not work');
+                                        }, err => {
+                                            return Promise.resolve();
+                                        });
+                                        return Promise.all([p1, p2]).then(() => {
+                                            return prov.close();
+                                        });
                                     });
-                                    const p2 = prov.getOnly('test', 'ind1', 'ghi').then((items: any[]) => {
-                                        assert.equal(items.length, 1);
-                                        assert.equal(items[0].id, 'abc');
-                                    }).then(() => {
-                                        assert.ok(false, 'should not work');
-                                    }, err => {
-                                        return Promise.resolve();
-                                    });
-                                    return Promise.all([p1, p2]).then(() => {
-                                        return prov.close();
-                                    });
-                                });
                             }).finally(() => {
                                 if (storeSpy) {
                                     storeSpy.restore();
@@ -2249,32 +2236,34 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, true)
-                            .then(prov =>  prov.close())
-                            .then(() => {
-                                return openProvider(provName, {
-                                    version: 2,
-                                    stores: [
-                                        {
-                                            name: 'test',
-                                            primaryKeyPath: 'id'
-                                        }
-                                    ]
-                                }, false)
-                                .then(prov => {
-                                    return prov.openTransaction(undefined, false).then(trans => {
-                                        return (trans as SqlTransaction).runQuery('SELECT name, value from metadata').then(fullMeta => {
-                                            _.each(fullMeta, (meta: any) => {
-                                                let metaObj = JSON.parse(meta.value);
-                                                if (metaObj.storeName === 'test' && !!metaObj.index && metaObj.index.name === 'ind1') {
-                                                    assert.fail('Removed index should not exist in the meta!');
-                                                }
+                                .then(prov => prov.close())
+                                .then(() => {
+                                    return openProvider(provName, {
+                                        version: 2,
+                                        stores: [
+                                            {
+                                                name: 'test',
+                                                primaryKeyPath: 'id'
+                                            }
+                                        ]
+                                    }, false)
+                                        .then(prov => {
+                                            return prov.openTransaction(undefined, false).then(trans => {
+                                                return (trans as SqlTransaction)
+                                                    .runQuery('SELECT name, value from metadata').then(fullMeta => {
+                                                        _.each(fullMeta, (meta: any) => {
+                                                            let metaObj = JSON.parse(meta.value);
+                                                            if (metaObj.storeName === 'test'
+                                                                && !!metaObj.index && metaObj.index.name === 'ind1') {
+                                                                assert.fail('Removed index should not exist in the meta!');
+                                                            }
+                                                        });
+                                                    });
+                                            }).then(() => {
+                                                return prov.close();
                                             });
                                         });
-                                    }).then(() => {
-                                        return prov.close();
-                                    });
                                 });
-                            });
                         });
 
                         it('Add and remove index in the same upgrade', () => {
@@ -2292,45 +2281,45 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, true)
-                            .then(prov => {
-                                return prov.put('test', { id: 'abc', tt: 'a' , zz: 'aa'}).then(() => {
-                                    return prov.close();
-                                });
-                            })
-                            .then(() => {
-                                return openProvider(provName, {
-                                    version: 2,
-                                    stores: [
-                                        {
-                                            name: 'test',
-                                            primaryKeyPath: 'id',
-                                            indexes: [{
-                                                name: 'ind2',
-                                                keyPath: 'zz',
-                                                doNotBackfill: true
-                                            }]
-                                        }
-                                    ]
-                                }, false)
                                 .then(prov => {
-                                    const p1 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
-                                        assert.equal(items.length, 1);
-                                        assert.equal(items[0].id, 'abc');
-                                        assert.equal(items[0].tt, 'a');
-                                        assert.equal(items[0].zz, 'aa');
-                                    });
-                                    const p2 = prov.getOnly('test', 'ind1', 'a').then(items => {
-                                        return Promise.reject<void>('Shouldn\'t have worked');
-                                    }, () => {
-                                        // Expected to fail, so chain from failure to success
-                                        return undefined;
-                                    });
-
-                                    return Promise.all([p1, p2]).then(() => {
+                                    return prov.put('test', { id: 'abc', tt: 'a', zz: 'aa' }).then(() => {
                                         return prov.close();
                                     });
+                                })
+                                .then(() => {
+                                    return openProvider(provName, {
+                                        version: 2,
+                                        stores: [
+                                            {
+                                                name: 'test',
+                                                primaryKeyPath: 'id',
+                                                indexes: [{
+                                                    name: 'ind2',
+                                                    keyPath: 'zz',
+                                                    doNotBackfill: true
+                                                }]
+                                            }
+                                        ]
+                                    }, false)
+                                        .then(prov => {
+                                            const p1 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
+                                                assert.equal(items.length, 1);
+                                                assert.equal(items[0].id, 'abc');
+                                                assert.equal(items[0].tt, 'a');
+                                                assert.equal(items[0].zz, 'aa');
+                                            });
+                                            const p2 = prov.getOnly('test', 'ind1', 'a').then(items => {
+                                                return Promise.reject<void>('Shouldn\'t have worked');
+                                            }, () => {
+                                                // Expected to fail, so chain from failure to success
+                                                return undefined;
+                                            });
+
+                                            return Promise.all([p1, p2]).then(() => {
+                                                return prov.close();
+                                            });
+                                        });
                                 });
-                            });
                         });
 
                         it('Recreates missing indices', () => {
@@ -2348,63 +2337,64 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, true)
-                            .then(prov => {
-                                return prov.put('test', { id: 'abc', tt: 'a' , zz: 'aa'})
-                                .then(() => {
-                                    return prov.openTransaction(['test'], true).then(trans => {
-                                        // simulate broken index
-                                        return (trans as SqlTransaction).runQuery('DROP INDEX test_ind1');
-                                    });
+                                .then(prov => {
+                                    return prov.put('test', { id: 'abc', tt: 'a', zz: 'aa' })
+                                        .then(() => {
+                                            return prov.openTransaction(['test'], true).then(trans => {
+                                                // simulate broken index
+                                                return (trans as SqlTransaction).runQuery('DROP INDEX test_ind1');
+                                            });
+                                        })
+                                        .then(() => {
+                                            return prov.close();
+                                        });
                                 })
                                 .then(() => {
-                                    return prov.close();
-                                });
-                            })
-                            .then(() => {
-                                return openProvider(provName, {
-                                    version: 2,
-                                    stores: [
-                                        {
-                                            name: 'test',
-                                            primaryKeyPath: 'id',
-                                            indexes: [{
-                                                name: 'ind1',
-                                                keyPath: 'tt',
-                                                doNotBackfill: true
-                                            }]
-                                        }
-                                    ]
-                                }, false)
-                                .then(prov => {
-                                    const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
-                                        assert.equal(items.length, 1);
-                                        assert.equal(items[0].id, 'abc');
-                                        assert.equal(items[0].tt, 'a');
-                                        assert.equal(items[0].zz, 'aa');
-                                    });
-
-                                    const p2 = prov.openTransaction(undefined, false).then(trans => {
-                                        return (trans as SqlTransaction).runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
-                                        .then(fullMeta => {
-                                            const oldIndexReallyExists = _.some(fullMeta, (metaObj: any) => {
-                                                if (metaObj.type === 'index' && metaObj.tbl_name === 'test' 
-                                                        && metaObj.name === 'test_ind1') {
-                                                    return true;
-                                                }
-                                                return false;
-                                            });
-                                            if (!oldIndexReallyExists) {
-                                                return Promise.reject('Unchanged index should still exist!');
+                                    return openProvider(provName, {
+                                        version: 2,
+                                        stores: [
+                                            {
+                                                name: 'test',
+                                                primaryKeyPath: 'id',
+                                                indexes: [{
+                                                    name: 'ind1',
+                                                    keyPath: 'tt',
+                                                    doNotBackfill: true
+                                                }]
                                             }
-                                            return Promise.resolve(undefined);
-                                        });
-                                    });
+                                        ]
+                                    }, false)
+                                        .then(prov => {
+                                            const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
+                                                assert.equal(items.length, 1);
+                                                assert.equal(items[0].id, 'abc');
+                                                assert.equal(items[0].tt, 'a');
+                                                assert.equal(items[0].zz, 'aa');
+                                            });
 
-                                    return Promise.all([p1, p2]).then(() => {
-                                        return prov.close();
-                                    });
+                                            const p2 = prov.openTransaction(undefined, false).then(trans => {
+                                                return (trans as SqlTransaction)
+                                                    .runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
+                                                    .then(fullMeta => {
+                                                        const oldIndexReallyExists = _.some(fullMeta, (metaObj: any) => {
+                                                            if (metaObj.type === 'index' && metaObj.tbl_name === 'test'
+                                                                && metaObj.name === 'test_ind1') {
+                                                                return true;
+                                                            }
+                                                            return false;
+                                                        });
+                                                        if (!oldIndexReallyExists) {
+                                                            return Promise.reject('Unchanged index should still exist!');
+                                                        }
+                                                        return Promise.resolve(undefined);
+                                                    });
+                                            });
+
+                                            return Promise.all([p1, p2]).then(() => {
+                                                return prov.close();
+                                            });
+                                        });
                                 });
-                            });
                         });
 
                         it('Add remove index in the same upgrade, while preserving other indices', () => {
@@ -2426,72 +2416,73 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, true)
-                            .then(prov => {
-                                return prov.put('test', { id: 'abc', tt: 'a' , zz: 'aa'}).then(() => {
-                                    return prov.close();
-                                });
-                            })
-                            .then(() => {
-                                return openProvider(provName, {
-                                    version: 2,
-                                    stores: [
-                                        {
-                                            name: 'test',
-                                            primaryKeyPath: 'id',
-                                            indexes: [{
-                                                name: 'ind2',
-                                                keyPath: 'zz',
-                                                doNotBackfill: true
-                                            }, {
-                                                name: 'ind3',
-                                                keyPath: 'zz',
-                                                doNotBackfill: true
-                                            }]
-                                        }
-                                    ]
-                                }, false)
                                 .then(prov => {
-                                    const p1 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
-                                        assert.equal(items.length, 1);
-                                        assert.equal(items[0].id, 'abc');
-                                        assert.equal(items[0].tt, 'a');
-                                        assert.equal(items[0].zz, 'aa');
-                                    });
-                                    const p2 = prov.getOnly('test', 'ind2', 'aa').then((items: any[]) => {
-                                        assert.equal(items.length, 1);
-                                        assert.equal(items[0].id, 'abc');
-                                        assert.equal(items[0].tt, 'a');
-                                        assert.equal(items[0].zz, 'aa');
-                                    });
-                                    const p3 = prov.getOnly('test', 'ind1', 'a').then(items => {
-                                        return Promise.reject<void>('Shouldn\'t have worked');
-                                    }, () => {
-                                        // Expected to fail, so chain from failure to success
-                                        return undefined;
-                                    });
-
-                                    const p4 = prov.openTransaction(undefined, false).then(trans => {
-                                        return (trans as SqlTransaction).runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
-                                        .then(fullMeta => {
-                                            const oldIndexReallyExists = _.some(fullMeta, (metaObj: any) => {
-                                                if (metaObj.type === 'index' && metaObj.tbl_name === 'test' 
-                                                        && metaObj.name === 'test_ind2') {
-                                                    return true;
-                                                }
-                                                return false;
-                                            });
-                                            if (!oldIndexReallyExists) {
-                                                return Promise.reject('Unchanged index should still exist!');
-                                            }
-                                            return Promise.resolve(undefined);
-                                        });
-                                    });
-
-                                    return Promise.all([p1, p2, p3, p4]).then(() => {
+                                    return prov.put('test', { id: 'abc', tt: 'a', zz: 'aa' }).then(() => {
                                         return prov.close();
                                     });
+                                })
+                                .then(() => {
+                                    return openProvider(provName, {
+                                        version: 2,
+                                        stores: [
+                                            {
+                                                name: 'test',
+                                                primaryKeyPath: 'id',
+                                                indexes: [{
+                                                    name: 'ind2',
+                                                    keyPath: 'zz',
+                                                    doNotBackfill: true
+                                                }, {
+                                                    name: 'ind3',
+                                                    keyPath: 'zz',
+                                                    doNotBackfill: true
+                                                }]
+                                            }
+                                        ]
+                                    }, false)
+                                        .then(prov => {
+                                            const p1 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
+                                                assert.equal(items.length, 1);
+                                                assert.equal(items[0].id, 'abc');
+                                                assert.equal(items[0].tt, 'a');
+                                                assert.equal(items[0].zz, 'aa');
+                                            });
+                                            const p2 = prov.getOnly('test', 'ind2', 'aa').then((items: any[]) => {
+                                                assert.equal(items.length, 1);
+                                                assert.equal(items[0].id, 'abc');
+                                                assert.equal(items[0].tt, 'a');
+                                                assert.equal(items[0].zz, 'aa');
+                                            });
+                                            const p3 = prov.getOnly('test', 'ind1', 'a').then(items => {
+                                                return Promise.reject<void>('Shouldn\'t have worked');
+                                            }, () => {
+                                                // Expected to fail, so chain from failure to success
+                                                return undefined;
+                                            });
+
+                                            const p4 = prov.openTransaction(undefined, false).then(trans => {
+                                                return (trans as SqlTransaction)
+                                                .runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
+                                                    .then(fullMeta => {
+                                                        const oldIndexReallyExists = _.some(fullMeta, (metaObj: any) => {
+                                                            if (metaObj.type === 'index' && metaObj.tbl_name === 'test'
+                                                                && metaObj.name === 'test_ind2') {
+                                                                return true;
+                                                            }
+                                                            return false;
+                                                        });
+                                                        if (!oldIndexReallyExists) {
+                                                            return Promise.reject('Unchanged index should still exist!');
+                                                        }
+                                                        return Promise.resolve(undefined);
+                                                    });
+                                            });
+
+                                            return Promise.all([p1, p2, p3, p4]).then(() => {
+                                                return prov.close();
+                                            });
+                                        });
                                 });
-                            });
                         });
                     }
                 });
@@ -2513,29 +2504,29 @@ describe('NoSqlProvider', function () {
                     ]
                 }, true).then(prov => {
                     return prov.put('test', [
-                            { id: 'a1', txt: 'the quick brown fox jumps over the lăzy dog who is a bro with brows' },
-                            { id: 'a2', txt: 'bob likes his dog' },
-                            { id: 'a3', txt: 'tes>ter'},
-                            {   
-                                id: 'a4', 
-                                txt: 'Бывает проснешься как птица,' +
-                                     ' крылатой пружиной на взводе и хочется жить и трудиться, но к завтраку это проходит!'
-                            },
-                            {
-                                id: 'a5',
-                                txt: '漁夫從遠處看見漁夫'
-                            },
-                            {
-                                // i18n digits test case
-                                id: 'a6',
-                                txt: '߂i18nDigits߂'
-                            },
-                            {
-                                // Test data to make sure that we don't search for empty strings (... used to put empty string to the index)
-                                id: 'a7',
-                                txt: 'User1, User2, User3 ...'
-                            }
-                        ]).then(() => {
+                        { id: 'a1', txt: 'the quick brown fox jumps over the lăzy dog who is a bro with brows' },
+                        { id: 'a2', txt: 'bob likes his dog' },
+                        { id: 'a3', txt: 'tes>ter' },
+                        {
+                            id: 'a4',
+                            txt: 'Бывает проснешься как птица,' +
+                                ' крылатой пружиной на взводе и хочется жить и трудиться, но к завтраку это проходит!'
+                        },
+                        {
+                            id: 'a5',
+                            txt: '漁夫從遠處看見漁夫'
+                        },
+                        {
+                            // i18n digits test case
+                            id: 'a6',
+                            txt: '߂i18nDigits߂'
+                        },
+                        {
+                            // Test data to make sure that we don't search for empty strings (... used to put empty string to the index)
+                            id: 'a7',
+                            txt: 'User1, User2, User3 ...'
+                        }
+                    ]).then(() => {
                         const p1 = prov.fullTextSearch('test', 'i', 'brown').then((res: any[]) => {
                             assert.equal(res.length, 1);
                             assert.equal(res[0].id, 'a1');
@@ -2604,14 +2595,14 @@ describe('NoSqlProvider', function () {
                             assert.ok(_.some(res, r => r.id === 'a1') && _.some(res, r => r.id === 'a2'));
                         });
                         const p19 = prov.fullTextSearch('test', 'i', 'fox nopers', NoSqlProvider.FullTextTermResolution.Or)
-                                .then((res: any[]) => {
-                            assert.equal(res.length, 1);
-                            assert.equal(res[0].id, 'a1');
-                        });
+                            .then((res: any[]) => {
+                                assert.equal(res.length, 1);
+                                assert.equal(res[0].id, 'a1');
+                            });
                         const p20 = prov.fullTextSearch('test', 'i', 'foxers nopers', NoSqlProvider.FullTextTermResolution.Or)
-                                .then(res => {
-                            assert.equal(res.length, 0);
-                        });
+                            .then(res => {
+                                assert.equal(res.length, 0);
+                            });
                         const p21 = prov.fullTextSearch('test', 'i', 'fox)', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 1);
                         });
@@ -2619,9 +2610,9 @@ describe('NoSqlProvider', function () {
                             assert.equal(res.length, 1);
                         });
                         const p23 = prov.fullTextSearch('test', 'i', 'fox* fox( <fox>', NoSqlProvider.FullTextTermResolution.Or)
-                                .then(res => {
-                            assert.equal(res.length, 1);
-                        });
+                            .then(res => {
+                                assert.equal(res.length, 1);
+                            });
                         const p24 = prov.fullTextSearch('test', 'i', 'f)ox', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 0);
                         });
@@ -2650,12 +2641,12 @@ describe('NoSqlProvider', function () {
                         // This is an empty string test. All special symbols will be replaced so this is technically empty string search.
                         const p31 = prov.fullTextSearch('test', 'i', '!@#$%$', NoSqlProvider.FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 0);
-                        }); 
+                        });
 
                         return Promise.all([p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20,
-                                p21, p22, p23, p24, p25, p26, p27, p28, p29, p30, p31]).then(() => {
-                            return prov.close();
-                        });
+                            p21, p22, p23, p24, p25, p26, p27, p28, p29, p30, p31]).then(() => {
+                                return prov.close();
+                            });
                     });
                 });
             });

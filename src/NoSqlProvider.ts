@@ -11,7 +11,7 @@
  */
 
 import _ = require('lodash');
-import '/Promise';
+import './Promise';
 // Basic nomenclature types for everyone to agree on.
 export type ItemType = object;
 export type KeyComponentType = string | number | Date;
