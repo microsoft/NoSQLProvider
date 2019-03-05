@@ -1,22 +1,20 @@
-import assert = require('assert');
-import _ = require('lodash');
-import sinon = require('sinon');
+import * as assert from 'assert';
+import { find, each, times, uniqueId, values, keys, some } from 'lodash';
+import { spy, SinonSpy, assert as sinonAssert } from 'sinon';
 
-import NoSqlProvider = require('../NoSqlProvider');
-import { KeyComponentType } from '../NoSqlProvider';
+import { KeyComponentType, DbSchema, DbProvider, openListOfProviders, QuerySortOrder, FullTextTermResolution } from '../NoSqlProvider';
 
 import { InMemoryProvider } from '../InMemoryProvider';
 import { IndexedDbProvider } from '../IndexedDbProvider';
 
-import NoSqlProviderUtils = require('../NoSqlProviderUtils');
+import { isSafari, serializeValueToOrderableString } from '../NoSqlProviderUtils';
 import { SqlTransaction } from '../SqlProviderBase';
 
 let cleanupFile = false;
-import './../Promise';
 type TestObj = { id?: string, val: string };
 
-function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipeFirst: boolean) {
-    let provider: NoSqlProvider.DbProvider;
+function openProvider(providerName: string, schema: DbSchema, wipeFirst: boolean) {
+    let provider: DbProvider;
     if (providerName === 'memory') {
         provider = new InMemoryProvider();
     } else if (providerName === 'indexeddb') {
@@ -27,7 +25,7 @@ function openProvider(providerName: string, schema: NoSqlProvider.DbSchema, wipe
         throw new Error('Provider not found for name: ' + providerName);
     }
     const dbName = providerName.indexOf('sqlite3memory') !== -1 ? ':memory:' : 'test';
-    return NoSqlProvider.openListOfProviders([provider], dbName, schema, wipeFirst, false);
+    return openListOfProviders([provider], dbName, schema, wipeFirst, false);
 }
 
 function sleep(timeMs: number): Promise<void> {
@@ -60,7 +58,7 @@ describe('NoSqlProvider', function () {
     } else {
         provsToTest = ['memory'];
 
-        if (!NoSqlProviderUtils.isSafari()) {
+        if (!isSafari()) {
             // Safari has broken indexeddb support, so let's not test it there.  Everywhere else should have it.
             // In IE, indexeddb will auto-run in fake keys mode, so if all is working, this is 2x the same test (but let's make sure!)
             provsToTest.push('indexeddb', 'indexeddbfakekeys');
@@ -94,12 +92,12 @@ describe('NoSqlProvider', function () {
         ];
 
         pairsToTest.forEach(pair => {
-            assert(NoSqlProviderUtils.serializeValueToOrderableString(pair[0]) <
-                NoSqlProviderUtils.serializeValueToOrderableString(pair[1]), 'failed for pair: ' + pair);
+            assert(serializeValueToOrderableString(pair[0]) <
+                serializeValueToOrderableString(pair[1]), 'failed for pair: ' + pair);
         });
 
         try {
-            NoSqlProviderUtils.serializeValueToOrderableString([4, 5] as any as KeyComponentType);
+            serializeValueToOrderableString([4, 5] as any as KeyComponentType);
             assert(false, 'Should reject this key');
         } catch (e) {
             // Should throw -- expecting this result.
@@ -179,7 +177,7 @@ describe('NoSqlProvider', function () {
             describe('Data Manipulation', () => {
                 // Setter should set the testable parameter on the first param to the value in the second param, and third param to the
                 // second index column for compound indexes.
-                var tester = (prov: NoSqlProvider.DbProvider, indexName: string | undefined, compound: boolean,
+                var tester = (prov: DbProvider, indexName: string | undefined, compound: boolean,
                     setter: (obj: any, indexval1: string, indexval2: string) => void) => {
                     var putters = [1, 2, 3, 4, 5].map(v => {
                         var obj: TestObj = { val: 'val' + v };
@@ -202,7 +200,7 @@ describe('NoSqlProvider', function () {
                         let t1 = prov.getAll('test', indexName).then(retVal => {
                             const ret = retVal as TestObj[];
                             assert.equal(ret.length, 5, 'getAll');
-                            [1, 2, 3, 4, 5].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
+                            [1, 2, 3, 4, 5].forEach(v => { assert(find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
                         let t1count = prov.countAll('test', indexName).then(ret => {
@@ -212,13 +210,13 @@ describe('NoSqlProvider', function () {
                         let t1b = prov.getAll('test', indexName, false, 3).then(retVal => {
                             const ret = retVal as TestObj[];
                             assert.equal(ret.length, 3, 'getAll lim3');
-                            [1, 2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
+                            [1, 2, 3].forEach(v => { assert(find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
                         let t1c = prov.getAll('test', indexName, false, 3, 1).then(retVal => {
                             const ret = retVal as TestObj[];
                             assert.equal(ret.length, 3, 'getAll lim3 off1');
-                            [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
+                            [2, 3, 4].forEach(v => { assert(find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
                         });
 
                         let t2 = prov.getOnly('test', indexName, formIndex(3)).then(ret => {
@@ -233,7 +231,7 @@ describe('NoSqlProvider', function () {
                         let t3 = prov.getRange('test', indexName, formIndex(2), formIndex(4)).then(retVal => {
                             const ret = retVal as TestObj[];
                             assert.equal(ret.length, 3, 'getRange++');
-                            [2, 3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                            [2, 3, 4].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                         });
 
                         let t3count = prov.countRange('test', indexName, formIndex(2), formIndex(4)).then(ret => {
@@ -244,52 +242,52 @@ describe('NoSqlProvider', function () {
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1, 'getRange++ lim1');
-                                [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                [2].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3b2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1, 'getRange++ lim1');
-                                [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                [2].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3b3 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false,
-                            NoSqlProvider.QuerySortOrder.Forward, 1)
+                            QuerySortOrder.Forward, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1, 'getRange++ lim1');
-                                [2].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                [2].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3b4 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false,
-                            NoSqlProvider.QuerySortOrder.Reverse, 1)
+                            QuerySortOrder.Reverse, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1, 'getRange++ lim1 rev');
-                                [4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                [4].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3c = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 1, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 1, 'getRange++ lim1 off1');
-                                [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                [3].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3d = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, false, 2, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1');
-                                [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                [3, 4].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3d2 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false,
-                            NoSqlProvider.QuerySortOrder.Forward, 2, 1)
+                            QuerySortOrder.Forward, 2, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1');
-                                [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                [3, 4].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3d3 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false, true, 2, 1)
@@ -297,22 +295,22 @@ describe('NoSqlProvider', function () {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
                                 assert.equal((ret[0] as TestObj).val, 'val3');
-                                [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                [2, 3].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t3d4 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, false,
-                            NoSqlProvider.QuerySortOrder.Reverse, 2, 1)
+                            QuerySortOrder.Reverse, 2, 1)
                             .then(retVal => {
                                 const ret = retVal as TestObj[];
                                 assert.equal(ret.length, 2, 'getRange++ lim2 off1 rev');
                                 assert.equal((ret[0] as TestObj).val, 'val3');
-                                [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                [2, 3].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                             });
 
                         let t4 = prov.getRange('test', indexName, formIndex(2), formIndex(4), true, false).then(retVal => {
                             const ret = retVal as TestObj[];
                             assert.equal(ret.length, 2, 'getRange-+');
-                            [3, 4].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                            [3, 4].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                         });
 
                         let t4count = prov.countRange('test', indexName, formIndex(2), formIndex(4), true, false).then(ret => {
@@ -322,7 +320,7 @@ describe('NoSqlProvider', function () {
                         let t5 = prov.getRange('test', indexName, formIndex(2), formIndex(4), false, true).then(retVal => {
                             const ret = retVal as TestObj[];
                             assert.equal(ret.length, 2, 'getRange+-');
-                            [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                            [2, 3].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                         });
 
                         let t5count = prov.countRange('test', indexName, formIndex(2), formIndex(4), false, true).then(ret => {
@@ -332,7 +330,7 @@ describe('NoSqlProvider', function () {
                         let t6 = prov.getRange('test', indexName, formIndex(2), formIndex(4), true, true).then(retVal => {
                             const ret = retVal as TestObj[];
                             assert.equal(ret.length, 1, 'getRange--');
-                            [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                            [3].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                         });
 
                         let t6count = prov.countRange('test', indexName, formIndex(2), formIndex(4), true, true).then(ret => {
@@ -346,7 +344,7 @@ describe('NoSqlProvider', function () {
                                         .then(retVal => {
                                             const ret = retVal as TestObj[];
                                             assert.equal(ret.length, 2, 'getRange2++');
-                                            [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                            [2, 3].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                                         });
 
                                     let tt1count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
@@ -358,7 +356,7 @@ describe('NoSqlProvider', function () {
                                         .then(retVal => {
                                             const ret = retVal as TestObj[];
                                             assert.equal(ret.length, 2, 'getRange2+-');
-                                            [2, 3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                            [2, 3].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                                         });
 
                                     let tt2count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), false, true)
@@ -370,7 +368,7 @@ describe('NoSqlProvider', function () {
                                         .then(retVal => {
                                             const ret = retVal as TestObj[];
                                             assert.equal(ret.length, 1, 'getRange2-+');
-                                            [3].forEach(v => { assert(_.find(ret, r => r.val === 'val' + v)); });
+                                            [3].forEach(v => { assert(find(ret, r => r.val === 'val' + v)); });
                                         });
 
                                     let tt3count = prov.countRange('test', indexName, formIndex(2, 2), formIndex(4, 3), true, false)
@@ -752,8 +750,8 @@ describe('NoSqlProvider', function () {
                             ]
                         }, true).then(prov => {
                             const keys: string[] = [];
-                            _.times(1000, () => {
-                                keys.push(_.uniqueId('multipartKey'));
+                            times(1000, () => {
+                                keys.push(uniqueId('multipartKey'));
                             });
                             return prov.put('test', { id: 'a', val: 'b', k: { k: keys } });
                         });
@@ -1233,7 +1231,7 @@ describe('NoSqlProvider', function () {
                     function testBatchUpgrade(expectedCallCount: number, itemByteSize: number): Promise<void> {
                         const recordCount = 5000;
                         const data: { [id: string]: { id: string, tt: string } } = {};
-                        _.times(recordCount, num => {
+                        times(recordCount, num => {
                             data[num.toString()] = {
                                 id: num.toString(),
                                 tt: 'tt' + num.toString()
@@ -1249,15 +1247,15 @@ describe('NoSqlProvider', function () {
                                 }
                             ]
                         }, true).then(prov => {
-                            return prov.put('test', _.values(data)).then(() => {
+                            return prov.put('test', values(data)).then(() => {
                                 return prov.close();
                             });
                         }).then(() => {
-                            let transactionSpy: sinon.SinonSpy | undefined;
+                            let transactionSpy: SinonSpy | undefined;
                             if (provName.indexOf('sql') !== -1) {
                                 // Check that we batch the upgrade by spying on number of queries indirectly
                                 // This only affects sql-based tests
-                                transactionSpy = sinon.spy(SqlTransaction.prototype, 'internal_getResultsFromQuery');
+                                transactionSpy = spy(SqlTransaction.prototype, 'internal_getResultsFromQuery');
                             }
                             return openProvider(provName, {
                                 version: 2,
@@ -1278,8 +1276,8 @@ describe('NoSqlProvider', function () {
                                     transactionSpy.restore();
                                 }
                                 return prov.getAll('test', undefined).then((records: any) => {
-                                    assert.equal(records.length, _.keys(data).length, 'Incorrect record count');
-                                    _.each(records, dbRecordToValidate => {
+                                    assert.equal(records.length, keys(data).length, 'Incorrect record count');
+                                    each(records, dbRecordToValidate => {
                                         const originalRecord = data[dbRecordToValidate.id];
                                         assert.ok(!!originalRecord);
                                         assert.equal(originalRecord.id, dbRecordToValidate.id);
@@ -2157,7 +2155,7 @@ describe('NoSqlProvider', function () {
                         });
 
                         it('Removes index without pulling data to JS', () => {
-                            let storeSpy: sinon.SinonSpy | undefined;
+                            let storeSpy: SinonSpy | undefined;
                             return openProvider(provName, {
                                 version: 1,
                                 stores: [
@@ -2177,7 +2175,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             }).then(() => {
-                                storeSpy = sinon.spy(SqlTransaction.prototype, 'getStore');
+                                storeSpy = spy(SqlTransaction.prototype, 'getStore');
                                 return openProvider(provName, {
                                     version: 2,
                                     stores: [
@@ -2189,7 +2187,7 @@ describe('NoSqlProvider', function () {
                                 }, false)
                                     .then(prov => {
                                         // NOTE - the line below tests an implementation detail
-                                        sinon.assert.notCalled(storeSpy!!!);
+                                        sinonAssert.notCalled(storeSpy!!!);
 
                                         // check the index was actually removed
                                         const p1 = prov.get('test', 'abc').then((item: any) => {
@@ -2251,7 +2249,7 @@ describe('NoSqlProvider', function () {
                                             return prov.openTransaction(undefined, false).then(trans => {
                                                 return (trans as SqlTransaction)
                                                     .runQuery('SELECT name, value from metadata').then(fullMeta => {
-                                                        _.each(fullMeta, (meta: any) => {
+                                                        each(fullMeta, (meta: any) => {
                                                             let metaObj = JSON.parse(meta.value);
                                                             if (metaObj.storeName === 'test'
                                                                 && !!metaObj.index && metaObj.index.name === 'ind1') {
@@ -2376,7 +2374,7 @@ describe('NoSqlProvider', function () {
                                                 return (trans as SqlTransaction)
                                                     .runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
                                                     .then(fullMeta => {
-                                                        const oldIndexReallyExists = _.some(fullMeta, (metaObj: any) => {
+                                                        const oldIndexReallyExists = some(fullMeta, (metaObj: any) => {
                                                             if (metaObj.type === 'index' && metaObj.tbl_name === 'test'
                                                                 && metaObj.name === 'test_ind1') {
                                                                 return true;
@@ -2464,7 +2462,7 @@ describe('NoSqlProvider', function () {
                                                 return (trans as SqlTransaction)
                                                     .runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
                                                     .then(fullMeta => {
-                                                        const oldIndexReallyExists = _.some(fullMeta, (metaObj: any) => {
+                                                        const oldIndexReallyExists = some(fullMeta, (metaObj: any) => {
                                                             if (metaObj.type === 'index' && metaObj.tbl_name === 'test'
                                                                 && metaObj.name === 'test_ind2') {
                                                                 return true;
@@ -2586,60 +2584,60 @@ describe('NoSqlProvider', function () {
                         const p16 = prov.fullTextSearch('test', 'i', 'b z').then(res => {
                             assert.equal(res.length, 0);
                         });
-                        const p17 = prov.fullTextSearch('test', 'i', 'b z', NoSqlProvider.FullTextTermResolution.Or).then((res: any[]) => {
+                        const p17 = prov.fullTextSearch('test', 'i', 'b z', FullTextTermResolution.Or).then((res: any[]) => {
                             assert.equal(res.length, 2);
-                            assert.ok(_.some(res, r => r.id === 'a1') && _.some(res, r => r.id === 'a2'));
+                            assert.ok(some(res, r => r.id === 'a1') && some(res, r => r.id === 'a2'));
                         });
-                        const p18 = prov.fullTextSearch('test', 'i', 'q h', NoSqlProvider.FullTextTermResolution.Or).then((res: any[]) => {
+                        const p18 = prov.fullTextSearch('test', 'i', 'q h', FullTextTermResolution.Or).then((res: any[]) => {
                             assert.equal(res.length, 2);
-                            assert.ok(_.some(res, r => r.id === 'a1') && _.some(res, r => r.id === 'a2'));
+                            assert.ok(some(res, r => r.id === 'a1') && some(res, r => r.id === 'a2'));
                         });
-                        const p19 = prov.fullTextSearch('test', 'i', 'fox nopers', NoSqlProvider.FullTextTermResolution.Or)
+                        const p19 = prov.fullTextSearch('test', 'i', 'fox nopers', FullTextTermResolution.Or)
                             .then((res: any[]) => {
                                 assert.equal(res.length, 1);
                                 assert.equal(res[0].id, 'a1');
                             });
-                        const p20 = prov.fullTextSearch('test', 'i', 'foxers nopers', NoSqlProvider.FullTextTermResolution.Or)
+                        const p20 = prov.fullTextSearch('test', 'i', 'foxers nopers', FullTextTermResolution.Or)
                             .then(res => {
                                 assert.equal(res.length, 0);
                             });
-                        const p21 = prov.fullTextSearch('test', 'i', 'fox)', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p21 = prov.fullTextSearch('test', 'i', 'fox)', FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 1);
                         });
-                        const p22 = prov.fullTextSearch('test', 'i', 'fox*', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p22 = prov.fullTextSearch('test', 'i', 'fox*', FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 1);
                         });
-                        const p23 = prov.fullTextSearch('test', 'i', 'fox* fox( <fox>', NoSqlProvider.FullTextTermResolution.Or)
+                        const p23 = prov.fullTextSearch('test', 'i', 'fox* fox( <fox>', FullTextTermResolution.Or)
                             .then(res => {
                                 assert.equal(res.length, 1);
                             });
-                        const p24 = prov.fullTextSearch('test', 'i', 'f)ox', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p24 = prov.fullTextSearch('test', 'i', 'f)ox', FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 0);
                         });
-                        const p25 = prov.fullTextSearch('test', 'i', 'fo*x', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p25 = prov.fullTextSearch('test', 'i', 'fo*x', FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 0);
                         });
-                        const p26 = prov.fullTextSearch('test', 'i', 'tes>ter', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p26 = prov.fullTextSearch('test', 'i', 'tes>ter', FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 1);
                         });
-                        const p27 = prov.fullTextSearch('test', 'i', 'f*x', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p27 = prov.fullTextSearch('test', 'i', 'f*x', FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 0);
                         });
 
-                        const p28 = prov.fullTextSearch('test', 'i', 'бывает', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p28 = prov.fullTextSearch('test', 'i', 'бывает', FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 1);
                         });
 
-                        const p29 = prov.fullTextSearch('test', 'i', '漁', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p29 = prov.fullTextSearch('test', 'i', '漁', FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 1);
                         });
 
-                        const p30 = prov.fullTextSearch('test', 'i', '߂i18nDigits߂', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p30 = prov.fullTextSearch('test', 'i', '߂i18nDigits߂', FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 1);
                         });
 
                         // This is an empty string test. All special symbols will be replaced so this is technically empty string search.
-                        const p31 = prov.fullTextSearch('test', 'i', '!@#$%$', NoSqlProvider.FullTextTermResolution.Or).then(res => {
+                        const p31 = prov.fullTextSearch('test', 'i', '!@#$%$', FullTextTermResolution.Or).then(res => {
                             assert.equal(res.length, 0);
                         });
 

@@ -6,8 +6,7 @@
  * Reusable helper classes for clients of NoSqlProvider to build more type-safe stores/indexes.
  */
 
-import NoSqlProvider = require('./NoSqlProvider');
-import { ItemType, KeyType } from './NoSqlProvider';
+import { DbIndex, QuerySortOrder, FullTextTermResolution, ItemType, KeyType, DbStore } from './NoSqlProvider';
 
 export var ErrorCatcher: ((err: any) => Promise<any>)|undefined = undefined;
 
@@ -20,23 +19,23 @@ export type DBStore<Name extends string, ObjectType, KeyFormat> = string & { nam
 export type DBIndex<Store extends DBStore<string, any, any>, IndexKeyFormat> = string & { store?: Store, indexKeyFormat?: IndexKeyFormat };
 
 export class SimpleTransactionIndexHelper<ObjectType extends ItemType, IndexKeyFormat extends KeyType> {
-    constructor(protected _index: NoSqlProvider.DbIndex) {
+    constructor(protected _index: DbIndex) {
         // Nothing to see here
     }
 
-    getAll(reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): Promise<ObjectType[]> {
+    getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ObjectType[]> {
         let promise = this._index.getAll(reverseOrSortOrder, limit, offset) as Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
-    getOnly(key: IndexKeyFormat, reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
+    getOnly(key: IndexKeyFormat, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
             : Promise<ObjectType[]> {
         let promise = this._index.getOnly(key, reverseOrSortOrder, limit, offset) as Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
     getRange(keyLowRange: IndexKeyFormat, keyHighRange: IndexKeyFormat, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-        reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): Promise<ObjectType[]> {
+        reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ObjectType[]> {
         let promise = this._index.getRange(keyLowRange, keyHighRange, lowRangeExclusive,
             highRangeExclusive, reverseOrSortOrder, limit, offset) as Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
@@ -58,7 +57,7 @@ export class SimpleTransactionIndexHelper<ObjectType extends ItemType, IndexKeyF
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
-    fullTextSearch(searchPhrase: string, resolution?: NoSqlProvider.FullTextTermResolution,
+    fullTextSearch(searchPhrase: string, resolution?: FullTextTermResolution,
             limit?: number): Promise<ObjectType[]> {
         // Sanitize input by removing parens, the plugin on RN explodes
         let promise = this._index.fullTextSearch(searchPhrase.replace(FullTextSanitizeRegex, ''),
@@ -68,7 +67,7 @@ export class SimpleTransactionIndexHelper<ObjectType extends ItemType, IndexKeyF
 }
 
 export class SimpleTransactionStoreHelper<StoreName extends string, ObjectType extends ItemType, KeyFormat extends KeyType> {
-    constructor(protected _store: NoSqlProvider.DbStore, storeName /* Force type-checking */: DBStore<StoreName, ObjectType, KeyFormat>) {
+    constructor(protected _store: DbStore, storeName /* Force type-checking */: DBStore<StoreName, ObjectType, KeyFormat>) {
         // Nothing to see here
     }
 
@@ -77,19 +76,19 @@ export class SimpleTransactionStoreHelper<StoreName extends string, ObjectType e
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
-    getAll(sortOrder?: NoSqlProvider.QuerySortOrder): Promise<ObjectType[]> {
+    getAll(sortOrder?: QuerySortOrder): Promise<ObjectType[]> {
         let promise = this._store.openPrimaryKey().getAll(sortOrder) as Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
-    getOnly(key: KeyFormat, reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
+    getOnly(key: KeyFormat, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
             : Promise<ObjectType[]> {
         let promise = this._store.openPrimaryKey().getOnly(key, reverseOrSortOrder, limit, offset) as Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;
     }
 
     getRange(keyLowRange: KeyFormat, keyHighRange: KeyFormat, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): Promise<ObjectType[]> {
+            reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ObjectType[]> {
         let promise = this._store.openPrimaryKey().getRange(keyLowRange, keyHighRange,
             lowRangeExclusive, highRangeExclusive, reverseOrSortOrder, limit, offset) as Promise<ObjectType[]>;
         return ErrorCatcher ? promise.catch(ErrorCatcher) : promise;

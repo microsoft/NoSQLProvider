@@ -6,28 +6,29 @@
  * NoSqlProvider provider setup for a non-persisted in-memory database backing provider.
  */
 
-import _ = require('lodash');
-import FullTextSearchHelpers = require('./FullTextSearchHelpers');
-import NoSqlProvider = require('./NoSqlProvider');
-import { ItemType, KeyPathType, KeyType } from './NoSqlProvider';
-import NoSqlProviderUtils = require('./NoSqlProviderUtils');
-import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
+import { attempt, isError, each, Dictionary, includes, assign, compact, map, find, keys, flatten, reverse, filter } from 'lodash';
+import  { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
+import  { StoreSchema, DbProvider, DbSchema, DbTransaction, 
+    DbIndex, IndexSchema, DbStore, QuerySortOrder, ItemType, KeyPathType, KeyType } from './NoSqlProvider';
+import { arrayify, serializeKeyToString, formListOfSerializedKeys, 
+    getSerializedKeyForKeypath, getValueForSingleKeypath } from  './NoSqlProviderUtils';
+import { TransactionToken, TransactionLockHelper } from './TransactionLockHelper';
 
 export interface StoreData {
-    data: _.Dictionary<ItemType>;
-    schema: NoSqlProvider.StoreSchema;
+    data: Dictionary<ItemType>;
+    schema: StoreSchema;
 }
 
 // Very simple in-memory dbprovider for handling IE inprivate windows (and unit tests, maybe?)
-export class InMemoryProvider extends NoSqlProvider.DbProvider {
+export class InMemoryProvider extends DbProvider {
     private _stores: { [storeName: string]: StoreData } = {};
 
     private _lockHelper: TransactionLockHelper|undefined;
 
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): Promise<void> {
+    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
-        _.each(this._schema!!!.stores, storeSchema => {
+        each(this._schema!!!.stores, storeSchema => {
             this._stores[storeSchema.name] = { schema: storeSchema, data: {} };
         });
 
@@ -40,7 +41,7 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
         return Promise.resolve();
     }
 
-    openTransaction(storeNames: string[], writeNeeded: boolean): Promise<NoSqlProvider.DbTransaction> {
+    openTransaction(storeNames: string[], writeNeeded: boolean): Promise<DbTransaction> {
         return this._lockHelper!!!.openTransaction(storeNames, writeNeeded).then((token: any) =>
             new InMemoryTransaction(this, this._lockHelper!!!, token));
     }
@@ -57,10 +58,10 @@ export class InMemoryProvider extends NoSqlProvider.DbProvider {
 }
 
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
-class InMemoryTransaction implements NoSqlProvider.DbTransaction {
+class InMemoryTransaction implements DbTransaction {
     private _openTimer: number|undefined;
 
-    private _stores: _.Dictionary<InMemoryStore> = {};
+    private _stores: Dictionary<InMemoryStore> = {};
 
     constructor(private _prov: InMemoryProvider, private _lockHelper: TransactionLockHelper, private _transToken: TransactionToken) {
         // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
@@ -73,7 +74,7 @@ class InMemoryTransaction implements NoSqlProvider.DbTransaction {
     }
 
     private _commitTransaction(): void {
-        _.each(this._stores, store => {
+        each(this._stores, store => {
             store.internal_commitPendingData();
         });
     }
@@ -83,7 +84,7 @@ class InMemoryTransaction implements NoSqlProvider.DbTransaction {
     }
 
     abort(): void {
-        _.each(this._stores, store => {
+        each(this._stores, store => {
             store.internal_rollbackPendingData();
         });
         this._stores = {};
@@ -100,8 +101,8 @@ class InMemoryTransaction implements NoSqlProvider.DbTransaction {
         // noop
     }
 
-    getStore(storeName: string): NoSqlProvider.DbStore {
-        if (!_.includes(NoSqlProviderUtils.arrayify(this._transToken.storeNames), storeName)) {
+    getStore(storeName: string): DbStore {
+        if (!includes(arrayify(this._transToken.storeNames), storeName)) {
             throw new Error('Store not found in transaction-scoped store list: ' + storeName);
         }
         if (this._stores[storeName]) {
@@ -121,12 +122,12 @@ class InMemoryTransaction implements NoSqlProvider.DbTransaction {
     }
 }
 
-class InMemoryStore implements NoSqlProvider.DbStore {
-    private _pendingCommitDataChanges: _.Dictionary<ItemType|undefined>|undefined;
+class InMemoryStore implements DbStore {
+    private _pendingCommitDataChanges: Dictionary<ItemType|undefined>|undefined;
 
-    private _committedStoreData: _.Dictionary<ItemType>;
-    private _mergedData: _.Dictionary<ItemType>;
-    private _storeSchema: NoSqlProvider.StoreSchema;
+    private _committedStoreData: Dictionary<ItemType>;
+    private _mergedData: Dictionary<ItemType>;
+    private _storeSchema: StoreSchema;
 
     constructor(private _trans: InMemoryTransaction, storeInfo: StoreData) {
         this._storeSchema = storeInfo.schema;
@@ -138,12 +139,12 @@ class InMemoryStore implements NoSqlProvider.DbStore {
     private _checkDataClone(): void {
         if (!this._pendingCommitDataChanges) {
             this._pendingCommitDataChanges = {};
-            this._mergedData = _.assign({}, this._committedStoreData);
+            this._mergedData = assign({}, this._committedStoreData);
         }
     }
 
     internal_commitPendingData(): void {
-        _.each(this._pendingCommitDataChanges, (val, key) => {
+        each(this._pendingCommitDataChanges, (val, key) => {
             if (val === undefined) {
                 delete this._committedStoreData[key];
             } else {
@@ -165,10 +166,10 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return Promise.reject('InMemoryTransaction already closed');
         }
 
-        const joinedKey = _.attempt(() => {
-            return NoSqlProviderUtils.serializeKeyToString(key, this._storeSchema.primaryKeyPath);
+        const joinedKey = attempt(() => {
+            return serializeKeyToString(key, this._storeSchema.primaryKeyPath);
         });
-        if (_.isError(joinedKey)) {
+        if (isError(joinedKey)) {
             return Promise.reject(joinedKey);
         }
 
@@ -180,14 +181,14 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return Promise.reject('InMemoryTransaction already closed');
         }
 
-        const joinedKeys = _.attempt(() => {
-            return NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeSchema.primaryKeyPath);
+        const joinedKeys = attempt(() => {
+            return formListOfSerializedKeys(keyOrKeys, this._storeSchema.primaryKeyPath);
         });
-        if (_.isError(joinedKeys)) {
+        if (isError(joinedKeys)) {
             return Promise.reject(joinedKeys);
         }
 
-        return Promise.resolve(_.compact(_.map(joinedKeys, key => this._mergedData[key])));
+        return Promise.resolve(compact(map(joinedKeys, key => this._mergedData[key])));
     }
 
     put(itemOrItems: ItemType|ItemType[]): Promise<void> {
@@ -195,9 +196,9 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return Promise.reject<void>('InMemoryTransaction already closed');
         }
         this._checkDataClone();
-        const err = _.attempt(() => {
-            _.each(NoSqlProviderUtils.arrayify(itemOrItems), item => {
-                let pk = NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._storeSchema.primaryKeyPath)!!!;
+        const err = attempt(() => {
+            each(arrayify(itemOrItems), item => {
+                let pk = getSerializedKeyForKeypath(item, this._storeSchema.primaryKeyPath)!!!;
 
                 this._pendingCommitDataChanges!!![pk] = item;
                 this._mergedData[pk] = item;
@@ -215,27 +216,27 @@ class InMemoryStore implements NoSqlProvider.DbStore {
         }
         this._checkDataClone();
 
-        const joinedKeys = _.attempt(() => {
-            return NoSqlProviderUtils.formListOfSerializedKeys(keyOrKeys, this._storeSchema.primaryKeyPath);
+        const joinedKeys = attempt(() => {
+            return formListOfSerializedKeys(keyOrKeys, this._storeSchema.primaryKeyPath);
         });
-        if (_.isError(joinedKeys)) {
+        if (isError(joinedKeys)) {
             return Promise.reject(joinedKeys);
         }
 
-        _.each(joinedKeys, key => {
+        each(joinedKeys, key => {
             this._pendingCommitDataChanges!!![key] = undefined;
             delete this._mergedData[key];
         });
         return Promise.resolve<void>(void 0);
     }
 
-    openPrimaryKey(): NoSqlProvider.DbIndex {
+    openPrimaryKey(): DbIndex {
         this._checkDataClone();
         return new InMemoryIndex(this._trans, this._mergedData, undefined, this._storeSchema.primaryKeyPath);
     }
 
-    openIndex(indexName: string): NoSqlProvider.DbIndex {
-        let indexSchema = _.find(this._storeSchema.indexes, idx => idx.name === indexName);
+    openIndex(indexName: string): DbIndex {
+        let indexSchema = find(this._storeSchema.indexes, idx => idx.name === indexName);
         if (!indexSchema) {
             throw new Error('Index not found: ' + indexName);
         }
@@ -249,7 +250,7 @@ class InMemoryStore implements NoSqlProvider.DbStore {
             return Promise.reject<void>('InMemoryTransaction already closed');
         }
         this._checkDataClone();
-        _.each(this._mergedData, (val, key) => {
+        each(this._mergedData, (val, key) => {
             this._pendingCommitDataChanges!!![key] = undefined;
         });
         this._mergedData = {};
@@ -258,39 +259,39 @@ class InMemoryStore implements NoSqlProvider.DbStore {
 }
 
 // Note: Currently maintains nothing interesting -- rebuilds the results every time from scratch.  Scales like crap.
-class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
-    constructor(private _trans: InMemoryTransaction, private _mergedData: _.Dictionary<ItemType>,
-            indexSchema: NoSqlProvider.IndexSchema|undefined, primaryKeyPath: KeyPathType) {
+class InMemoryIndex extends DbIndexFTSFromRangeQueries {
+    constructor(private _trans: InMemoryTransaction, private _mergedData: Dictionary<ItemType>,
+            indexSchema: IndexSchema|undefined, primaryKeyPath: KeyPathType) {
         super(indexSchema, primaryKeyPath);
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _calcChunkedData(): _.Dictionary<ItemType[]>|_.Dictionary<ItemType> {
+    private _calcChunkedData(): Dictionary<ItemType[]>|Dictionary<ItemType> {
         if (!this._indexSchema) {
             // Primary key -- use data intact
             return this._mergedData;
         }
 
         // If it's not the PK index, re-pivot the data to be keyed off the key value built from the keypath
-        let data: _.Dictionary<ItemType[]> = {};
-        _.each(this._mergedData, item => {
+        let data: Dictionary<ItemType[]> = {};
+        each(this._mergedData, item => {
             // Each item may be non-unique so store as an array of items for each key
             let keys: string[]|undefined;
             if (this._indexSchema!!!.fullText) {
-                keys = _.map(FullTextSearchHelpers.getFullTextIndexWordsForItem(<string>this._keyPath, item), val =>
-                    NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
+                keys = map(getFullTextIndexWordsForItem(<string>this._keyPath, item), val =>
+                    serializeKeyToString(val, <string>this._keyPath));
             } else if (this._indexSchema!!!.multiEntry) {
                 // Have to extract the multiple entries into this alternate table...
-                const valsRaw = NoSqlProviderUtils.getValueForSingleKeypath(item, <string>this._keyPath);
+                const valsRaw = getValueForSingleKeypath(item, <string>this._keyPath);
                 if (valsRaw) {
-                    keys = _.map(NoSqlProviderUtils.arrayify(valsRaw), val =>
-                        NoSqlProviderUtils.serializeKeyToString(val, <string>this._keyPath));
+                    keys = map(arrayify(valsRaw), val =>
+                        serializeKeyToString(val, <string>this._keyPath));
                 }
             } else {
-                keys = [NoSqlProviderUtils.getSerializedKeyForKeypath(item, this._keyPath)!!!];
+                keys = [getSerializedKeyForKeypath(item, this._keyPath)!!!];
             }
 
-            _.each(keys, key => {
+            each(keys, key => {
                 if (!data[key]) {
                     data[key] = [item];
                 } else {
@@ -301,36 +302,36 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
         return data;
     }
 
-    getAll(reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
+    getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
 
-        const data = _.attempt(() => {
+        const data = attempt(() => {
             return this._calcChunkedData();
         });
-        if (_.isError(data)) {
+        if (isError(data)) {
             return Promise.reject(data);
         }
 
-        const sortedKeys = _.keys(data).sort();
+        const sortedKeys = keys(data).sort();
         return this._returnResultsFromKeys(data, sortedKeys, reverseOrSortOrder, limit, offset);
     }
 
-    getOnly(key: KeyType, reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number)
+    getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
             : Promise<ItemType[]> {
         return this.getRange(key, key, false, false, reverseOrSortOrder, limit, offset);
     }
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
+            reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
 
-        let data: _.Dictionary<ItemType[]>|_.Dictionary<ItemType>;
+        let data: Dictionary<ItemType[]>|Dictionary<ItemType>;
         let sortedKeys: string[];
-        const err = _.attempt(() => {
+        const err = attempt(() => {
             data = this._calcChunkedData();
             sortedKeys = this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).sort();
         });
@@ -342,18 +343,18 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _getKeysForRange(data: _.Dictionary<ItemType[]>|_.Dictionary<ItemType>, keyLowRange: KeyType, keyHighRange: KeyType,
+    private _getKeysForRange(data: Dictionary<ItemType[]>|Dictionary<ItemType>, keyLowRange: KeyType, keyHighRange: KeyType,
             lowRangeExclusive?: boolean, highRangeExclusive?: boolean): string[] {
-        const keyLow = NoSqlProviderUtils.serializeKeyToString(keyLowRange, this._keyPath);
-        const keyHigh = NoSqlProviderUtils.serializeKeyToString(keyHighRange, this._keyPath);
-        return _.filter(_.keys(data), key =>
+        const keyLow = serializeKeyToString(keyLowRange, this._keyPath);
+        const keyHigh = serializeKeyToString(keyHighRange, this._keyPath);
+        return filter(keys(data), key =>
             (key > keyLow || (key === keyLow && !lowRangeExclusive)) && (key < keyHigh || (key === keyHigh && !highRangeExclusive)));
     }
 
-    private _returnResultsFromKeys(data: _.Dictionary<ItemType[]> | _.Dictionary<ItemType>, sortedKeys: string[],
-            reverseOrSortOrder?: boolean | NoSqlProvider.QuerySortOrder, limit?: number, offset?: number) {
-        if (reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider.QuerySortOrder.Reverse) {
-            sortedKeys = _.reverse(sortedKeys);
+    private _returnResultsFromKeys(data: Dictionary<ItemType[]> | Dictionary<ItemType>, sortedKeys: string[],
+            reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number) {
+        if (reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse) {
+            sortedKeys = reverse(sortedKeys);
         }
 
         if (offset) {
@@ -364,21 +365,21 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             sortedKeys = sortedKeys.slice(0, limit);
         }
 
-        let results = _.map(sortedKeys, key => data[key]);
-        return Promise.resolve(_.flatten(results));
+        let results = map(sortedKeys, key => data[key]);
+        return Promise.resolve(flatten(results));
     }
 
     countAll(): Promise<number> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
-        const data = _.attempt(() => {
+        const data = attempt(() => {
             return this._calcChunkedData();
         });
-        if (_.isError(data)) {
+        if (isError(data)) {
             return Promise.reject(data);
         }
-        return Promise.resolve(_.keys(data).length);
+        return Promise.resolve(keys(data).length);
     }
 
     countOnly(key: KeyType): Promise<number> {
@@ -391,11 +392,11 @@ class InMemoryIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             return Promise.reject('InMemoryTransaction already closed');
         }
 
-        const keys = _.attempt(() => {
+        const keys = attempt(() => {
             const data = this._calcChunkedData();
             return this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
-        if (_.isError(keys)) {
+        if (isError(keys)) {
             return Promise.reject(keys);
         }
 
