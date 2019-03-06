@@ -740,6 +740,9 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
             return Promise.reject(keyRange);
         }
         const reverse = reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse;
+        if (!reverse && this._store.getAll) {
+            return IndexedDbProvider.WrapRequest(this._store.getAll(undefined, limit));
+        }
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     }
@@ -762,6 +765,9 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         }
 
         const reverse = reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse;
+        if (!reverse && this._store.getAll) {
+            return IndexedDbProvider.WrapRequest(this._store.getAll(undefined, limit));
+        }
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     }
