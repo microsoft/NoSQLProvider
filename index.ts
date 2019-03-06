@@ -1,6 +1,6 @@
-export { IndexedDbProvider } from './IndexedDbProvider';
-export { breakAndNormalizeSearchPhrase, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
-export { InMemoryProvider, StoreData } from './InMemoryProvider';
+export { IndexedDbProvider } from './src/IndexedDbProvider';
+export { breakAndNormalizeSearchPhrase, getFullTextIndexWordsForItem } from './src/FullTextSearchHelpers';
+export { InMemoryProvider, StoreData } from './src/InMemoryProvider';
 export { 
     ItemType,
     KeyComponentType,
@@ -16,7 +16,7 @@ export {
     DbTransaction,
     DbProvider,
     openListOfProviders
- } from './NoSqlProvider';
+ } from './src/NoSqlProvider';
 export {
     isIE,
     isSafari,
@@ -30,7 +30,7 @@ export {
     serializeNumberToOrderableString,
     serializeValueToOrderableString,
     formListOfSerializedKeys
- } from './NoSqlProviderUtils';
+ } from './src/NoSqlProviderUtils';
 export { 
     SQLVoidCallback,
     SQLTransaction,
@@ -45,9 +45,9 @@ export {
     SQLStatementCallback,
     SQLStatementErrorCallback,
     SqliteSqlTransaction
-} from './SqlProviderBase';
+} from './src/SqlProviderBase';
 export {
     ErrorCatcher, DBIndex, DBStore,
     SimpleTransactionIndexHelper, SimpleTransactionStoreHelper
-} from './StoreHelpers';
-export { TransactionLockHelper, TransactionToken } from './TransactionLockHelper';
+} from './src/StoreHelpers';
+export { TransactionLockHelper, TransactionToken } from './src/TransactionLockHelper';
