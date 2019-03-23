@@ -31,21 +31,6 @@ export {
     serializeValueToOrderableString,
     formListOfSerializedKeys
  } from './src/NoSqlProviderUtils';
-export { 
-    SQLVoidCallback,
-    SQLTransaction,
-    SQLTransactionCallback,
-    SQLTransactionErrorCallback,
-    SQLDatabase,
-    SqlProviderBase,
-    SqlTransaction,
-    SQLError,
-    SQLResultSet,
-    SQLResultSetRowList,
-    SQLStatementCallback,
-    SQLStatementErrorCallback,
-    SqliteSqlTransaction
-} from './src/SqlProviderBase';
 export {
     ErrorCatcher, DBIndex, DBStore,
     SimpleTransactionIndexHelper, SimpleTransactionStoreHelper

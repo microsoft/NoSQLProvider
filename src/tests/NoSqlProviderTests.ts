@@ -1,6 +1,5 @@
 import * as assert from 'assert';
-import { find, each, times, uniqueId, values, keys, some } from 'lodash';
-import { spy, SinonSpy, assert as sinonAssert } from 'sinon';
+import { find, each, times, values, keys, some } from 'lodash';
 
 import { KeyComponentType, DbSchema, DbProvider, openListOfProviders, QuerySortOrder, FullTextTermResolution } from '../NoSqlProvider';
 
@@ -8,7 +7,6 @@ import { InMemoryProvider } from '../InMemoryProvider';
 import { IndexedDbProvider } from '../IndexedDbProvider';
 
 import { isSafari, serializeValueToOrderableString } from '../NoSqlProviderUtils';
-import { SqlTransaction } from '../SqlProviderBase';
 
 let cleanupFile = false;
 type TestObj = { id?: string, val: string };
@@ -35,8 +33,8 @@ function sleep(timeMs: number): Promise<void> {
 }
 
 describe('NoSqlProvider', function () {
-    //this.timeout(60000);
-    after(callback => {
+    this.timeout(5*60*1000);
+    after(done => {
         if (cleanupFile) {
             var fs = require('fs');
             fs.unlink('test', (err: any) => {
@@ -44,10 +42,10 @@ describe('NoSqlProvider', function () {
                     throw err;
                 }
                 console.log('path/file.txt was deleted');
-                callback();
+                done();
             });
         } else {
-            callback();
+            done();
         }
     });
 
@@ -113,7 +111,7 @@ describe('NoSqlProvider', function () {
                         //noop
                     });
                 } else if (provName.indexOf('indexeddb') === 0) {
-                    it('Deletes the database', () => {
+                    it('Deletes the database', (done) => {
                         const schema = {
                             version: 1,
                             stores: [
@@ -138,11 +136,13 @@ describe('NoSqlProvider', function () {
                                     assert(!ret);
                                     return prov.close();
                                 });
+                            }).finally(() =>  {
+                                done();
                             });
 
                     });
                 } else {
-                    it('Rejects with an error', () => {
+                    it('Rejects with an error', (done) => {
                         const schema = {
                             version: 1,
                             stores: [
@@ -169,6 +169,8 @@ describe('NoSqlProvider', function () {
                                         assert.equal(ret.val, 'b');
                                         return prov.close();
                                     }));
+                            }).finally(() => {
+                                done();
                             });
                     });
                 }
@@ -386,7 +388,7 @@ describe('NoSqlProvider', function () {
                     });
                 };
 
-                it('Simple primary key put/get/getAll', () => {
+                it('Simple primary key put/get/getAll', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -410,10 +412,12 @@ describe('NoSqlProvider', function () {
                                 });
                             });
                         });
+                    }).finally(() => {
+                        done()
                     });
                 });
 
-                it('Empty gets/puts', () => {
+                it('Empty gets/puts', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -434,10 +438,12 @@ describe('NoSqlProvider', function () {
                                 });
                             });
                         });
+                    }).finally(() => {
+                        done();
                     });
                 });
 
-                it('getMultiple with blank', () => {
+                it('getMultiple with blank', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -454,10 +460,12 @@ describe('NoSqlProvider', function () {
                                 return prov.close();
                             });
                         });
+                    }).finally(() => {
+                        done();
                     });
                 });
 
-                it('Removing items', () => {
+                it('Removing items', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -487,11 +495,13 @@ describe('NoSqlProvider', function () {
                                     });
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
                 });
 
-                it('Invalid Key Type', () => {
+                it('Invalid Key Type', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -507,10 +517,12 @@ describe('NoSqlProvider', function () {
                             // Woot, failed like it's supposed to
                             return prov.close();
                         });
+                    }).finally(() => {
+                        done();
                     });
                 });
 
-                it('Primary Key Basic KeyPath', () => {
+                it('Primary Key Basic KeyPath', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -521,11 +533,13 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return tester(prov, undefined, false, (obj, v) => { obj.id = v; });
+                    }).finally(() => {
+                        done();
                     });
                 });
 
                 for (let i = 0; i <= 1; i++) {
-                    it('Simple index put/get, getAll, getOnly, and getRange' + (i === 0 ? '' : ' (includeData)'), () => {
+                    it('Simple index put/get, getAll, getOnly, and getRange' + (i === 0 ? '' : ' (includeData)'), (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -543,11 +557,13 @@ describe('NoSqlProvider', function () {
                             ]
                         }, true).then(prov => {
                             return tester(prov, 'index', false, (obj, v) => { obj.a = v; });
+                        }).finally(() => {
+                            done();
                         });
                     });
                 }
 
-                it('Multipart primary key basic test', () => {
+                it('Multipart primary key basic test', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -558,10 +574,12 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return tester(prov, undefined, false, (obj, v) => { obj.a = { b: v }; });
+                    }).finally(() => {
+                        done();
                     });
                 });
 
-                it('Multipart index basic test', () => {
+                it('Multipart index basic test', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -578,10 +596,12 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return tester(prov, 'index', false, (obj, v) => { obj.a = { b: v }; });
+                    }).finally(() => {
+                        done();
                     });
                 });
 
-                it('Compound primary key basic test', () => {
+                it('Compound primary key basic test', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -592,10 +612,12 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return tester(prov, undefined, true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
+                    }).finally(() => {
+                        done();
                     });
                 });
 
-                it('Compound index basic test', () => {
+                it('Compound index basic test', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -612,11 +634,13 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return tester(prov, 'index', true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
+                    }).finally(() => {
+                        done();
                     });
                 });
 
                 for (let i = 0; i <= 1; i++) {
-                    it('MultiEntry multipart indexed tests' + (i === 0 ? '' : ' (includeData)'), () => {
+                    it('MultiEntry multipart indexed tests' + (i === 0 ? '' : ' (includeData)'), (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -672,11 +696,13 @@ describe('NoSqlProvider', function () {
                                         return prov.close();
                                     });
                                 });
+                        }).finally(() => {
+                            done();
                         });
                     });
                 }
 
-                it('MultiEntry multipart indexed - update index', () => {
+                it('MultiEntry multipart indexed - update index', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -727,38 +753,12 @@ describe('NoSqlProvider', function () {
                             .then(() => {
                                 return prov.close();
                             });
+                    }).finally(() => {
+                        done();
                     });
                 });
 
-                // Ensure that we properly batch multi-key sql inserts
-                if (provName.indexOf('sql') !== -1) {
-                    it('MultiEntry multipart index - large index put', () => {
-                        return openProvider(provName, {
-                            version: 1,
-                            stores: [
-                                {
-                                    name: 'test',
-                                    primaryKeyPath: 'id',
-                                    indexes: [
-                                        {
-                                            name: 'key',
-                                            multiEntry: true,
-                                            keyPath: 'k.k',
-                                        }
-                                    ]
-                                }
-                            ]
-                        }, true).then(prov => {
-                            const keys: string[] = [];
-                            times(1000, () => {
-                                keys.push(uniqueId('multipartKey'));
-                            });
-                            return prov.put('test', { id: 'a', val: 'b', k: { k: keys } });
-                        });
-                    });
-                }
-
-                it('MultiEntry multipart indexed tests - Compound Key', () => {
+                it('MultiEntry multipart indexed tests - Compound Key', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -813,10 +813,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                    }).finally(() => {
+                        done();
                     });
                 });
 
-                it('MultiEntry multipart indexed - update index - Compound', () => {
+                it('MultiEntry multipart indexed - update index - Compound', (done) => {
                     return openProvider(provName, {
                         version: 1,
                         stores: [
@@ -869,11 +871,13 @@ describe('NoSqlProvider', function () {
                             .then(() => {
                                 return prov.close();
                             });
+                    }).finally(() => {
+                        done();
                     });
                 });
 
                 describe('Transaction Semantics', () => {
-                    it('Testing transaction expiration', () => {
+                    it('Testing transaction expiration', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -905,10 +909,12 @@ describe('NoSqlProvider', function () {
                             }).then(() => {
                                 return prov.close();
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Testing aborting', () => {
+                    it('Testing aborting', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -937,10 +943,12 @@ describe('NoSqlProvider', function () {
                                 assert.ok(checked);
                                 return prov.close();
                             });
+                        }).then(() => {
+                            done();
                         });
                     });
 
-                    it('Testing read/write transaction locks', () => {
+                    it('Testing read/write transaction locks', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -984,6 +992,8 @@ describe('NoSqlProvider', function () {
                             }).then(() => {
                                 return prov.close();
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
                 });
@@ -991,7 +1001,7 @@ describe('NoSqlProvider', function () {
 
             if (provName.indexOf('memory') === -1) {
                 describe('Schema Upgrades', () => {
-                    it('Opening an older DB version', () => {
+                    it('Opening an older DB version', (done) => {
                         return openProvider(provName, {
                             version: 2,
                             stores: [
@@ -1021,10 +1031,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Basic NOOP schema upgrade path', () => {
+                    it('Basic NOOP schema upgrade path', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1052,10 +1064,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Adding new store', () => {
+                    it('Adding new store', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1104,10 +1118,12 @@ describe('NoSqlProvider', function () {
                                     });
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Removing old store', () => {
+                    it('Removing old store', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1139,10 +1155,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Remove store with index', () => {
+                    it('Remove store with index', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1178,10 +1196,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Add index', () => {
+                    it('Add index', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1225,6 +1245,8 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
@@ -1251,12 +1273,6 @@ describe('NoSqlProvider', function () {
                                 return prov.close();
                             });
                         }).then(() => {
-                            let transactionSpy: SinonSpy | undefined;
-                            if (provName.indexOf('sql') !== -1) {
-                                // Check that we batch the upgrade by spying on number of queries indirectly
-                                // This only affects sql-based tests
-                                transactionSpy = spy(SqlTransaction.prototype, 'internal_getResultsFromQuery');
-                            }
                             return openProvider(provName, {
                                 version: 2,
                                 stores: [
@@ -1271,10 +1287,6 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                if (transactionSpy) {
-                                    assert.equal(transactionSpy.callCount, expectedCallCount, 'Incorrect transaction count');
-                                    transactionSpy.restore();
-                                }
                                 return prov.getAll('test', undefined).then((records: any) => {
                                     assert.equal(records.length, keys(data).length, 'Incorrect record count');
                                     each(records, dbRecordToValidate => {
@@ -1290,18 +1302,22 @@ describe('NoSqlProvider', function () {
                         });
                     }
 
-                    it('Add index - Large records - batched upgrade', () => {
-                        return testBatchUpgrade(51, 10000);
+                    it('Add index - Large records - batched upgrade', (done) => {
+                        return testBatchUpgrade(51, 10000).finally(() => {
+                            done();
+                        });
                     });
 
-                    it('Add index - small records - No batch upgrade', () => {
-                        return testBatchUpgrade(1, 1);
+                    it('Add index - small records - No batch upgrade', (done) => {
+                        return testBatchUpgrade(1, 1).finally(() => {
+                            done();
+                        });
                     });
 
                     if (provName.indexOf('indexeddb') !== 0) {
                         // This migration works on indexeddb because we don't check the types and the browsers silently accept it but just
                         // neglect to index the field...
-                        it('Add index to boolean field should fail', () => {
+                        it('Add index to boolean field should fail', (done) => {
                             return openProvider(provName, {
                                 version: 1,
                                 stores: [
@@ -1332,11 +1348,13 @@ describe('NoSqlProvider', function () {
                                 }, err => {
                                     return Promise.resolve();
                                 });
+                            }).finally(() => {
+                                done();
                             });
                         });
                     }
 
-                    it('Add multiEntry index', () => {
+                    it('Add multiEntry index', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1383,10 +1401,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Changing multiEntry index', () => {
+                    it('Changing multiEntry index', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1441,10 +1461,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Removing old index', () => {
+                    it('Removing old index', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1480,10 +1502,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Changing index keypath', () => {
+                    it('Changing index keypath', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1528,10 +1552,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Change non-multientry index to includeDataInIndex', () => {
+                    it('Change non-multientry index to includeDataInIndex', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1580,10 +1606,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Change non-multientry index from includeDataInIndex', () => {
+                    it('Change non-multientry index from includeDataInIndex', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1633,10 +1661,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Change multientry index to includeDataInIndex', () => {
+                    it('Change multientry index to includeDataInIndex', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1689,10 +1719,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Change multientry index from includeDataInIndex', () => {
+                    it('Change multientry index from includeDataInIndex', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1746,10 +1778,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Adding new FTS store', () => {
+                    it('Adding new FTS store', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1803,10 +1837,12 @@ describe('NoSqlProvider', function () {
                                     });
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Adding new FTS index', () => {
+                    it('Adding new FTS index', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1848,10 +1884,12 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
-                    it('Removing FTS index', () => {
+                    it('Removing FTS index', (done) => {
                         return openProvider(provName, {
                             version: 1,
                             stores: [
@@ -1898,13 +1936,15 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
+                        }).finally(() => {
+                            done();
                         });
                     });
 
                     // indexed db might backfill anyway behind the scenes
                     if (provName.indexOf('indexeddb') !== 0) {
 
-                        it('Adding an index that does not require backfill', () => {
+                        it('Adding an index that does not require backfill', (done) => {
                             return openProvider(provName, {
                                 version: 1,
                                 stores: [
@@ -1951,10 +1991,12 @@ describe('NoSqlProvider', function () {
                                         return prov.close();
                                     });
                                 }));
+                            }).finally(() => {
+                                done();
                             });
                         });
 
-                        it('Adding two indexes at once - backfill and not', () => {
+                        it('Adding two indexes at once - backfill and not', (done) => {
                             return openProvider(provName, {
                                 version: 1,
                                 stores: [
@@ -2012,10 +2054,12 @@ describe('NoSqlProvider', function () {
                                         return prov.close();
                                     });
                                 });
+                            }).finally(() => {
+                                done();
                             });
                         });
 
-                        it('Change no backfill index into a normal index', () => {
+                        it('Change no backfill index into a normal index', (done) => {
                             return openProvider(provName, {
                                 version: 1,
                                 stores: [
@@ -2068,10 +2112,12 @@ describe('NoSqlProvider', function () {
                                         return prov.close();
                                     });
                                 });
+                            }).finally(() => {
+                                done();
                             });
                         });
 
-                        it('Perform two updates which require no backfill', () => {
+                        it('Perform two updates which require no backfill', (done) => {
                             return openProvider(provName, {
                                 version: 1,
                                 stores: [
@@ -2151,11 +2197,12 @@ describe('NoSqlProvider', function () {
                                                 return prov.close();
                                             });
                                         });
+                                }).finally(() => {
+                                    done();
                                 });
                         });
 
-                        it('Removes index without pulling data to JS', () => {
-                            let storeSpy: SinonSpy | undefined;
+                        it('Removes index without pulling data to JS', (done) => {
                             return openProvider(provName, {
                                 version: 1,
                                 stores: [
@@ -2175,7 +2222,6 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             }).then(() => {
-                                storeSpy = spy(SqlTransaction.prototype, 'getStore');
                                 return openProvider(provName, {
                                     version: 2,
                                     stores: [
@@ -2186,9 +2232,6 @@ describe('NoSqlProvider', function () {
                                     ]
                                 }, false)
                                     .then(prov => {
-                                        // NOTE - the line below tests an implementation detail
-                                        sinonAssert.notCalled(storeSpy!!!);
-
                                         // check the index was actually removed
                                         const p1 = prov.get('test', 'abc').then((item: any) => {
                                             assert.ok(item);
@@ -2208,63 +2251,11 @@ describe('NoSqlProvider', function () {
                                         });
                                     });
                             }).finally(() => {
-                                if (storeSpy) {
-                                    storeSpy.restore();
-                                }
+                                done();
                             });
                         });
 
-                        it('Cleans up stale indices from metadata', () => {
-                            return openProvider(provName, {
-                                version: 1,
-                                stores: [
-                                    {
-                                        name: 'test',
-                                        primaryKeyPath: 'id',
-                                        indexes: [
-                                            {
-                                                name: 'ind1',
-                                                keyPath: 'content',
-                                            },
-                                            {
-                                                name: 'ind2',
-                                                keyPath: 'content',
-                                            }
-                                        ]
-                                    }
-                                ]
-                            }, true)
-                                .then(prov => prov.close())
-                                .then(() => {
-                                    return openProvider(provName, {
-                                        version: 2,
-                                        stores: [
-                                            {
-                                                name: 'test',
-                                                primaryKeyPath: 'id'
-                                            }
-                                        ]
-                                    }, false)
-                                        .then(prov => {
-                                            return prov.openTransaction(undefined, false).then(trans => {
-                                                return (trans as SqlTransaction)
-                                                    .runQuery('SELECT name, value from metadata').then(fullMeta => {
-                                                        each(fullMeta, (meta: any) => {
-                                                            let metaObj = JSON.parse(meta.value);
-                                                            if (metaObj.storeName === 'test'
-                                                                && !!metaObj.index && metaObj.index.name === 'ind1') {
-                                                                assert.fail('Removed index should not exist in the meta!');
-                                                            }
-                                                        });
-                                                    });
-                                            }).then(() => {
-                                                return prov.close();
-                                            });
-                                        });
-                                });
-                        });
-
-                        it('Add and remove index in the same upgrade', () => {
+                        it('Add and remove index in the same upgrade', (done) => {
                             return openProvider(provName, {
                                 version: 1,
                                 stores: [
@@ -2317,176 +2308,15 @@ describe('NoSqlProvider', function () {
                                                 return prov.close();
                                             });
                                         });
-                                });
-                        });
-
-                        it('Recreates missing indices', () => {
-                            return openProvider(provName, {
-                                version: 1,
-                                stores: [
-                                    {
-                                        name: 'test',
-                                        primaryKeyPath: 'id',
-                                        indexes: [{
-                                            name: 'ind1',
-                                            keyPath: 'tt',
-                                            doNotBackfill: true
-                                        }]
-                                    }
-                                ]
-                            }, true)
-                                .then(prov => {
-                                    return prov.put('test', { id: 'abc', tt: 'a', zz: 'aa' })
-                                        .then(() => {
-                                            return prov.openTransaction(['test'], true).then(trans => {
-                                                // simulate broken index
-                                                return (trans as SqlTransaction).runQuery('DROP INDEX test_ind1');
-                                            });
-                                        })
-                                        .then(() => {
-                                            return prov.close();
-                                        });
-                                })
-                                .then(() => {
-                                    return openProvider(provName, {
-                                        version: 2,
-                                        stores: [
-                                            {
-                                                name: 'test',
-                                                primaryKeyPath: 'id',
-                                                indexes: [{
-                                                    name: 'ind1',
-                                                    keyPath: 'tt',
-                                                    doNotBackfill: true
-                                                }]
-                                            }
-                                        ]
-                                    }, false)
-                                        .then(prov => {
-                                            const p1 = prov.getOnly('test', 'ind1', 'a').then((items: any[]) => {
-                                                assert.equal(items.length, 1);
-                                                assert.equal(items[0].id, 'abc');
-                                                assert.equal(items[0].tt, 'a');
-                                                assert.equal(items[0].zz, 'aa');
-                                            });
-
-                                            const p2 = prov.openTransaction(undefined, false).then(trans => {
-                                                return (trans as SqlTransaction)
-                                                    .runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
-                                                    .then(fullMeta => {
-                                                        const oldIndexReallyExists = some(fullMeta, (metaObj: any) => {
-                                                            if (metaObj.type === 'index' && metaObj.tbl_name === 'test'
-                                                                && metaObj.name === 'test_ind1') {
-                                                                return true;
-                                                            }
-                                                            return false;
-                                                        });
-                                                        if (!oldIndexReallyExists) {
-                                                            return Promise.reject('Unchanged index should still exist!');
-                                                        }
-                                                        return Promise.resolve(undefined);
-                                                    });
-                                            });
-
-                                            return Promise.all([p1, p2]).then(() => {
-                                                return prov.close();
-                                            });
-                                        });
-                                });
-                        });
-
-                        it('Add remove index in the same upgrade, while preserving other indices', () => {
-                            return openProvider(provName, {
-                                version: 1,
-                                stores: [
-                                    {
-                                        name: 'test',
-                                        primaryKeyPath: 'id',
-                                        indexes: [{
-                                            name: 'ind1',
-                                            keyPath: 'tt',
-                                            doNotBackfill: true
-                                        }, {
-                                            name: 'ind2',
-                                            keyPath: 'zz',
-                                            doNotBackfill: true
-                                        }]
-                                    }
-                                ]
-                            }, true)
-                                .then(prov => {
-                                    return prov.put('test', { id: 'abc', tt: 'a', zz: 'aa' }).then(() => {
-                                        return prov.close();
-                                    });
-                                })
-                                .then(() => {
-                                    return openProvider(provName, {
-                                        version: 2,
-                                        stores: [
-                                            {
-                                                name: 'test',
-                                                primaryKeyPath: 'id',
-                                                indexes: [{
-                                                    name: 'ind2',
-                                                    keyPath: 'zz',
-                                                    doNotBackfill: true
-                                                }, {
-                                                    name: 'ind3',
-                                                    keyPath: 'zz',
-                                                    doNotBackfill: true
-                                                }]
-                                            }
-                                        ]
-                                    }, false)
-                                        .then(prov => {
-                                            const p1 = prov.getOnly('test', undefined, 'abc').then((items: any[]) => {
-                                                assert.equal(items.length, 1);
-                                                assert.equal(items[0].id, 'abc');
-                                                assert.equal(items[0].tt, 'a');
-                                                assert.equal(items[0].zz, 'aa');
-                                            });
-                                            const p2 = prov.getOnly('test', 'ind2', 'aa').then((items: any[]) => {
-                                                assert.equal(items.length, 1);
-                                                assert.equal(items[0].id, 'abc');
-                                                assert.equal(items[0].tt, 'a');
-                                                assert.equal(items[0].zz, 'aa');
-                                            });
-                                            const p3 = prov.getOnly('test', 'ind1', 'a').then(items => {
-                                                return Promise.reject<void>('Shouldn\'t have worked');
-                                            }, () => {
-                                                // Expected to fail, so chain from failure to success
-                                                return undefined;
-                                            });
-
-                                            const p4 = prov.openTransaction(undefined, false).then(trans => {
-                                                return (trans as SqlTransaction)
-                                                    .runQuery('SELECT type, name, tbl_name, sql from sqlite_master')
-                                                    .then(fullMeta => {
-                                                        const oldIndexReallyExists = some(fullMeta, (metaObj: any) => {
-                                                            if (metaObj.type === 'index' && metaObj.tbl_name === 'test'
-                                                                && metaObj.name === 'test_ind2') {
-                                                                return true;
-                                                            }
-                                                            return false;
-                                                        });
-                                                        if (!oldIndexReallyExists) {
-                                                            return Promise.reject('Unchanged index should still exist!');
-                                                        }
-                                                        return Promise.resolve(undefined);
-                                                    });
-                                            });
-
-                                            return Promise.all([p1, p2, p3, p4]).then(() => {
-                                                return prov.close();
-                                            });
-                                        });
+                                }).finally(() => {
+                                    done();
                                 });
                         });
                     }
                 });
             }
 
-            it('Full Text Index', () => {
+            it('Full Text Index', (done) => {
                 return openProvider(provName, {
                     version: 1,
                     stores: [
@@ -2646,6 +2476,8 @@ describe('NoSqlProvider', function () {
                                 return prov.close();
                             });
                     });
+                }).finally(() => {
+                    done();
                 });
             });
         });
