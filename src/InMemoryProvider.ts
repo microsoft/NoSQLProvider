@@ -54,7 +54,19 @@ export class InMemoryProvider extends DbProvider {
 
     internal_getStore(name: string): StoreData {
         return this._stores[name];
-    }
+    }     
+
+    removeRange(storeName: string,
+                indexName: string,
+                keyLowRange: KeyType,
+                keyHighRange: KeyType,
+                lowRangeExclusive?: boolean,
+                highRangeExclusive?: boolean): Promise<void> {
+        return this._getStoreIndexTransaction(storeName, true, indexName).then( index => {
+            return (index as InMemoryIndex).
+                removeRangeEx(storeName, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        });
+    }        
 }
 
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
@@ -256,6 +268,20 @@ class InMemoryStore implements DbStore {
         this._mergedData = {};
         return Promise.resolve<void>(void 0);
     }
+
+    // Behaves like remove() except it takes serialized keys
+    public removeEx(keys: string[]): Promise<void> {
+        if (!this._trans.internal_isOpen()) {
+            return Promise.reject<void>('InMemoryTransaction already closed');
+        }
+        this._checkDataClone();
+
+        each(keys, key => {
+            this._pendingCommitDataChanges!!![key] = undefined;
+            delete this._mergedData[key];
+        });
+        return Promise.resolve<void>(void 0);
+    }
 }
 
 // Note: Currently maintains nothing interesting -- rebuilds the results every time from scratch.  Scales like crap.
@@ -402,4 +428,38 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
 
         return Promise.resolve(keys.length);
     }
+
+    removeRange(keyLowRange: KeyType, 
+                keyHighRange: KeyType, 
+                lowRangeExclusive?: boolean, 
+                highRangeExclusive?: boolean): Promise<void> {
+        // not implemented
+        return Promise.reject(void 0);
+    }
+
+    public removeRangeEx(storeName: string,
+                         keyLowRange: KeyType, 
+                         keyHighRange: KeyType, 
+                         lowRangeExclusive?: boolean, 
+                         highRangeExclusive?: boolean): Promise<void> {
+        if (!this._trans.internal_isOpen()) {
+            return Promise.reject('InMemoryTransaction already closed');
+        }
+
+        const keys = attempt(() => {
+            const data = this._calcChunkedData();
+            return this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        });
+        if (isError(keys)) {
+            return Promise.reject(void 0);
+        }
+        const store = attempt(() => {
+            return this._trans.getStore(storeName);
+        });
+        if (isError(store)) {
+            return Promise.reject(void 0);
+        }
+        return (store as InMemoryStore).removeEx(keys);
+    }
+
 }

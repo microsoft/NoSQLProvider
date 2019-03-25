@@ -815,6 +815,19 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         return this._countRequest(req);
     }
 
+    removeRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean): Promise<void> {
+        const keyRange = attempt(() => {
+            return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        });
+        if (isError(keyRange)) {
+            return Promise.reject(keyRange);
+        }
+        let req = this._store.openCursor(keyRange, 'next');
+        return IndexedDbIndex.iterateOverCursorRequest(req, cursor => {
+          cursor.delete();
+        });
+      }    
+
     static getFromCursorRequest<T>(req: IDBRequest, limit?: number, offset?: number): Promise<T[]> {
         let outList: T[] = [];
         return this.iterateOverCursorRequest(req, cursor => {

@@ -68,6 +68,7 @@ export interface DbIndex {
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
         : Promise<number>;
     fullTextSearch(searchPhrase: string, resolution?: FullTextTermResolution, limit?: number): Promise<ItemType[]>;
+    removeRange( keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean): Promise<void>;
 }
 
 // Interface type describing a database store opened for accessing.  Get commands at this level work against the primary keypath
@@ -181,7 +182,18 @@ export abstract class DbProvider {
         });
     }
 
-    private _getStoreIndexTransaction(storeName: string, readWrite: boolean, indexName: string | undefined): Promise<DbIndex> {
+    removeRange(storeName: string,
+                indexName: string,
+                keyLowRange: KeyType,
+                keyHighRange: KeyType,
+                lowRangeExclusive?: boolean,
+                highRangeExclusive?: boolean): Promise<void> {
+      return this._getStoreIndexTransaction(storeName, true, indexName).then( index => {
+        return index.removeRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+      });
+    }    
+
+    protected _getStoreIndexTransaction(storeName: string, readWrite: boolean, indexName: string | undefined): Promise<DbIndex> {
         return this._getStoreTransaction(storeName, readWrite).then(store => {
             const index = attempt(() => {
                 return indexName ? store.openIndex(indexName) : store.openPrimaryKey();
