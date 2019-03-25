@@ -33,7 +33,7 @@ function sleep(timeMs: number): Promise<void> {
 }
 
 describe('NoSqlProvider', function () {
-    this.timeout(5*60*1000);
+    this.timeout(60*1000);
     after(done => {
         if (cleanupFile) {
             var fs = require('fs');
@@ -55,7 +55,6 @@ describe('NoSqlProvider', function () {
         provsToTest = ['memory'];
     } else {
         provsToTest = ['memory'];
-
         if (!isSafari()) {
             // Safari has broken indexeddb support, so let's not test it there.  Everywhere else should have it.
             // In IE, indexeddb will auto-run in fake keys mode, so if all is working, this is 2x the same test (but let's make sure!)
@@ -136,9 +135,7 @@ describe('NoSqlProvider', function () {
                                     assert(!ret);
                                     return prov.close();
                                 });
-                            }).finally(() =>  {
-                                done();
-                            });
+                            }).then(() => done(), (err) => done(err));
 
                     });
                 } else {
@@ -169,9 +166,7 @@ describe('NoSqlProvider', function () {
                                         assert.equal(ret.val, 'b');
                                         return prov.close();
                                     }));
-                            }).finally(() => {
-                                done();
-                            });
+                            }).then(() => done(), (err) => done(err));
                     });
                 }
             });
@@ -412,9 +407,7 @@ describe('NoSqlProvider', function () {
                                 });
                             });
                         });
-                    }).finally(() => {
-                        done()
-                    });
+                    }).then(() => done(), (err) => done(err));
                 });
 
                 it('Empty gets/puts', (done) => {
@@ -438,9 +431,7 @@ describe('NoSqlProvider', function () {
                                 });
                             });
                         });
-                    }).finally(() => {
-                        done();
-                    });
+                    }).then(() => done(), (err) => done(err));
                 });
 
                 it('getMultiple with blank', (done) => {
@@ -460,9 +451,7 @@ describe('NoSqlProvider', function () {
                                 return prov.close();
                             });
                         });
-                    }).finally(() => {
-                        done();
-                    });
+                    }).then(() => done(), (err) => done(err));
                 });
 
                 it('Removing items', (done) => {
@@ -495,10 +484,8 @@ describe('NoSqlProvider', function () {
                                     });
                                 });
                             });
-                        }).finally(() => {
-                            done();
                         });
-                    });
+                    }).then(() => done(), (err) => done(err));;
                 });
 
                 it('Invalid Key Type', (done) => {
@@ -516,9 +503,11 @@ describe('NoSqlProvider', function () {
                         }, (err) => {
                             // Woot, failed like it's supposed to
                             return prov.close();
+                        }).then(() => {
+                            done();
                         });
-                    }).finally(() => {
-                        done();
+                    }).catch((err) => {
+                        done(err);
                     });
                 });
 
@@ -533,9 +522,7 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return tester(prov, undefined, false, (obj, v) => { obj.id = v; });
-                    }).finally(() => {
-                        done();
-                    });
+                    }).then(() => done(), (err) => done(err));
                 });
 
                 for (let i = 0; i <= 1; i++) {
@@ -557,9 +544,7 @@ describe('NoSqlProvider', function () {
                             ]
                         }, true).then(prov => {
                             return tester(prov, 'index', false, (obj, v) => { obj.a = v; });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
                 }
 
@@ -574,9 +559,7 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return tester(prov, undefined, false, (obj, v) => { obj.a = { b: v }; });
-                    }).finally(() => {
-                        done();
-                    });
+                    }).then(() => done(), (err) => done(err));
                 });
 
                 it('Multipart index basic test', (done) => {
@@ -596,9 +579,7 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return tester(prov, 'index', false, (obj, v) => { obj.a = { b: v }; });
-                    }).finally(() => {
-                        done();
-                    });
+                    }).then(() => done(), (err) => done(err));
                 });
 
                 it('Compound primary key basic test', (done) => {
@@ -612,9 +593,7 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return tester(prov, undefined, true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
-                    }).finally(() => {
-                        done();
-                    });
+                    }).then(() => done(), (err) => done(err));
                 });
 
                 it('Compound index basic test', (done) => {
@@ -634,9 +613,7 @@ describe('NoSqlProvider', function () {
                         ]
                     }, true).then(prov => {
                         return tester(prov, 'index', true, (obj, v1, v2) => { obj.a = v1; obj.b = v2; });
-                    }).finally(() => {
-                        done();
-                    });
+                    }).then(() => done(), (err) => done(err));
                 });
 
                 for (let i = 0; i <= 1; i++) {
@@ -696,9 +673,7 @@ describe('NoSqlProvider', function () {
                                         return prov.close();
                                     });
                                 });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
                 }
 
@@ -753,9 +728,7 @@ describe('NoSqlProvider', function () {
                             .then(() => {
                                 return prov.close();
                             });
-                    }).finally(() => {
-                        done();
-                    });
+                    }).then(() => done(), (err) => done(err));
                 });
 
                 it('MultiEntry multipart indexed tests - Compound Key', (done) => {
@@ -813,9 +786,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                    }).finally(() => {
-                        done();
-                    });
+                    }).then(() => done(), (err) => done(err));
                 });
 
                 it('MultiEntry multipart indexed - update index - Compound', (done) => {
@@ -871,9 +842,7 @@ describe('NoSqlProvider', function () {
                             .then(() => {
                                 return prov.close();
                             });
-                    }).finally(() => {
-                        done();
-                    });
+                    }).then(() => done(), (err) => done(err));
                 });
 
                 describe('Transaction Semantics', () => {
@@ -909,9 +878,7 @@ describe('NoSqlProvider', function () {
                             }).then(() => {
                                 return prov.close();
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Testing aborting', (done) => {
@@ -992,9 +959,7 @@ describe('NoSqlProvider', function () {
                             }).then(() => {
                                 return prov.close();
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
                 });
             });
@@ -1031,9 +996,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Basic NOOP schema upgrade path', (done) => {
@@ -1064,9 +1027,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Adding new store', (done) => {
@@ -1118,9 +1079,7 @@ describe('NoSqlProvider', function () {
                                     });
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Removing old store', (done) => {
@@ -1155,9 +1114,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Remove store with index', (done) => {
@@ -1196,9 +1153,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Add index', (done) => {
@@ -1245,9 +1200,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     function testBatchUpgrade(expectedCallCount: number, itemByteSize: number): Promise<void> {
@@ -1303,15 +1256,11 @@ describe('NoSqlProvider', function () {
                     }
 
                     it('Add index - Large records - batched upgrade', (done) => {
-                        return testBatchUpgrade(51, 10000).finally(() => {
-                            done();
-                        });
+                        return testBatchUpgrade(51, 10000).then(() => done(), (err) => done(err));
                     });
 
                     it('Add index - small records - No batch upgrade', (done) => {
-                        return testBatchUpgrade(1, 1).finally(() => {
-                            done();
-                        });
+                        return testBatchUpgrade(1, 1).then(() => done(), (err) => done(err));
                     });
 
                     if (provName.indexOf('indexeddb') !== 0) {
@@ -1348,9 +1297,7 @@ describe('NoSqlProvider', function () {
                                 }, err => {
                                     return Promise.resolve();
                                 });
-                            }).finally(() => {
-                                done();
-                            });
+                            }).then(() => done(), (err) => done(err));
                         });
                     }
 
@@ -1401,9 +1348,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Changing multiEntry index', (done) => {
@@ -1461,9 +1406,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Removing old index', (done) => {
@@ -1502,9 +1445,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Changing index keypath', (done) => {
@@ -1552,9 +1493,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Change non-multientry index to includeDataInIndex', (done) => {
@@ -1606,9 +1545,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Change non-multientry index from includeDataInIndex', (done) => {
@@ -1661,9 +1598,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Change multientry index to includeDataInIndex', (done) => {
@@ -1719,9 +1654,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Change multientry index from includeDataInIndex', (done) => {
@@ -1778,9 +1711,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Adding new FTS store', (done) => {
@@ -1837,9 +1768,7 @@ describe('NoSqlProvider', function () {
                                     });
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Adding new FTS index', (done) => {
@@ -1884,9 +1813,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     it('Removing FTS index', (done) => {
@@ -1936,9 +1863,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             });
-                        }).finally(() => {
-                            done();
-                        });
+                        }).then(() => done(), (err) => done(err));
                     });
 
                     // indexed db might backfill anyway behind the scenes
@@ -1991,9 +1916,7 @@ describe('NoSqlProvider', function () {
                                         return prov.close();
                                     });
                                 }));
-                            }).finally(() => {
-                                done();
-                            });
+                            }).then(() => done(), (err) => done(err));
                         });
 
                         it('Adding two indexes at once - backfill and not', (done) => {
@@ -2054,9 +1977,7 @@ describe('NoSqlProvider', function () {
                                         return prov.close();
                                     });
                                 });
-                            }).finally(() => {
-                                done();
-                            });
+                            }).then(() => done(), (err) => done(err));
                         });
 
                         it('Change no backfill index into a normal index', (done) => {
@@ -2112,9 +2033,7 @@ describe('NoSqlProvider', function () {
                                         return prov.close();
                                     });
                                 });
-                            }).finally(() => {
-                                done();
-                            });
+                            }).then(() => done(), (err) => done(err));
                         });
 
                         it('Perform two updates which require no backfill', (done) => {
@@ -2197,9 +2116,7 @@ describe('NoSqlProvider', function () {
                                                 return prov.close();
                                             });
                                         });
-                                }).finally(() => {
-                                    done();
-                                });
+                                }).then(() => done(), (err) => done(err));
                         });
 
                         it('Removes index without pulling data to JS', (done) => {
@@ -2250,9 +2167,7 @@ describe('NoSqlProvider', function () {
                                             return prov.close();
                                         });
                                     });
-                            }).finally(() => {
-                                done();
-                            });
+                            }).then(() => done(), (err) => done(err));
                         });
 
                         it('Add and remove index in the same upgrade', (done) => {
@@ -2308,9 +2223,7 @@ describe('NoSqlProvider', function () {
                                                 return prov.close();
                                             });
                                         });
-                                }).finally(() => {
-                                    done();
-                                });
+                                }).then(() => done(), (err) => done(err));
                         });
                     }
                 });
@@ -2476,9 +2389,7 @@ describe('NoSqlProvider', function () {
                                 return prov.close();
                             });
                     });
-                }).finally(() => {
-                    done();
-                });
+                }).then(() => done(), (err) => done(err));
             });
         });
     });
