@@ -33,7 +33,7 @@ function sleep(timeMs: number): Promise<void> {
 }
 
 describe('NoSqlProvider', function () {
-    this.timeout(5*60*1000);
+    this.timeout(5 * 60 * 1000);
     after(done => {
         if (cleanupFile) {
             var fs = require('fs');
@@ -413,7 +413,7 @@ describe('NoSqlProvider', function () {
                             });
                         });
                     }).finally(() => {
-                        done()
+                        done();
                     });
                 });
 
