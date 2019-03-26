@@ -840,9 +840,7 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
             return Promise.reject<string[]>(keyRange);
         }
         if (this._store.getAllKeys && !this._fakeComplicatedKeys) {
-            return IndexedDbProvider.WrapRequest<any[]>(this._store.getAllKeys(keyRange)).then(keys => {
-                return keys;
-            });
+            return IndexedDbProvider.WrapRequest<any[]>(this._store.getAllKeys(keyRange));
         }
 
         let keys: any[] = [];
