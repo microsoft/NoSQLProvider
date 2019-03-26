@@ -98,6 +98,8 @@ export abstract class DbIndexFTSFromRangeQueries implements DbIndex {
         : Promise<ItemType[]>;
     abstract getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
         reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
+    abstract getKeysForRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+        : Promise<any[]>;
     abstract countAll(): Promise<number>;
     abstract countOnly(key: KeyType): Promise<number>;
     abstract countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)

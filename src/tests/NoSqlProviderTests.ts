@@ -33,7 +33,7 @@ function sleep(timeMs: number): Promise<void> {
 }
 
 describe('NoSqlProvider', function () {
-    this.timeout(60*1000);
+    this.timeout(60 * 1000);
     after(done => {
         if (cleanupFile) {
             var fs = require('fs');
@@ -485,8 +485,199 @@ describe('NoSqlProvider', function () {
                                 });
                             });
                         });
-                    }).then(() => done(), (err) => done(err));;
+                    }).then(() => done(), (err) => done(err));
                 });
+
+                it('Remove range (inclusive low/high)', (done) => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => { return { id: 'a' + i }; })).then(() => {
+                            return prov.getAll('test', undefined).then(rets => {
+                                assert(!!rets);
+                                assert.equal(rets.length, 10);
+                                return prov.removeRange('test', '', 'a3', 'a7').then(() => {
+                                    return prov.getAll('test', undefined).then(retVals => {
+                                        const rets = retVals as TestObj[];
+                                        assert(!!rets);
+                                        assert.equal(rets.length, 5);
+                                        assert.equal(rets[0].id, 'a1');
+                                        assert.equal(rets[1].id, 'a10');
+                                        assert.equal(rets[2].id, 'a2');
+                                        assert.equal(rets[3].id, 'a8');
+                                        assert.equal(rets[4].id, 'a9');
+                                        return  prov.close();
+                                    });
+                                });
+                            });
+                        });
+                    }).then(() => done(), (err) => done(err));
+                });                
+
+                it('Remove range (exclusive low, inclusive high)', (done) => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => { return { id: 'a' + i }; })).then(() => {
+                            return prov.getAll('test', undefined).then(rets => {
+                                assert(!!rets);
+                                assert.equal(rets.length, 10);
+                                return prov.removeRange('test', '', 'a3', 'a7', true, false).then(() => {
+                                    return prov.getAll('test', undefined).then(retVals => {
+                                        const rets = retVals as TestObj[];
+                                        assert(!!rets);
+                                        assert.equal(rets.length, 6);
+                                        assert.equal(rets[0].id, 'a1');
+                                        assert.equal(rets[1].id, 'a10');
+                                        assert.equal(rets[2].id, 'a2');
+                                        assert.equal(rets[3].id, 'a3');
+                                        assert.equal(rets[4].id, 'a8');
+                                        assert.equal(rets[5].id, 'a9');
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+                    }).then(() => done(), (err) => done(err));
+                });
+
+                it('Remove range (inclusive low, exclusive high)', (done) => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => { return { id: 'a' + i }; })).then(() => {
+                            return prov.getAll('test', undefined).then(rets => {
+                                assert(!!rets);
+                                assert.equal(rets.length, 10);
+                                return prov.removeRange('test', '', 'a3', 'a7', false, true).then(() => {
+                                    return prov.getAll('test', undefined).then(retVals => {
+                                        const rets = retVals as TestObj[];
+                                        assert(!!rets);
+                                        assert.equal(rets.length, 6);
+                                        assert.equal(rets[0].id, 'a1');
+                                        assert.equal(rets[1].id, 'a10');
+                                        assert.equal(rets[2].id, 'a2');
+                                        assert.equal(rets[3].id, 'a7');
+                                        assert.equal(rets[4].id, 'a8');
+                                        assert.equal(rets[5].id, 'a9');
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+                    }).then(() => done(), (err) => done(err));
+                });
+
+                it('Remove range (exclusive low, exclusive high)', (done) => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => { return { id: 'a' + i }; })).then(() => {
+                            return prov.getAll('test', undefined).then(rets => {
+                                assert(!!rets);
+                                assert.equal(rets.length, 10);
+                                return prov.removeRange('test', '', 'a3', 'a7', true, true).then(() => {
+                                    return prov.getAll('test', undefined).then(retVals => {
+                                        const rets = retVals as TestObj[];
+                                        assert(!!rets);
+                                        assert.equal(rets.length, 7);
+                                        assert.equal(rets[0].id, 'a1');
+                                        assert.equal(rets[1].id, 'a10');
+                                        assert.equal(rets[2].id, 'a2');
+                                        assert.equal(rets[3].id, 'a3');
+                                        assert.equal(rets[4].id, 'a7');
+                                        assert.equal(rets[5].id, 'a8');
+                                        assert.equal(rets[6].id, 'a9');
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+                    }).then(() => done(), (err) => done(err));
+                });     
+                
+                it('Remove range (nothing done)', (done) => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', [1, 2, 3, 4, 5].map(i => { return { id: 'a' + i }; })).then(() => {
+                            return prov.getAll('test', undefined).then(rets => {
+                                assert(!!rets);
+                                assert.equal(rets.length, 5);
+                                return prov.removeRange('test', '', 'a6', 'a9').then(() => {
+                                    return prov.getAll('test', undefined).then(retVals => {
+                                        const rets = retVals as TestObj[];
+                                        assert(!!rets);
+                                        assert.equal(rets.length, 5);
+                                        assert.equal(rets[0].id, 'a1');
+                                        assert.equal(rets[1].id, 'a2');
+                                        assert.equal(rets[2].id, 'a3');
+                                        assert.equal(rets[3].id, 'a4');
+                                        assert.equal(rets[4].id, 'a5');
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+                    }).then(() => done(), (err) => done(err));
+                });   
+                
+                it('Remove range (all removed)', (done) => {
+                    return openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id'
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', [1, 2, 3, 4, 5].map(i => { return { id: 'a' + i }; })).then(() => {
+                            return prov.getAll('test', undefined).then(rets => {
+                                assert(!!rets);
+                                assert.equal(rets.length, 5);
+                                return prov.removeRange('test', '', 'a1', 'a5').then(() => {
+                                    return prov.getAll('test', undefined).then(retVals => {
+                                        const rets = retVals as TestObj[];
+                                        assert(!!rets);
+                                        assert.equal(rets.length, 0);
+                                        return prov.close();
+                                    });
+                                });
+                            });
+                        });
+                    }).then(() => done(), (err) => done(err));
+                });                          
 
                 it('Invalid Key Type', (done) => {
                     return openProvider(provName, {

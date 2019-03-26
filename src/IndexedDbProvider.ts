@@ -659,6 +659,22 @@ class IndexedDbStore implements DbStore {
         })).then(noop);
     }
 
+    removeRange(indexName: string, 
+                keyLowRange: KeyType, 
+                keyHighRange: KeyType, 
+                lowRangeExclusive?: boolean, 
+                highRangeExclusive?: boolean): Promise<void> {
+        const index = attempt(() => {
+            return indexName ? this.openIndex(indexName) : this.openPrimaryKey();
+        });
+        if (!index || isError(index)) {
+            return Promise.reject<void>('Index "' + indexName + '" not found');
+        }                    
+        return index.getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).then(keys => {
+            this.remove(keys);
+        });        
+    }    
+
     openIndex(indexName: string): DbIndex {
         const indexSchema = find(this._schema.indexes, idx => idx.name === indexName);
         if (!indexSchema) {
@@ -814,6 +830,27 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         const req = this._store.count(keyRange);
         return this._countRequest(req);
     }
+
+    getKeysForRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+        : Promise<any[]> {
+        const keyRange = attempt(() => {
+            return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        });
+        if (isError(keyRange)) {
+            return Promise.reject<string[]>(keyRange);
+        }
+        if (this._store.getAllKeys && !this._fakeComplicatedKeys) {
+            return IndexedDbProvider.WrapRequest<any[]>(this._store.getAllKeys(keyRange));
+        }
+
+        let keys: any[] = [];
+        let req = this._store.openCursor(keyRange, 'next');
+        return IndexedDbIndex.iterateOverCursorRequest(req, cursor => {
+            keys.push(cursor.key);
+        }).then(() => {
+            return keys;            
+        });
+    }      
 
     static getFromCursorRequest<T>(req: IDBRequest, limit?: number, offset?: number): Promise<T[]> {
         let outList: T[] = [];

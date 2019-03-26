@@ -63,6 +63,7 @@ export interface DbIndex {
     getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
         reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
+    getKeysForRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean): Promise<any[]>;
     countAll(): Promise<number>;
     countOnly(key: KeyType): Promise<number>;
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
@@ -77,6 +78,11 @@ export interface DbStore {
     getMultiple(keyOrKeys: KeyType | KeyType[]): Promise<ItemType[]>;
     put(itemOrItems: ItemType | ItemType[]): Promise<void>;
     remove(keyOrKeys: KeyType | KeyType[]): Promise<void>;
+    removeRange(indexName: string, 
+                keyLowRange: KeyType, 
+                keyHighRange: KeyType, 
+                lowRangeExclusive?: boolean, 
+                highRangeExclusive?: boolean): Promise<void>;
 
     openPrimaryKey(): DbIndex;
     openIndex(indexName: string): DbIndex;
@@ -180,6 +186,17 @@ export abstract class DbProvider {
             return store.remove(keyOrKeys);
         });
     }
+
+    removeRange(storeName: string,
+                indexName: string,
+                keyLowRange: KeyType,
+                keyHighRange: KeyType,
+                lowRangeExclusive?: boolean,
+                highRangeExclusive?: boolean): Promise<void> {
+      return this._getStoreTransaction(storeName, true).then( store => {
+        return store.removeRange(indexName, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+      });
+    }    
 
     private _getStoreIndexTransaction(storeName: string, readWrite: boolean, indexName: string | undefined): Promise<DbIndex> {
         return this._getStoreTransaction(storeName, readWrite).then(store => {
