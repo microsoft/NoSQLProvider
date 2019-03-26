@@ -68,7 +68,6 @@ export interface DbIndex {
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
         : Promise<number>;
     fullTextSearch(searchPhrase: string, resolution?: FullTextTermResolution, limit?: number): Promise<ItemType[]>;
-    removeRange( keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean): Promise<void>;
 }
 
 // Interface type describing a database store opened for accessing.  Get commands at this level work against the primary keypath
@@ -78,6 +77,11 @@ export interface DbStore {
     getMultiple(keyOrKeys: KeyType | KeyType[]): Promise<ItemType[]>;
     put(itemOrItems: ItemType | ItemType[]): Promise<void>;
     remove(keyOrKeys: KeyType | KeyType[]): Promise<void>;
+    removeRange(indexName: string, 
+                keyLowRange: KeyType, 
+                keyHighRange: KeyType, 
+                lowRangeExclusive?: boolean, 
+                highRangeExclusive?: boolean): Promise<void>;
 
     openPrimaryKey(): DbIndex;
     openIndex(indexName: string): DbIndex;
@@ -188,8 +192,8 @@ export abstract class DbProvider {
                 keyHighRange: KeyType,
                 lowRangeExclusive?: boolean,
                 highRangeExclusive?: boolean): Promise<void> {
-      return this._getStoreIndexTransaction(storeName, true, indexName).then( index => {
-        return index.removeRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+      return this._getStoreTransaction(storeName, true).then( store => {
+        return store.removeRange(indexName, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
       });
     }    
 

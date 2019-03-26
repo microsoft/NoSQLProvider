@@ -102,6 +102,4 @@ export abstract class DbIndexFTSFromRangeQueries implements DbIndex {
     abstract countOnly(key: KeyType): Promise<number>;
     abstract countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
         : Promise<number>;
-    abstract removeRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
-        : Promise<void>;
 }

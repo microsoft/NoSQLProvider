@@ -659,6 +659,20 @@ class IndexedDbStore implements DbStore {
         })).then(noop);
     }
 
+    removeRange(indexName: string, 
+                keyLowRange: KeyType, 
+                keyHighRange: KeyType, 
+                lowRangeExclusive?: boolean, 
+                highRangeExclusive?: boolean): Promise<void> {
+        const index = attempt(() => {
+            return indexName ? this.openIndex(indexName) : this.openPrimaryKey();
+        });
+        if (!index || isError(index)) {
+            return Promise.reject<void>('Index "' + indexName + '" not found');
+        }                    
+        return (index as IndexedDbIndex).removeRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+    }    
+
     openIndex(indexName: string): DbIndex {
         const indexSchema = find(this._schema.indexes, idx => idx.name === indexName);
         if (!indexSchema) {
@@ -815,18 +829,21 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         return this._countRequest(req);
     }
 
-    removeRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean): Promise<void> {
+    public removeRange(keyLowRange: KeyType, 
+                       keyHighRange: KeyType, 
+                       lowRangeExclusive?: boolean, 
+                       highRangeExclusive?: boolean): Promise<void> {
         const keyRange = attempt(() => {
             return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (isError(keyRange)) {
-            return Promise.reject(keyRange);
+            return Promise.reject<void>(keyRange);
         }
         let req = this._store.openCursor(keyRange, 'next');
         return IndexedDbIndex.iterateOverCursorRequest(req, cursor => {
-          cursor.delete();
+            cursor.delete();
         });
-      }    
+    }      
 
     static getFromCursorRequest<T>(req: IDBRequest, limit?: number, offset?: number): Promise<T[]> {
         let outList: T[] = [];
