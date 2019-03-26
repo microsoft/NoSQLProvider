@@ -670,7 +670,9 @@ class IndexedDbStore implements DbStore {
         if (!index || isError(index)) {
             return Promise.reject<void>('Index "' + indexName + '" not found');
         }                    
-        return (index as IndexedDbIndex).removeRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        return index.getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).then(keys => {
+            this.remove(keys);
+        });        
     }    
 
     openIndex(indexName: string): DbIndex {
@@ -829,19 +831,26 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         return this._countRequest(req);
     }
 
-    public removeRange(keyLowRange: KeyType, 
-                       keyHighRange: KeyType, 
-                       lowRangeExclusive?: boolean, 
-                       highRangeExclusive?: boolean): Promise<void> {
+    getKeysForRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+        : Promise<any[]> {
         const keyRange = attempt(() => {
             return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (isError(keyRange)) {
-            return Promise.reject<void>(keyRange);
+            return Promise.reject<string[]>(keyRange);
         }
+        if (this._store.getAllKeys && !this._fakeComplicatedKeys) {
+            return IndexedDbProvider.WrapRequest<any[]>(this._store.getAllKeys(keyRange)).then(keys => {
+                return keys;
+            });
+        }
+
+        let keys: any[] = [];
         let req = this._store.openCursor(keyRange, 'next');
         return IndexedDbIndex.iterateOverCursorRequest(req, cursor => {
-            cursor.delete();
+            keys.push(cursor.key);
+        }).then(() => {
+            return keys;            
         });
     }      
 

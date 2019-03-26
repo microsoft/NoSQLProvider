@@ -54,7 +54,7 @@ export class InMemoryProvider extends DbProvider {
 
     internal_getStore(name: string): StoreData {
         return this._stores[name];
-    }           
+    }
 }
 
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
@@ -223,14 +223,11 @@ class InMemoryStore implements DbStore {
             return Promise.reject(joinedKeys);
         }
 
-        return this.removeEx(joinedKeys);
+        return this.removeInternal(joinedKeys);
     }
 
-    removeRange(indexName: string, 
-                keyLowRange: KeyType, 
-                keyHighRange: KeyType, 
-                lowRangeExclusive?: boolean, 
-                highRangeExclusive?: boolean): Promise<void> {
+    removeRange(indexName: string, keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+        : Promise<void> {
 
         if (!this._trans.internal_isOpen()) {
             return Promise.reject<void>('InMemoryTransaction already closed');
@@ -241,8 +238,8 @@ class InMemoryStore implements DbStore {
         if (!index || isError(index)) {
             return Promise.reject<void>('Index "' + indexName + '" not found');
         }            
-        return (index as InMemoryIndex).getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).then(keys => {
-            return this.removeEx(keys);
+        return index.getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).then(keys => {
+            return this.removeInternal(keys);
         });
     }     
 
@@ -273,7 +270,7 @@ class InMemoryStore implements DbStore {
         return Promise.resolve<void>(void 0);
     }
 
-    private removeEx(keys: string[]): Promise<void> {
+    private removeInternal(keys: string[]): Promise<void> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject<void>('InMemoryTransaction already closed');
         }
@@ -371,6 +368,21 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         return this._returnResultsFromKeys(data!!!, sortedKeys!!!, reverseOrSortOrder, limit, offset);
     }
 
+    getKeysForRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
+        : Promise<any[]> {
+        if (!this._trans.internal_isOpen()) {
+            return Promise.reject('InMemoryTransaction already closed');
+        }
+        const keys = attempt(() => {
+            const data = this._calcChunkedData();
+            return this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+        });
+        if (isError(keys)) {
+            return Promise.reject(void 0);
+        }
+        return Promise.resolve(keys);
+    }
+
     // Warning: This function can throw, make sure to trap.
     private _getKeysForRange(data: Dictionary<ItemType[]>|Dictionary<ItemType>, keyLowRange: KeyType, keyHighRange: KeyType,
             lowRangeExclusive?: boolean, highRangeExclusive?: boolean): string[] {
@@ -430,22 +442,5 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         }
 
         return Promise.resolve(keys.length);
-    }
-
-    public getKeysForRange(keyLowRange: KeyType, 
-                           keyHighRange: KeyType, 
-                           lowRangeExclusive?: boolean, 
-                           highRangeExclusive?: boolean): Promise<string[]> {
-        if (!this._trans.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
-        const keys = attempt(() => {
-            const data = this._calcChunkedData();
-            return this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
-        });
-        if (isError(keys)) {
-            return Promise.reject(void 0);
-        }
-        return Promise.resolve(keys);
     }
 }
