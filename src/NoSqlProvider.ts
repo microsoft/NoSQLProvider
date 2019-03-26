@@ -193,7 +193,7 @@ export abstract class DbProvider {
       });
     }    
 
-    protected _getStoreIndexTransaction(storeName: string, readWrite: boolean, indexName: string | undefined): Promise<DbIndex> {
+    private _getStoreIndexTransaction(storeName: string, readWrite: boolean, indexName: string | undefined): Promise<DbIndex> {
         return this._getStoreTransaction(storeName, readWrite).then(store => {
             const index = attempt(() => {
                 return indexName ? store.openIndex(indexName) : store.openPrimaryKey();
