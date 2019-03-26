@@ -150,7 +150,7 @@ export abstract class DbProvider {
 
     protected abstract _deleteDatabaseInternal(): Promise<void>;
 
-    protected _getStoreTransaction(storeName: string, readWrite: boolean): Promise<DbStore> {
+    private _getStoreTransaction(storeName: string, readWrite: boolean): Promise<DbStore> {
         return this.openTransaction([storeName], readWrite).then(trans => {
             const store = attempt(() => {
                 return trans.getStore(storeName);
