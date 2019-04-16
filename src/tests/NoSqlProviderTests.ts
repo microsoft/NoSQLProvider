@@ -185,7 +185,7 @@ describe('NoSqlProvider', function () {
                         return prov.put('test', obj);
                     });
 
-                    return Promise.all(putters).then(rets => {
+                    return Promise.all(putters).then(() => {
                         let formIndex = (i: number, i2: number = i): string | string[] => {
                             if (compound) {
                                 return ['indexa' + i, 'indexb' + i2];
@@ -691,7 +691,7 @@ describe('NoSqlProvider', function () {
                     }, true).then(prov => {
                         return prov.put('test', { id: { x: 'a' }, val: 'b' }).then(() => {
                             assert(false, 'Shouldn\'t get here');
-                        }, (err) => {
+                        }, () => {
                             // Woot, failed like it's supposed to
                             return prov.close();
                         }).then(() => {
@@ -1052,7 +1052,7 @@ describe('NoSqlProvider', function () {
                                 let check1 = false;
                                 promise.then(() => {
                                     check1 = true;
-                                }, err => {
+                                }, () => {
                                     assert.ok(false, 'Bad');
                                 });
                                 return sleep(200).then(() => {
@@ -1063,7 +1063,7 @@ describe('NoSqlProvider', function () {
                             }).then(() => {
                                 assert.ok(false, 'Should fail');
                                 return Promise.reject<void>();
-                            }, err => {
+                            }, () => {
                                 // woot
                                 return undefined;
                             }).then(() => {
@@ -1090,7 +1090,7 @@ describe('NoSqlProvider', function () {
                                     trans.abort();
                                     return promise.then(() => {
                                         assert.ok(false, 'Should fail');
-                                    }, err => {
+                                    }, () => {
                                         return prov.get('test', 'abc').then(res => {
                                             assert.ok(!res);
                                             checked = true;
@@ -1178,7 +1178,7 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                return prov.get('test', 'abc').then(item => {
+                                return prov.get('test', 'abc').then(() => {
                                     return prov.close().then(() => {
                                         return Promise.reject<void>('Shouldn\'t have worked');
                                     });
@@ -1296,7 +1296,7 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                return prov.get('test', 'abc').then(item => {
+                                return prov.get('test', 'abc').then(() => {
                                     return prov.close().then(() => {
                                         return Promise.reject<void>('Shouldn\'t have worked');
                                     });
@@ -1335,7 +1335,7 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                return prov.get('test', 'abc').then(item => {
+                                return prov.get('test', 'abc').then(() => {
                                     return prov.close().then(() => {
                                         return Promise.reject<void>('Shouldn\'t have worked');
                                     });
@@ -1394,7 +1394,7 @@ describe('NoSqlProvider', function () {
                         }).then(() => done(), (err) => done(err));
                     });
 
-                    function testBatchUpgrade(expectedCallCount: number, itemByteSize: number): Promise<void> {
+                    function testBatchUpgrade(itemByteSize: number): Promise<void> {
                         const recordCount = 5000;
                         const data: { [id: string]: { id: string, tt: string } } = {};
                         times(recordCount, num => {
@@ -1447,11 +1447,11 @@ describe('NoSqlProvider', function () {
                     }
 
                     it('Add index - Large records - batched upgrade', (done) => {
-                        return testBatchUpgrade(51, 10000).then(() => done(), (err) => done(err));
+                        return testBatchUpgrade(10000).then(() => done(), (err) => done(err));
                     });
 
                     it('Add index - small records - No batch upgrade', (done) => {
-                        return testBatchUpgrade(1, 1).then(() => done(), (err) => done(err));
+                        return testBatchUpgrade(1).then(() => done(), (err) => done(err));
                     });
 
                     if (provName.indexOf('indexeddb') !== 0) {
@@ -1485,7 +1485,7 @@ describe('NoSqlProvider', function () {
                                     ]
                                 }, false).then(() => {
                                     return Promise.reject('Should not work');
-                                }, err => {
+                                }, () => {
                                     return Promise.resolve();
                                 });
                             }).then(() => done(), (err) => done(err));
@@ -1627,7 +1627,7 @@ describe('NoSqlProvider', function () {
                                     }
                                 ]
                             }, false).then(prov => {
-                                return prov.getOnly('test', 'ind1', 'a').then(items => {
+                                return prov.getOnly('test', 'ind1', 'a').then(() => {
                                     return prov.close().then(() => {
                                         return Promise.reject<void>('Shouldn\'t have worked');
                                     });
@@ -2047,7 +2047,7 @@ describe('NoSqlProvider', function () {
                                     assert.equal(items[0].id, 'abc');
                                 }).then(() => {
                                     assert.ok(false, 'should not work');
-                                }, err => {
+                                }, () => {
                                     return Promise.resolve();
                                 });
                                 return Promise.all([p1, p2]).then(() => {
@@ -2351,7 +2351,7 @@ describe('NoSqlProvider', function () {
                                             assert.equal(items[0].id, 'abc');
                                         }).then(() => {
                                             assert.ok(false, 'should not work');
-                                        }, err => {
+                                        }, () => {
                                             return Promise.resolve();
                                         });
                                         return Promise.all([p1, p2]).then(() => {
@@ -2403,7 +2403,7 @@ describe('NoSqlProvider', function () {
                                                 assert.equal(items[0].tt, 'a');
                                                 assert.equal(items[0].zz, 'aa');
                                             });
-                                            const p2 = prov.getOnly('test', 'ind1', 'a').then(items => {
+                                            const p2 = prov.getOnly('test', 'ind1', 'a').then(() => {
                                                 return Promise.reject<void>('Shouldn\'t have worked');
                                             }, () => {
                                                 // Expected to fail, so chain from failure to success
