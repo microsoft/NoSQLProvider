@@ -28,7 +28,7 @@ export function breakAndNormalizeSearchPhrase(phrase: string): string[] {
     // Deburr and tolower before using words since words breaks on CaseChanges.
     const wordInPhrase = words(deburr(phrase).toLowerCase(), _whitespaceRegexMatch);
     // map(mapKeys is faster than uniq since it's just a pile of strings.
-    const uniqueWordas = map(mapKeys(wordInPhrase), (value, key) => sqlCompat(key));
+    const uniqueWordas = map(mapKeys(wordInPhrase), (_value, key) => sqlCompat(key));
     return filter(uniqueWordas, word => !!lodashTrim(word));
 }
 
@@ -80,7 +80,7 @@ export abstract class DbIndexFTSFromRangeQueries implements DbIndex {
 
             if (resolution === FullTextTermResolution.And) {
                 const [first, ...others] = uniquers;
-                const dic = pickBy(first, (value, key) => every(others, set => key in set)) as Dictionary<ItemType>;
+                const dic = pickBy(first, (_value, key) => every(others, set => key in set)) as Dictionary<ItemType>;
                 const data = values(dic);
                 if (limit) {
                     return take(data, limit);
