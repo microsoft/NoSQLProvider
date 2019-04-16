@@ -4,13 +4,13 @@ declare interface Promise<T> {
 }
 
 Promise.prototype.finally = function (onResolveOrReject) {
-    return this.catch(function (reason) {
+    return this.catch(function (reason: any) {
         return reason;
     }).then(onResolveOrReject);
 };
 Promise.prototype.always = function (onResolveOrReject) {
     return this.then(onResolveOrReject,
-        function (reason) {
+        function (reason: any) {
             onResolveOrReject(reason);
             throw reason;
         });

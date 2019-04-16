@@ -263,7 +263,7 @@ class InMemoryStore implements DbStore {
             return Promise.reject<void>('InMemoryTransaction already closed');
         }
         this._checkDataClone();
-        each(this._mergedData, (val, key) => {
+        each(this._mergedData, (_val, key) => {
             this._pendingCommitDataChanges!!![key] = undefined;
         });
         this._mergedData = {};

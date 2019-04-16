@@ -67,7 +67,7 @@ export class SimpleTransactionIndexHelper<ObjectType extends ItemType, IndexKeyF
 }
 
 export class SimpleTransactionStoreHelper<StoreName extends string, ObjectType extends ItemType, KeyFormat extends KeyType> {
-    constructor(protected _store: DbStore, storeName /* Force type-checking */: DBStore<StoreName, ObjectType, KeyFormat>) {
+    constructor(protected _store: DbStore, _storeName /* Force type-checking */: DBStore<StoreName, ObjectType, KeyFormat>) {
         // Nothing to see here
     }
 

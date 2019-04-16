@@ -111,7 +111,7 @@ export abstract class DbProvider {
     protected _schema: DbSchema | undefined;
     protected _verbose: boolean | undefined;
 
-    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): Promise<void> {
+    open(dbName: string, schema: DbSchema, _wipeIfExists: boolean, verbose: boolean): Promise<void> {
         // virtual call
         this._dbName = dbName;
         this._schema = schema;
@@ -252,7 +252,7 @@ export abstract class DbProvider {
     }
 
     fullTextSearch(storeName: string, indexName: string, searchPhrase: string,
-        resolution: FullTextTermResolution = FullTextTermResolution.And, limit?: number): Promise<ItemType[]> {
+        resolution: FullTextTermResolution = FullTextTermResolution.And, _limit?: number): Promise<ItemType[]> {
         return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
             return index.fullTextSearch(searchPhrase, resolution);
         });
