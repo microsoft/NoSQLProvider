@@ -10,7 +10,7 @@
     "build": "npm run tslint && tsc",
     "tslint": "tslint --project tsconfig.json -r tslint.json -r ./node_modules/tslint-microsoft-contrib --fix || true"
   },
-  "main": "dist/NoSqlProvider.js",
+  "main": "dist/index.js",
   "dependencies": {
     "@types/lodash": "4.14.116",
     "lodash": "^4.0.0",
@@ -37,9 +37,9 @@
   "bugs": {
     "url": "https://github.com/Microsoft/NoSQLProvider/issues"
   },
-  "typings": "dist/NoSqlProvider.d.ts",
+  "typings": "dist/index.d.ts",
   "typescript": {
-    "definition": "dist/NoSqlProvider.d.ts"
+    "definition": "dist/index.d.ts"
   },
   "keywords": [
     "nosql",
