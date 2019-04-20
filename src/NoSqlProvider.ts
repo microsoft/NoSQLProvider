@@ -261,8 +261,8 @@ export abstract class DbProvider {
 
 // Runs down the given providers in order and tries to instantiate them.  If they're not supported, it will continue until it finds one
 // that does work, or it will reject the promise if it runs out of providers and none work.
-export function openListOfProviders(providersToTry: DbProvider[], dbName: string, schema: DbSchema, wipeIfExists: boolean = false,
-    verbose: boolean = false): Promise<DbProvider> {
+export function openListOfProviders(providersToTry: DbProvider[], dbName: string, schema: DbSchema, wipeIfExists: boolean,
+    verbose: boolean): Promise<DbProvider> {
     return new Promise<DbProvider>((resolve, reject) => {
         let providerIndex = 0;
         let errorList: any[] = [];

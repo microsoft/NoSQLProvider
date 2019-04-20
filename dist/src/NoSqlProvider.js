@@ -139,7 +139,7 @@ class DbProvider {
 exports.DbProvider = DbProvider;
 // Runs down the given providers in order and tries to instantiate them.  If they're not supported, it will continue until it finds one
 // that does work, or it will reject the promise if it runs out of providers and none work.
-function openListOfProviders(providersToTry, dbName, schema, wipeIfExists = false, verbose = false) {
+function openListOfProviders(providersToTry, dbName, schema, wipeIfExists, verbose) {
     return new Promise((resolve, reject) => {
         let providerIndex = 0;
         let errorList = [];

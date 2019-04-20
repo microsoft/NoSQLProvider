@@ -94,4 +94,4 @@ export declare abstract class DbProvider {
     countRange(storeName: string, indexName: string | undefined, keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean): Promise<number>;
     fullTextSearch(storeName: string, indexName: string, searchPhrase: string, resolution?: FullTextTermResolution, _limit?: number): Promise<ItemType[]>;
 }
-export declare function openListOfProviders(providersToTry: DbProvider[], dbName: string, schema: DbSchema, wipeIfExists?: boolean, verbose?: boolean): Promise<DbProvider>;
+export declare function openListOfProviders(providersToTry: DbProvider[], dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): Promise<DbProvider>;
