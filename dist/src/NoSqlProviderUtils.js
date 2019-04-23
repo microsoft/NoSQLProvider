@@ -7,7 +7,7 @@
 * Reusable helper functions for NoSqlProvider providers/transactions/etc.
 */
 Object.defineProperty(exports, "__esModule", { value: true });
-const lodash_1 = require("lodash");
+var lodash_1 = require("lodash");
 function isIE() {
     return (typeof (document) !== 'undefined' && document.all !== null && document.documentMode <= 11) ||
         (typeof (navigator) !== 'undefined' && !!navigator.userAgent && navigator.userAgent.indexOf('Edge/') !== -1);
@@ -25,11 +25,11 @@ function arrayify(obj) {
 exports.arrayify = arrayify;
 // Constant string for joining compound keypaths for websql and IE indexeddb.  There may be marginal utility in using a more obscure
 // string sequence.
-const keypathJoinerString = '%&';
+var keypathJoinerString = '%&';
 // This function computes a serialized single string value for a keypath on an object.  This is used for generating ordered string keys
 // for compound (or non-compound) values.
 function getSerializedKeyForKeypath(obj, keyPathRaw) {
-    const values = getKeyForKeypath(obj, keyPathRaw);
+    var values = getKeyForKeypath(obj, keyPathRaw);
     if (values === undefined) {
         return undefined;
     }
@@ -37,9 +37,9 @@ function getSerializedKeyForKeypath(obj, keyPathRaw) {
 }
 exports.getSerializedKeyForKeypath = getSerializedKeyForKeypath;
 function getKeyForKeypath(obj, keyPathRaw) {
-    const keyPathArray = arrayify(keyPathRaw);
-    const values = lodash_1.map(keyPathArray, kp => getValueForSingleKeypath(obj, kp));
-    if (lodash_1.some(values, val => lodash_1.isNull(val) || lodash_1.isUndefined(val))) {
+    var keyPathArray = arrayify(keyPathRaw);
+    var values = lodash_1.map(keyPathArray, function (kp) { return getValueForSingleKeypath(obj, kp); });
+    if (lodash_1.some(values, function (val) { return lodash_1.isNull(val) || lodash_1.isUndefined(val); })) {
         // If any components of the key are null/undefined, then the result is undefined
         return undefined;
     }
@@ -87,11 +87,11 @@ function serializeValueToOrderableString(val) {
     if (typeof val === 'string') {
         return 'C' + val;
     }
-    const type = lodash_1.isObject(val) ? Object.getPrototypeOf(val).constructor : typeof val;
+    var type = lodash_1.isObject(val) ? Object.getPrototypeOf(val).constructor : typeof val;
     throw new Error('Type \'' + type + '\' unsupported at this time.  Only numbers, Dates, and strings are currently supported.');
 }
 exports.serializeValueToOrderableString = serializeValueToOrderableString;
-const zeroes = '0000000000000000';
+var zeroes = '0000000000000000';
 function formatFixed(n, digits) {
     var result = String(n);
     var prefix = digits - result.length;
@@ -122,7 +122,7 @@ exports.serializeNumberToOrderableString = serializeNumberToOrderableString;
 function serializeKeyToString(key, keyPath) {
     if (isCompoundKeyPath(keyPath)) {
         if (lodash_1.isArray(key)) {
-            return lodash_1.map(key, k => serializeValueToOrderableString(k)).join(keypathJoinerString);
+            return lodash_1.map(key, function (k) { return serializeValueToOrderableString(k); }).join(keypathJoinerString);
         }
         else {
             throw new Error('serializeKeyToString called with a compound keypath (' + JSON.stringify(keyPath) +
@@ -141,7 +141,7 @@ function serializeKeyToString(key, keyPath) {
 }
 exports.serializeKeyToString = serializeKeyToString;
 function formListOfSerializedKeys(keyOrKeys, keyPath) {
-    return lodash_1.map(formListOfKeys(keyOrKeys, keyPath), key => serializeKeyToString(key, keyPath));
+    return lodash_1.map(formListOfKeys(keyOrKeys, keyPath), function (key) { return serializeKeyToString(key, keyPath); });
 }
 exports.formListOfSerializedKeys = formListOfSerializedKeys;
 //# sourceMappingURL=NoSqlProviderUtils.js.map

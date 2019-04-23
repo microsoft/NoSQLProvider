@@ -6,42 +6,57 @@
  *
  * NoSqlProvider provider setup for IndexedDB, a web browser storage module.
  */
+var __extends = (this && this.__extends) || (function () {
+    var extendStatics = function (d, b) {
+        extendStatics = Object.setPrototypeOf ||
+            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+            function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        return extendStatics(d, b);
+    }
+    return function (d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
-const lodash_1 = require("lodash");
-const FullTextSearchHelpers_1 = require("./FullTextSearchHelpers");
-const NoSqlProvider_1 = require("./NoSqlProvider");
-const NoSqlProviderUtils_1 = require("./NoSqlProviderUtils");
-const TransactionLockHelper_1 = require("./TransactionLockHelper");
-const IndexPrefix = 'nsp_i_';
+var lodash_1 = require("lodash");
+var FullTextSearchHelpers_1 = require("./FullTextSearchHelpers");
+var NoSqlProvider_1 = require("./NoSqlProvider");
+var NoSqlProviderUtils_1 = require("./NoSqlProviderUtils");
+var TransactionLockHelper_1 = require("./TransactionLockHelper");
+var IndexPrefix = 'nsp_i_';
 // The DbProvider implementation for IndexedDB.  This one is fairly straightforward since the library's access patterns pretty
 // closely mirror IndexedDB's.  We mostly do a lot of wrapping of the APIs into JQuery promises and have some fancy footwork to
 // do semi-automatic schema upgrades.
-class IndexedDbProvider extends NoSqlProvider_1.DbProvider {
+var IndexedDbProvider = /** @class */ (function (_super) {
+    __extends(IndexedDbProvider, _super);
     // By default, it uses the in-browser indexed db factory, but you can pass in an explicit factory.  Currently only used for unit tests.
-    constructor(explicitDbFactory, explicitDbFactorySupportsCompoundKeys) {
-        super();
+    function IndexedDbProvider(explicitDbFactory, explicitDbFactorySupportsCompoundKeys) {
+        var _this = _super.call(this) || this;
         if (explicitDbFactory) {
-            this._dbFactory = explicitDbFactory;
-            this._fakeComplicatedKeys = !explicitDbFactorySupportsCompoundKeys;
+            _this._dbFactory = explicitDbFactory;
+            _this._fakeComplicatedKeys = !explicitDbFactorySupportsCompoundKeys;
         }
         else {
-            const win = this.getWindow();
-            this._dbFactory = win._indexedDB || win.indexedDB || win.mozIndexedDB || win.webkitIndexedDB || win.msIndexedDB;
+            var win = _this.getWindow();
+            _this._dbFactory = win._indexedDB || win.indexedDB || win.mozIndexedDB || win.webkitIndexedDB || win.msIndexedDB;
             if (typeof explicitDbFactorySupportsCompoundKeys !== 'undefined') {
-                this._fakeComplicatedKeys = !explicitDbFactorySupportsCompoundKeys;
+                _this._fakeComplicatedKeys = !explicitDbFactorySupportsCompoundKeys;
             }
             else {
                 // IE/Edge's IndexedDB implementation doesn't support compound keys, so we have to fake it by implementing them similar to
                 // how the WebSqlProvider does, by concatenating the values into another field which then gets its own index.
-                this._fakeComplicatedKeys = NoSqlProviderUtils_1.isIE();
+                _this._fakeComplicatedKeys = NoSqlProviderUtils_1.isIE();
             }
         }
+        return _this;
     }
     /**
      * Gets global window object - whether operating in worker or UI thread context.
      * Adapted from: https://stackoverflow.com/questions/7931182/reliably-detect-if-the-script-is-executing-in-a-web-worker
      */
-    getWindow() {
+    IndexedDbProvider.prototype.getWindow = function () {
         if (typeof window === 'object' && window.document) {
             return window;
         }
@@ -49,20 +64,21 @@ class IndexedDbProvider extends NoSqlProvider_1.DbProvider {
             return self;
         }
         throw new Error('Undefined context');
-    }
-    static WrapRequest(req) {
-        return new Promise((resolve, reject) => {
-            req.onsuccess = ( /*ev*/) => {
+    };
+    IndexedDbProvider.WrapRequest = function (req) {
+        return new Promise(function (resolve, reject) {
+            req.onsuccess = function ( /*ev*/) {
                 resolve(req.result);
             };
-            req.onerror = (ev) => {
+            req.onerror = function (ev) {
                 reject(ev);
             };
         });
-    }
-    open(dbName, schema, wipeIfExists, verbose) {
+    };
+    IndexedDbProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
+        var _this = this;
         // Note: DbProvider returns null instead of a promise that needs waiting for.
-        super.open(dbName, schema, wipeIfExists, verbose);
+        _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
         if (!this._dbFactory) {
             // Couldn't even find a supported indexeddb object on the browser...
             return Promise.reject('No support for IndexedDB in this browser');
@@ -76,35 +92,35 @@ class IndexedDbProvider extends NoSqlProvider_1.DbProvider {
             }
         }
         this._lockHelper = new TransactionLockHelper_1.TransactionLockHelper(schema, true);
-        const dbOpen = this._dbFactory.open(dbName, schema.version);
-        let migrationPutters = [];
-        dbOpen.onupgradeneeded = (event) => {
-            const db = dbOpen.result;
-            const target = (event.currentTarget || event.target);
-            const trans = target.transaction;
+        var dbOpen = this._dbFactory.open(dbName, schema.version);
+        var migrationPutters = [];
+        dbOpen.onupgradeneeded = function (event) {
+            var db = dbOpen.result;
+            var target = (event.currentTarget || event.target);
+            var trans = target.transaction;
             if (!trans) {
                 throw new Error('onupgradeneeded: target is null!');
             }
             if (schema.lastUsableVersion && event.oldVersion < schema.lastUsableVersion) {
                 // Clear all stores if it's past the usable version
                 console.log('Old version detected (' + event.oldVersion + '), clearing all data');
-                lodash_1.each(db.objectStoreNames, name => {
+                lodash_1.each(db.objectStoreNames, function (name) {
                     db.deleteObjectStore(name);
                 });
             }
             // Delete dead stores
-            lodash_1.each(db.objectStoreNames, storeName => {
-                if (!lodash_1.some(schema.stores, store => store.name === storeName)) {
+            lodash_1.each(db.objectStoreNames, function (storeName) {
+                if (!lodash_1.some(schema.stores, function (store) { return store.name === storeName; })) {
                     db.deleteObjectStore(storeName);
                 }
             });
             // Create all stores
-            lodash_1.each(schema.stores, storeSchema => {
-                let store;
-                const storeExistedBefore = lodash_1.includes(db.objectStoreNames, storeSchema.name);
+            lodash_1.each(schema.stores, function (storeSchema) {
+                var store;
+                var storeExistedBefore = lodash_1.includes(db.objectStoreNames, storeSchema.name);
                 if (!storeExistedBefore) { // store doesn't exist yet
-                    let primaryKeyPath = storeSchema.primaryKeyPath;
-                    if (this._fakeComplicatedKeys && NoSqlProviderUtils_1.isCompoundKeyPath(primaryKeyPath)) {
+                    var primaryKeyPath = storeSchema.primaryKeyPath;
+                    if (_this._fakeComplicatedKeys && NoSqlProviderUtils_1.isCompoundKeyPath(primaryKeyPath)) {
                         // Going to have to hack the compound primary key index into a column, so here it is.
                         primaryKeyPath = 'nsp_pk';
                     }
@@ -114,10 +130,10 @@ class IndexedDbProvider extends NoSqlProvider_1.DbProvider {
                 else { // store exists, might need to update indexes and migrate the data
                     store = trans.objectStore(storeSchema.name);
                     // Check for any indexes no longer in the schema or have been changed
-                    lodash_1.each(store.indexNames, indexName => {
-                        const index = store.index(indexName);
-                        let nuke = false;
-                        const indexSchema = lodash_1.find(storeSchema.indexes, idx => idx.name === indexName);
+                    lodash_1.each(store.indexNames, function (indexName) {
+                        var index = store.index(indexName);
+                        var nuke = false;
+                        var indexSchema = lodash_1.find(storeSchema.indexes, function (idx) { return idx.name === indexName; });
                         if (!indexSchema || !lodash_1.isObject(indexSchema)) {
                             nuke = true;
                         }
@@ -134,7 +150,7 @@ class IndexedDbProvider extends NoSqlProvider_1.DbProvider {
                             nuke = true;
                         }
                         else {
-                            for (let i = 0; i < index.keyPath.length; i++) {
+                            for (var i = 0; i < index.keyPath.length; i++) {
                                 if (index.keyPath[i] !== indexSchema.keyPath[i]) {
                                     nuke = true;
                                     break;
@@ -148,19 +164,19 @@ class IndexedDbProvider extends NoSqlProvider_1.DbProvider {
                 }
                 // IndexedDB deals well with adding new indexes on the fly, so we don't need to force migrate, 
                 // unless adding multiEntry or fullText index
-                let needsMigrate = false;
+                var needsMigrate = false;
                 // Check any indexes in the schema that need to be created
-                lodash_1.each(storeSchema.indexes, indexSchema => {
+                lodash_1.each(storeSchema.indexes, function (indexSchema) {
                     if (!lodash_1.includes(store.indexNames, indexSchema.name)) {
-                        const keyPath = indexSchema.keyPath;
-                        if (this._fakeComplicatedKeys) {
+                        var keyPath = indexSchema.keyPath;
+                        if (_this._fakeComplicatedKeys) {
                             if (indexSchema.multiEntry || indexSchema.fullText) {
                                 if (NoSqlProviderUtils_1.isCompoundKeyPath(keyPath)) {
                                     throw new Error('Can\'t use multiEntry and compound keys');
                                 }
                                 else {
                                     // Create an object store for the index
-                                    let indexStore = db.createObjectStore(storeSchema.name + '_' + indexSchema.name, { autoIncrement: true });
+                                    var indexStore = db.createObjectStore(storeSchema.name + '_' + indexSchema.name, { autoIncrement: true });
                                     indexStore.createIndex('key', 'key');
                                     indexStore.createIndex('refkey', 'refkey');
                                     if (storeExistedBefore && !indexSchema.doNotBackfill) {
@@ -199,114 +215,118 @@ class IndexedDbProvider extends NoSqlProvider_1.DbProvider {
                 });
                 if (needsMigrate) {
                     // Walk every element in the store and re-put it to fill out the new index.
-                    const fakeToken = {
+                    var fakeToken = {
                         storeNames: [storeSchema.name],
                         exclusive: false,
-                        completionPromise: new Promise((resolve) => resolve())
+                        completionPromise: new Promise(function (resolve) { return resolve(); })
                     };
-                    const iTrans = new IndexedDbTransaction(trans, undefined, fakeToken, schema, this._fakeComplicatedKeys);
-                    const tStore = iTrans.getStore(storeSchema.name);
-                    const cursorReq = store.openCursor();
-                    let thisIndexPutters = [];
-                    migrationPutters.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
-                        const err = lodash_1.attempt(() => {
-                            const item = removeFullTextMetadataAndReturn(storeSchema, cursor.value);
-                            thisIndexPutters.push(tStore.put(item));
+                    var iTrans = new IndexedDbTransaction(trans, undefined, fakeToken, schema, _this._fakeComplicatedKeys);
+                    var tStore_1 = iTrans.getStore(storeSchema.name);
+                    var cursorReq = store.openCursor();
+                    var thisIndexPutters_1 = [];
+                    migrationPutters.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, function (cursor) {
+                        var err = lodash_1.attempt(function () {
+                            var item = removeFullTextMetadataAndReturn(storeSchema, cursor.value);
+                            thisIndexPutters_1.push(tStore_1.put(item));
                         });
                         if (err) {
-                            thisIndexPutters.push(Promise.reject(err));
+                            thisIndexPutters_1.push(Promise.reject(err));
                         }
-                    }).then(() => Promise.all(thisIndexPutters).then(lodash_1.noop)));
+                    }).then(function () { return Promise.all(thisIndexPutters_1).then(lodash_1.noop); }));
                 }
             });
         };
-        const promise = IndexedDbProvider.WrapRequest(dbOpen);
-        return promise.then(db => {
-            return Promise.all(migrationPutters).then(() => {
-                this._db = db;
+        var promise = IndexedDbProvider.WrapRequest(dbOpen);
+        return promise.then(function (db) {
+            return Promise.all(migrationPutters).then(function () {
+                _this._db = db;
             });
-        }, err => {
+        }, function (err) {
             if (err && err.type === 'error' && err.target && err.target.error && err.target.error.name === 'VersionError') {
                 if (!wipeIfExists) {
                     console.log('Database version too new, Wiping: ' + (err.target.error.message || err.target.error.name));
-                    return this.open(dbName, schema, true, verbose);
+                    return _this.open(dbName, schema, true, verbose);
                 }
             }
             return Promise.reject(err);
         });
-    }
-    close() {
+    };
+    IndexedDbProvider.prototype.close = function () {
         if (!this._db) {
             return Promise.reject('Database already closed');
         }
         this._db.close();
         this._db = undefined;
         return Promise.resolve(void 0);
-    }
-    _deleteDatabaseInternal() {
-        const trans = lodash_1.attempt(() => {
-            return this._dbFactory.deleteDatabase(this._dbName);
+    };
+    IndexedDbProvider.prototype._deleteDatabaseInternal = function () {
+        var _this = this;
+        var trans = lodash_1.attempt(function () {
+            return _this._dbFactory.deleteDatabase(_this._dbName);
         });
         if (lodash_1.isError(trans)) {
             return Promise.reject(trans);
         }
-        return new Promise((resolve, reject) => {
-            trans.onsuccess = () => {
+        return new Promise(function (resolve, reject) {
+            trans.onsuccess = function () {
                 resolve(void 0);
             };
-            trans.onerror = (ev) => {
+            trans.onerror = function (ev) {
                 reject(ev);
             };
         });
-    }
-    openTransaction(storeNames, writeNeeded) {
+    };
+    IndexedDbProvider.prototype.openTransaction = function (storeNames, writeNeeded) {
+        var _this = this;
         if (!this._db) {
             return Promise.reject('Can\'t openTransaction, database is closed');
         }
-        let intStoreNames = storeNames;
+        var intStoreNames = storeNames;
         if (this._fakeComplicatedKeys) {
             // Clone the list becuase we're going to add fake store names to it
             intStoreNames = lodash_1.clone(storeNames);
             // Pull the alternate multientry stores into the transaction as well
-            let missingStores = [];
-            lodash_1.each(storeNames, storeName => {
-                let storeSchema = lodash_1.find(this._schema.stores, s => s.name === storeName);
+            var missingStores_1 = [];
+            lodash_1.each(storeNames, function (storeName) {
+                var storeSchema = lodash_1.find(_this._schema.stores, function (s) { return s.name === storeName; });
                 if (!storeSchema) {
-                    missingStores.push(storeName);
+                    missingStores_1.push(storeName);
                     return;
                 }
                 if (storeSchema.indexes) {
-                    lodash_1.each(storeSchema.indexes, indexSchema => {
+                    lodash_1.each(storeSchema.indexes, function (indexSchema) {
                         if (indexSchema.multiEntry || indexSchema.fullText) {
                             intStoreNames.push(storeSchema.name + '_' + indexSchema.name);
                         }
                     });
                 }
             });
-            if (missingStores.length > 0) {
-                return Promise.reject('Can\'t find store(s): ' + missingStores.join(','));
+            if (missingStores_1.length > 0) {
+                return Promise.reject('Can\'t find store(s): ' + missingStores_1.join(','));
             }
         }
-        return this._lockHelper.openTransaction(storeNames, writeNeeded).then(transToken => {
-            const trans = lodash_1.attempt(() => {
-                return this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
+        return this._lockHelper.openTransaction(storeNames, writeNeeded).then(function (transToken) {
+            var trans = lodash_1.attempt(function () {
+                return _this._db.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
             });
             if (lodash_1.isError(trans)) {
                 return Promise.reject(trans);
             }
-            return Promise.resolve(new IndexedDbTransaction(trans, this._lockHelper, transToken, this._schema, this._fakeComplicatedKeys));
+            return Promise.resolve(new IndexedDbTransaction(trans, _this._lockHelper, transToken, _this._schema, _this._fakeComplicatedKeys));
         });
-    }
-}
+    };
+    return IndexedDbProvider;
+}(NoSqlProvider_1.DbProvider));
 exports.IndexedDbProvider = IndexedDbProvider;
 // DbTransaction implementation for the IndexedDB DbProvider.
-class IndexedDbTransaction {
-    constructor(_trans, lockHelper, _transToken, _schema, _fakeComplicatedKeys) {
+var IndexedDbTransaction = /** @class */ (function () {
+    function IndexedDbTransaction(_trans, lockHelper, _transToken, _schema, _fakeComplicatedKeys) {
+        var _this = this;
         this._trans = _trans;
         this._transToken = _transToken;
         this._schema = _schema;
         this._fakeComplicatedKeys = _fakeComplicatedKeys;
-        this._stores = lodash_1.map(this._transToken.storeNames, storeName => this._trans.objectStore(storeName));
+        this._stores = lodash_1.map(this._transToken.storeNames, function (storeName) { return _this._trans.objectStore(storeName); });
         if (lockHelper) {
             // Chromium seems to have a bug in their indexeddb implementation that lets it start a timeout
             // while the app is in the middle of a commit (it does a two-phase commit).  It can then finish
@@ -315,65 +335,67 @@ class IndexedDbTransaction {
             //
             // Applicable Chromium source code here:
             // https://chromium.googlesource.com/chromium/src/+/master/content/browser/indexed_db/indexed_db_transaction.cc
-            let history = [];
-            this._trans.oncomplete = () => {
-                history.push('complete');
-                lockHelper.transactionComplete(this._transToken);
+            var history_1 = [];
+            this._trans.oncomplete = function () {
+                history_1.push('complete');
+                lockHelper.transactionComplete(_this._transToken);
             };
-            this._trans.onerror = () => {
-                history.push('error-' + (this._trans.error ? this._trans.error.message : ''));
-                if (history.length > 1) {
+            this._trans.onerror = function () {
+                history_1.push('error-' + (_this._trans.error ? _this._trans.error.message : ''));
+                if (history_1.length > 1) {
                     console.warn('IndexedDbTransaction Errored after Resolution, Swallowing. Error: ' +
-                        (this._trans.error ? this._trans.error.message : undefined) + ', History: ' + history.join(','));
+                        (_this._trans.error ? _this._trans.error.message : undefined) + ', History: ' + history_1.join(','));
                     return;
                 }
-                lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction OnError: ' +
-                    (this._trans.error ? this._trans.error.message : undefined) + ', History: ' + history.join(','));
+                lockHelper.transactionFailed(_this._transToken, 'IndexedDbTransaction OnError: ' +
+                    (_this._trans.error ? _this._trans.error.message : undefined) + ', History: ' + history_1.join(','));
             };
-            this._trans.onabort = () => {
-                history.push('abort-' + (this._trans.error ? this._trans.error.message : ''));
-                if (history.length > 1) {
+            this._trans.onabort = function () {
+                history_1.push('abort-' + (_this._trans.error ? _this._trans.error.message : ''));
+                if (history_1.length > 1) {
                     console.warn('IndexedDbTransaction Aborted after Resolution, Swallowing. Error: ' +
-                        (this._trans.error ? this._trans.error.message : undefined) + ', History: ' + history.join(','));
+                        (_this._trans.error ? _this._trans.error.message : undefined) + ', History: ' + history_1.join(','));
                     return;
                 }
-                lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction Aborted, Error: ' +
-                    (this._trans.error ? this._trans.error.message : undefined) + ', History: ' + history.join(','));
+                lockHelper.transactionFailed(_this._transToken, 'IndexedDbTransaction Aborted, Error: ' +
+                    (_this._trans.error ? _this._trans.error.message : undefined) + ', History: ' + history_1.join(','));
             };
         }
     }
-    getStore(storeName) {
-        const store = lodash_1.find(this._stores, s => s.name === storeName);
-        const storeSchema = lodash_1.find(this._schema.stores, s => s.name === storeName);
+    IndexedDbTransaction.prototype.getStore = function (storeName) {
+        var _this = this;
+        var store = lodash_1.find(this._stores, function (s) { return s.name === storeName; });
+        var storeSchema = lodash_1.find(this._schema.stores, function (s) { return s.name === storeName; });
         if (!store || !storeSchema) {
             throw new Error('Store not found: ' + storeName);
         }
-        const indexStores = [];
+        var indexStores = [];
         if (this._fakeComplicatedKeys && storeSchema.indexes) {
             // Pull the alternate multientry stores in as well
-            lodash_1.each(storeSchema.indexes, indexSchema => {
+            lodash_1.each(storeSchema.indexes, function (indexSchema) {
                 if (indexSchema.multiEntry || indexSchema.fullText) {
-                    indexStores.push(this._trans.objectStore(storeSchema.name + '_' + indexSchema.name));
+                    indexStores.push(_this._trans.objectStore(storeSchema.name + '_' + indexSchema.name));
                 }
             });
         }
         return new IndexedDbStore(store, indexStores, storeSchema, this._fakeComplicatedKeys);
-    }
-    getCompletionPromise() {
+    };
+    IndexedDbTransaction.prototype.getCompletionPromise = function () {
         return this._transToken.completionPromise;
-    }
-    abort() {
+    };
+    IndexedDbTransaction.prototype.abort = function () {
         // This will wrap through the onAbort above
         this._trans.abort();
-    }
-    markCompleted() {
+    };
+    IndexedDbTransaction.prototype.markCompleted = function () {
         // noop
-    }
-}
+    };
+    return IndexedDbTransaction;
+}());
 function removeFullTextMetadataAndReturn(schema, val) {
     if (val) {
         // We have full text index fields as real fields on the result, so nuke them before returning them to the caller.
-        lodash_1.each(schema.indexes, index => {
+        lodash_1.each(schema.indexes, function (index) {
             if (index.fullText) {
                 delete val[IndexPrefix + index.name];
             }
@@ -383,31 +405,33 @@ function removeFullTextMetadataAndReturn(schema, val) {
 }
 // DbStore implementation for the IndexedDB DbProvider.  Again, fairly closely maps to the standard IndexedDB spec, aside from
 // a bunch of hacks to support compound keypaths on IE.
-class IndexedDbStore {
-    constructor(_store, _indexStores, _schema, _fakeComplicatedKeys) {
+var IndexedDbStore = /** @class */ (function () {
+    function IndexedDbStore(_store, _indexStores, _schema, _fakeComplicatedKeys) {
         this._store = _store;
         this._indexStores = _indexStores;
         this._schema = _schema;
         this._fakeComplicatedKeys = _fakeComplicatedKeys;
         // NOP
     }
-    get(key) {
+    IndexedDbStore.prototype.get = function (key) {
+        var _this = this;
         if (this._fakeComplicatedKeys && NoSqlProviderUtils_1.isCompoundKeyPath(this._schema.primaryKeyPath)) {
-            const err = lodash_1.attempt(() => {
-                key = NoSqlProviderUtils_1.serializeKeyToString(key, this._schema.primaryKeyPath);
+            var err = lodash_1.attempt(function () {
+                key = NoSqlProviderUtils_1.serializeKeyToString(key, _this._schema.primaryKeyPath);
             });
             if (err) {
                 return Promise.reject(err);
             }
         }
         return IndexedDbProvider.WrapRequest(this._store.get(key))
-            .then(val => removeFullTextMetadataAndReturn(this._schema, val));
-    }
-    getMultiple(keyOrKeys) {
-        const keys = lodash_1.attempt(() => {
-            const keys = NoSqlProviderUtils_1.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
-            if (this._fakeComplicatedKeys && NoSqlProviderUtils_1.isCompoundKeyPath(this._schema.primaryKeyPath)) {
-                return lodash_1.map(keys, key => NoSqlProviderUtils_1.serializeKeyToString(key, this._schema.primaryKeyPath));
+            .then(function (val) { return removeFullTextMetadataAndReturn(_this._schema, val); });
+    };
+    IndexedDbStore.prototype.getMultiple = function (keyOrKeys) {
+        var _this = this;
+        var keys = lodash_1.attempt(function () {
+            var keys = NoSqlProviderUtils_1.formListOfKeys(keyOrKeys, _this._schema.primaryKeyPath);
+            if (_this._fakeComplicatedKeys && NoSqlProviderUtils_1.isCompoundKeyPath(_this._schema.primaryKeyPath)) {
+                return lodash_1.map(keys, function (key) { return NoSqlProviderUtils_1.serializeKeyToString(key, _this._schema.primaryKeyPath); });
             }
             return keys;
         });
@@ -415,67 +439,70 @@ class IndexedDbStore {
             return Promise.reject(keys);
         }
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
-        return Promise.all(lodash_1.map(keys, key => IndexedDbProvider.WrapRequest(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))))
+        return Promise.all(lodash_1.map(keys, function (key) {
+            return IndexedDbProvider.WrapRequest(_this._store.get(key)).then(function (val) { return removeFullTextMetadataAndReturn(_this._schema, val); });
+        }))
             .then(lodash_1.compact);
-    }
-    put(itemOrItems) {
-        let items = NoSqlProviderUtils_1.arrayify(itemOrItems);
-        let promises = [];
-        const err = lodash_1.attempt(() => {
-            lodash_1.each(items, item => {
-                let errToReport;
-                let fakedPk = false;
-                if (this._fakeComplicatedKeys) {
+    };
+    IndexedDbStore.prototype.put = function (itemOrItems) {
+        var _this = this;
+        var items = NoSqlProviderUtils_1.arrayify(itemOrItems);
+        var promises = [];
+        var err = lodash_1.attempt(function () {
+            lodash_1.each(items, function (item) {
+                var errToReport;
+                var fakedPk = false;
+                if (_this._fakeComplicatedKeys) {
                     // Fill out any compound-key indexes
-                    if (NoSqlProviderUtils_1.isCompoundKeyPath(this._schema.primaryKeyPath)) {
+                    if (NoSqlProviderUtils_1.isCompoundKeyPath(_this._schema.primaryKeyPath)) {
                         fakedPk = true;
-                        item['nsp_pk'] = NoSqlProviderUtils_1.getSerializedKeyForKeypath(item, this._schema.primaryKeyPath);
+                        item['nsp_pk'] = NoSqlProviderUtils_1.getSerializedKeyForKeypath(item, _this._schema.primaryKeyPath);
                     }
-                    lodash_1.each(this._schema.indexes, index => {
+                    lodash_1.each(_this._schema.indexes, function (index) {
                         if (index.multiEntry || index.fullText) {
-                            let indexStore = lodash_1.find(this._indexStores, store => store.name === this._schema.name + '_' + index.name);
-                            let keys;
+                            var indexStore_1 = lodash_1.find(_this._indexStores, function (store) { return store.name === _this._schema.name + '_' + index.name; });
+                            var keys_1;
                             if (index.fullText) {
-                                keys = FullTextSearchHelpers_1.getFullTextIndexWordsForItem(index.keyPath, item);
+                                keys_1 = FullTextSearchHelpers_1.getFullTextIndexWordsForItem(index.keyPath, item);
                             }
                             else {
                                 // Get each value of the multientry and put it into the index store
-                                const valsRaw = NoSqlProviderUtils_1.getValueForSingleKeypath(item, index.keyPath);
+                                var valsRaw = NoSqlProviderUtils_1.getValueForSingleKeypath(item, index.keyPath);
                                 // It might be an array of multiple entries, so just always go with array-based logic
-                                keys = NoSqlProviderUtils_1.arrayify(valsRaw);
+                                keys_1 = NoSqlProviderUtils_1.arrayify(valsRaw);
                             }
-                            let refKey;
-                            const err = lodash_1.attempt(() => {
+                            var refKey_1;
+                            var err_1 = lodash_1.attempt(function () {
                                 // We're using normal indexeddb tables to store the multientry indexes, so we only need to use the key
                                 // serialization if the multientry keys ALSO are compound.
                                 if (NoSqlProviderUtils_1.isCompoundKeyPath(index.keyPath)) {
-                                    keys = lodash_1.map(keys, val => NoSqlProviderUtils_1.serializeKeyToString(val, index.keyPath));
+                                    keys_1 = lodash_1.map(keys_1, function (val) { return NoSqlProviderUtils_1.serializeKeyToString(val, index.keyPath); });
                                 }
                                 // We need to reference the PK of the actual row we're using here, so calculate the actual PK -- if it's
                                 // compound, we're already faking complicated keys, so we know to serialize it to a string.  If not, use the
                                 // raw value.
-                                refKey = NoSqlProviderUtils_1.getKeyForKeypath(item, this._schema.primaryKeyPath);
-                                if (lodash_1.isArray(this._schema.primaryKeyPath)) {
-                                    refKey = NoSqlProviderUtils_1.serializeKeyToString(refKey, this._schema.primaryKeyPath);
+                                refKey_1 = NoSqlProviderUtils_1.getKeyForKeypath(item, _this._schema.primaryKeyPath);
+                                if (lodash_1.isArray(_this._schema.primaryKeyPath)) {
+                                    refKey_1 = NoSqlProviderUtils_1.serializeKeyToString(refKey_1, _this._schema.primaryKeyPath);
                                 }
                             });
-                            if (err) {
-                                errToReport = err;
+                            if (err_1) {
+                                errToReport = err_1;
                                 return false;
                             }
                             // First clear out the old values from the index store for the refkey
-                            const cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey));
-                            promises.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
+                            var cursorReq = indexStore_1.index('refkey').openCursor(IDBKeyRange.only(refKey_1));
+                            promises.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, function (cursor) {
                                 cursor['delete']();
                             })
-                                .then(() => {
+                                .then(function () {
                                 // After nuking the existing entries, add the new ones
-                                let iputters = lodash_1.map(keys, key => {
-                                    const indexObj = {
+                                var iputters = lodash_1.map(keys_1, function (key) {
+                                    var indexObj = {
                                         key: key,
-                                        refkey: refKey
+                                        refkey: refKey_1
                                     };
-                                    return IndexedDbProvider.WrapRequest(indexStore.put(indexObj));
+                                    return IndexedDbProvider.WrapRequest(indexStore_1.put(indexObj));
                                 });
                                 return Promise.all(iputters);
                             }).then(lodash_1.noop));
@@ -487,7 +514,7 @@ class IndexedDbStore {
                     });
                 }
                 else {
-                    lodash_1.each(this._schema.indexes, index => {
+                    lodash_1.each(_this._schema.indexes, function (index) {
                         if (index.fullText) {
                             item[IndexPrefix + index.name] =
                                 FullTextSearchHelpers_1.getFullTextIndexWordsForItem(index.keyPath, item);
@@ -495,8 +522,8 @@ class IndexedDbStore {
                     });
                 }
                 if (!errToReport) {
-                    errToReport = lodash_1.attempt(() => {
-                        const req = this._store.put(item);
+                    errToReport = lodash_1.attempt(function () {
+                        var req = _this._store.put(item);
                         if (fakedPk) {
                             // If we faked the PK and mutated the incoming object, we can nuke that on the way out.  IndexedDB clones the
                             // object synchronously for the put call, so it's already been captured with the nsp_pk field intact.
@@ -514,201 +541,213 @@ class IndexedDbStore {
             return Promise.reject(err);
         }
         return Promise.all(promises).then(lodash_1.noop);
-    }
-    remove(keyOrKeys) {
-        const keys = lodash_1.attempt(() => {
-            const keys = NoSqlProviderUtils_1.formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
-            if (this._fakeComplicatedKeys && NoSqlProviderUtils_1.isCompoundKeyPath(this._schema.primaryKeyPath)) {
-                return lodash_1.map(keys, key => NoSqlProviderUtils_1.serializeKeyToString(key, this._schema.primaryKeyPath));
+    };
+    IndexedDbStore.prototype.remove = function (keyOrKeys) {
+        var _this = this;
+        var keys = lodash_1.attempt(function () {
+            var keys = NoSqlProviderUtils_1.formListOfKeys(keyOrKeys, _this._schema.primaryKeyPath);
+            if (_this._fakeComplicatedKeys && NoSqlProviderUtils_1.isCompoundKeyPath(_this._schema.primaryKeyPath)) {
+                return lodash_1.map(keys, function (key) { return NoSqlProviderUtils_1.serializeKeyToString(key, _this._schema.primaryKeyPath); });
             }
             return keys;
         });
         if (lodash_1.isError(keys)) {
             return Promise.reject(keys);
         }
-        return Promise.all(lodash_1.map(keys, key => {
-            if (this._fakeComplicatedKeys && lodash_1.some(this._schema.indexes, index => index.multiEntry || index.fullText)) {
+        return Promise.all(lodash_1.map(keys, function (key) {
+            if (_this._fakeComplicatedKeys && lodash_1.some(_this._schema.indexes, function (index) { return index.multiEntry || index.fullText; })) {
                 // If we're faking keys and there's any multientry indexes, we have to do the way more complicated version...
-                return IndexedDbProvider.WrapRequest(this._store.get(key)).then(item => {
+                return IndexedDbProvider.WrapRequest(_this._store.get(key)).then(function (item) {
                     if (item) {
                         // Go through each multiEntry index and nuke the referenced items from the sub-stores
-                        let promises = lodash_1.map(lodash_1.filter(this._schema.indexes, index => !!index.multiEntry), index => {
-                            let indexStore = lodash_1.find(this._indexStores, store => store.name === this._schema.name + '_' + index.name);
-                            const refKey = lodash_1.attempt(() => {
+                        var promises = lodash_1.map(lodash_1.filter(_this._schema.indexes, function (index) { return !!index.multiEntry; }), function (index) {
+                            var indexStore = lodash_1.find(_this._indexStores, function (store) { return store.name === _this._schema.name + '_' + index.name; });
+                            var refKey = lodash_1.attempt(function () {
                                 // We need to reference the PK of the actual row we're using here, so calculate the actual PK -- if it's
                                 // compound, we're already faking complicated keys, so we know to serialize it to a string.  If not, use the
                                 // raw value.
-                                const tempRefKey = NoSqlProviderUtils_1.getKeyForKeypath(item, this._schema.primaryKeyPath);
-                                return lodash_1.isArray(this._schema.primaryKeyPath) ?
-                                    NoSqlProviderUtils_1.serializeKeyToString(tempRefKey, this._schema.primaryKeyPath) :
+                                var tempRefKey = NoSqlProviderUtils_1.getKeyForKeypath(item, _this._schema.primaryKeyPath);
+                                return lodash_1.isArray(_this._schema.primaryKeyPath) ?
+                                    NoSqlProviderUtils_1.serializeKeyToString(tempRefKey, _this._schema.primaryKeyPath) :
                                     tempRefKey;
                             });
                             if (lodash_1.isError(refKey)) {
                                 return Promise.reject(refKey);
                             }
                             // First clear out the old values from the index store for the refkey
-                            const cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey));
-                            return IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
+                            var cursorReq = indexStore.index('refkey').openCursor(IDBKeyRange.only(refKey));
+                            return IndexedDbIndex.iterateOverCursorRequest(cursorReq, function (cursor) {
                                 cursor['delete']();
                             });
                         });
                         // Also remember to nuke the item from the actual store
-                        promises.push(IndexedDbProvider.WrapRequest(this._store['delete'](key)));
+                        promises.push(IndexedDbProvider.WrapRequest(_this._store['delete'](key)));
                         return Promise.all(promises).then(lodash_1.noop);
                     }
                     return undefined;
                 });
             }
-            return IndexedDbProvider.WrapRequest(this._store['delete'](key));
+            return IndexedDbProvider.WrapRequest(_this._store['delete'](key));
         })).then(lodash_1.noop);
-    }
-    removeRange(indexName, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
-        const index = lodash_1.attempt(() => {
-            return indexName ? this.openIndex(indexName) : this.openPrimaryKey();
+    };
+    IndexedDbStore.prototype.removeRange = function (indexName, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
+        var _this = this;
+        var index = lodash_1.attempt(function () {
+            return indexName ? _this.openIndex(indexName) : _this.openPrimaryKey();
         });
         if (!index || lodash_1.isError(index)) {
             return Promise.reject('Index "' + indexName + '" not found');
         }
-        return index.getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).then(keys => {
-            this.remove(keys);
+        return index.getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).then(function (keys) {
+            _this.remove(keys);
         });
-    }
-    openIndex(indexName) {
-        const indexSchema = lodash_1.find(this._schema.indexes, idx => idx.name === indexName);
+    };
+    IndexedDbStore.prototype.openIndex = function (indexName) {
+        var _this = this;
+        var indexSchema = lodash_1.find(this._schema.indexes, function (idx) { return idx.name === indexName; });
         if (!indexSchema) {
             throw new Error('Index not found: ' + indexName);
         }
         if (this._fakeComplicatedKeys && (indexSchema.multiEntry || indexSchema.fullText)) {
-            const store = lodash_1.find(this._indexStores, indexStore => indexStore.name === this._schema.name + '_' + indexSchema.name);
+            var store = lodash_1.find(this._indexStores, function (indexStore) { return indexStore.name === _this._schema.name + '_' + indexSchema.name; });
             if (!store) {
                 throw new Error('Indexstore not found: ' + this._schema.name + '_' + indexSchema.name);
             }
             return new IndexedDbIndex(store.index('key'), indexSchema, this._schema.primaryKeyPath, this._fakeComplicatedKeys, this._store);
         }
         else {
-            const index = this._store.index(indexName);
+            var index = this._store.index(indexName);
             if (!index) {
                 throw new Error('Index store not found: ' + indexName);
             }
             return new IndexedDbIndex(index, indexSchema, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
         }
-    }
-    openPrimaryKey() {
+    };
+    IndexedDbStore.prototype.openPrimaryKey = function () {
         return new IndexedDbIndex(this._store, undefined, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
-    }
-    clearAllData() {
-        let storesToClear = [this._store];
+    };
+    IndexedDbStore.prototype.clearAllData = function () {
+        var storesToClear = [this._store];
         if (this._indexStores) {
             storesToClear = storesToClear.concat(this._indexStores);
         }
-        let promises = lodash_1.map(storesToClear, store => IndexedDbProvider.WrapRequest(store.clear()));
+        var promises = lodash_1.map(storesToClear, function (store) { return IndexedDbProvider.WrapRequest(store.clear()); });
         return Promise.all(promises).then(lodash_1.noop);
-    }
-}
+    };
+    return IndexedDbStore;
+}());
 // DbIndex implementation for the IndexedDB DbProvider.  Fairly closely maps to the standard IndexedDB spec, aside from
 // a bunch of hacks to support compound keypaths on IE and some helpers to make the caller not have to walk the awkward cursor
 // result APIs to get their result list.  Also added ability to use an "index" for opening the primary key on a store.
-class IndexedDbIndex extends FullTextSearchHelpers_1.DbIndexFTSFromRangeQueries {
-    constructor(_store, indexSchema, primaryKeyPath, _fakeComplicatedKeys, _fakedOriginalStore) {
-        super(indexSchema, primaryKeyPath);
-        this._store = _store;
-        this._fakeComplicatedKeys = _fakeComplicatedKeys;
-        this._fakedOriginalStore = _fakedOriginalStore;
+var IndexedDbIndex = /** @class */ (function (_super) {
+    __extends(IndexedDbIndex, _super);
+    function IndexedDbIndex(_store, indexSchema, primaryKeyPath, _fakeComplicatedKeys, _fakedOriginalStore) {
+        var _this = _super.call(this, indexSchema, primaryKeyPath) || this;
+        _this._store = _store;
+        _this._fakeComplicatedKeys = _fakeComplicatedKeys;
+        _this._fakedOriginalStore = _fakedOriginalStore;
+        return _this;
     }
-    _resolveCursorResult(req, limit, offset) {
+    IndexedDbIndex.prototype._resolveCursorResult = function (req, limit, offset) {
+        var _this = this;
         if (this._fakeComplicatedKeys && this._fakedOriginalStore) {
             // Get based on the keys from the index store, which have refkeys that point back to the original store
-            return IndexedDbIndex.getFromCursorRequest(req, limit, offset).then(rets => {
+            return IndexedDbIndex.getFromCursorRequest(req, limit, offset).then(function (rets) {
                 // Now get the original items using the refkeys from the index store, which are PKs on the main store
-                const getters = lodash_1.map(rets, ret => IndexedDbProvider.WrapRequest(this._fakedOriginalStore.get(ret.refkey)));
+                var getters = lodash_1.map(rets, function (ret) { return IndexedDbProvider.WrapRequest(_this._fakedOriginalStore.get(ret.refkey)); });
                 return Promise.all(getters);
             });
         }
         else {
             return IndexedDbIndex.getFromCursorRequest(req, limit, offset);
         }
-    }
-    getAll(reverseOrSortOrder, limit, offset) {
-        const reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse;
+    };
+    IndexedDbIndex.prototype.getAll = function (reverseOrSortOrder, limit, offset) {
+        var reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse;
         if (!reverse && this._store.getAll && !offset && !this._fakeComplicatedKeys) {
             return IndexedDbProvider.WrapRequest(this._store.getAll(undefined, limit));
         }
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
-        const req = this._store.openCursor(null, reverse ? 'prev' : 'next');
+        var req = this._store.openCursor(null, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
-    }
-    getOnly(key, reverseOrSortOrder, limit, offset) {
-        const keyRange = lodash_1.attempt(() => {
-            return this._getKeyRangeForOnly(key);
+    };
+    IndexedDbIndex.prototype.getOnly = function (key, reverseOrSortOrder, limit, offset) {
+        var _this = this;
+        var keyRange = lodash_1.attempt(function () {
+            return _this._getKeyRangeForOnly(key);
         });
         if (lodash_1.isError(keyRange)) {
             return Promise.reject(keyRange);
         }
-        const reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse;
+        var reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse;
         if (!reverse && this._store.getAll && !offset && !this._fakeComplicatedKeys) {
             return IndexedDbProvider.WrapRequest(this._store.getAll(keyRange, limit));
         }
-        const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
+        var req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
-    }
+    };
     // Warning: This function can throw, make sure to trap.
-    _getKeyRangeForOnly(key) {
+    IndexedDbIndex.prototype._getKeyRangeForOnly = function (key) {
         if (this._fakeComplicatedKeys && NoSqlProviderUtils_1.isCompoundKeyPath(this._keyPath)) {
             return IDBKeyRange.only(NoSqlProviderUtils_1.serializeKeyToString(key, this._keyPath));
         }
         return IDBKeyRange.only(key);
-    }
-    getRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverseOrSortOrder, limit, offset) {
-        const keyRange = lodash_1.attempt(() => {
-            return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+    };
+    IndexedDbIndex.prototype.getRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverseOrSortOrder, limit, offset) {
+        var _this = this;
+        var keyRange = lodash_1.attempt(function () {
+            return _this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (lodash_1.isError(keyRange)) {
             return Promise.reject(keyRange);
         }
-        const reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse;
+        var reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse;
         if (!reverse && this._store.getAll && !offset && !this._fakeComplicatedKeys) {
             return IndexedDbProvider.WrapRequest(this._store.getAll(keyRange, limit));
         }
-        const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
+        var req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
-    }
+    };
     // Warning: This function can throw, make sure to trap.
-    _getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
+    IndexedDbIndex.prototype._getKeyRangeForRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
         if (this._fakeComplicatedKeys && NoSqlProviderUtils_1.isCompoundKeyPath(this._keyPath)) {
             // IE has to switch to hacky pre-joined-compound-keys
             return IDBKeyRange.bound(NoSqlProviderUtils_1.serializeKeyToString(keyLowRange, this._keyPath), NoSqlProviderUtils_1.serializeKeyToString(keyHighRange, this._keyPath), lowRangeExclusive, highRangeExclusive);
         }
         return IDBKeyRange.bound(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
-    }
-    countAll() {
-        const req = this._store.count();
+    };
+    IndexedDbIndex.prototype.countAll = function () {
+        var req = this._store.count();
         return this._countRequest(req);
-    }
-    countOnly(key) {
-        const keyRange = lodash_1.attempt(() => {
-            return this._getKeyRangeForOnly(key);
+    };
+    IndexedDbIndex.prototype.countOnly = function (key) {
+        var _this = this;
+        var keyRange = lodash_1.attempt(function () {
+            return _this._getKeyRangeForOnly(key);
         });
         if (lodash_1.isError(keyRange)) {
             return Promise.reject(keyRange);
         }
-        const req = this._store.count(keyRange);
+        var req = this._store.count(keyRange);
         return this._countRequest(req);
-    }
-    countRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
-        let keyRange = lodash_1.attempt(() => {
-            return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+    };
+    IndexedDbIndex.prototype.countRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
+        var _this = this;
+        var keyRange = lodash_1.attempt(function () {
+            return _this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (lodash_1.isError(keyRange)) {
             return Promise.reject(keyRange);
         }
-        const req = this._store.count(keyRange);
+        var req = this._store.count(keyRange);
         return this._countRequest(req);
-    }
-    getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
-        const keyRange = lodash_1.attempt(() => {
-            return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+    };
+    IndexedDbIndex.prototype.getKeysForRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
+        var _this = this;
+        var keyRange = lodash_1.attempt(function () {
+            return _this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (lodash_1.isError(keyRange)) {
             return Promise.reject(keyRange);
@@ -716,38 +755,38 @@ class IndexedDbIndex extends FullTextSearchHelpers_1.DbIndexFTSFromRangeQueries 
         if (this._store.getAllKeys && !this._fakeComplicatedKeys) {
             return IndexedDbProvider.WrapRequest(this._store.getAllKeys(keyRange));
         }
-        let keys = [];
-        let req = this._store.openCursor(keyRange, 'next');
-        return IndexedDbIndex.iterateOverCursorRequest(req, cursor => {
+        var keys = [];
+        var req = this._store.openCursor(keyRange, 'next');
+        return IndexedDbIndex.iterateOverCursorRequest(req, function (cursor) {
             keys.push(cursor.key);
-        }).then(() => {
+        }).then(function () {
             return keys;
         });
-    }
-    static getFromCursorRequest(req, limit, offset) {
-        let outList = [];
-        return this.iterateOverCursorRequest(req, cursor => {
+    };
+    IndexedDbIndex.getFromCursorRequest = function (req, limit, offset) {
+        var outList = [];
+        return this.iterateOverCursorRequest(req, function (cursor) {
             // Typings on cursor are wrong...
             outList.push(cursor.value);
-        }, limit, offset).then(() => {
+        }, limit, offset).then(function () {
             return outList;
         });
-    }
-    _countRequest(req) {
-        return new Promise((resolve, reject) => {
-            req.onsuccess = (event) => {
+    };
+    IndexedDbIndex.prototype._countRequest = function (req) {
+        return new Promise(function (resolve, reject) {
+            req.onsuccess = function (event) {
                 resolve(event.target.result);
             };
-            req.onerror = (ev) => {
+            req.onerror = function (ev) {
                 reject(ev);
             };
         });
-    }
-    static iterateOverCursorRequest(req, func, limit, offset) {
-        return new Promise((resolve, reject) => {
-            let count = 0;
-            req.onsuccess = (event) => {
-                const cursor = event.target.result;
+    };
+    IndexedDbIndex.iterateOverCursorRequest = function (req, func, limit, offset) {
+        return new Promise(function (resolve, reject) {
+            var count = 0;
+            req.onsuccess = function (event) {
+                var cursor = event.target.result;
                 if (cursor) {
                     if (offset) {
                         cursor.advance(offset);
@@ -768,10 +807,11 @@ class IndexedDbIndex extends FullTextSearchHelpers_1.DbIndexFTSFromRangeQueries 
                     resolve(void 0);
                 }
             };
-            req.onerror = (ev) => {
+            req.onerror = function (ev) {
                 reject(ev);
             };
         });
-    }
-}
+    };
+    return IndexedDbIndex;
+}(FullTextSearchHelpers_1.DbIndexFTSFromRangeQueries));
 //# sourceMappingURL=IndexedDbProvider.js.map

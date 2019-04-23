@@ -8,89 +8,97 @@
  * store-specific lock info and releases transactions at the right time, when the underlying provider can't handle it.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-const assert_1 = require("assert");
-const lodash_1 = require("lodash");
-class Deferred {
-    constructor() {
+var assert_1 = require("assert");
+var lodash_1 = require("lodash");
+var Deferred = /** @class */ (function () {
+    function Deferred() {
+        var _this = this;
         this._reject = undefined;
         this._resolve = undefined;
-        this._promise = new Promise((resolve, reject) => {
-            this._reject = reject;
-            this._resolve = resolve;
+        this._promise = new Promise(function (resolve, reject) {
+            _this._reject = reject;
+            _this._resolve = resolve;
         });
     }
-    get promise() {
-        return this._promise;
-    }
-    resolve(value) {
+    Object.defineProperty(Deferred.prototype, "promise", {
+        get: function () {
+            return this._promise;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Deferred.prototype.resolve = function (value) {
         return this._resolve(value);
-    }
-    reject(reason) {
+    };
+    Deferred.prototype.reject = function (reason) {
         return this._reject(reason);
-    }
-}
-class TransactionLockHelper {
-    constructor(_schema, _supportsDiscreteTransactions) {
+    };
+    return Deferred;
+}());
+var TransactionLockHelper = /** @class */ (function () {
+    function TransactionLockHelper(_schema, _supportsDiscreteTransactions) {
+        var _this = this;
         this._schema = _schema;
         this._supportsDiscreteTransactions = _supportsDiscreteTransactions;
         this._closed = false;
         this._exclusiveLocks = {};
         this._readOnlyCounts = {};
         this._pendingTransactions = [];
-        lodash_1.each(this._schema.stores, store => {
-            this._exclusiveLocks[store.name] = false;
-            this._readOnlyCounts[store.name] = 0;
+        lodash_1.each(this._schema.stores, function (store) {
+            _this._exclusiveLocks[store.name] = false;
+            _this._readOnlyCounts[store.name] = 0;
         });
     }
-    closeWhenPossible() {
+    TransactionLockHelper.prototype.closeWhenPossible = function () {
         if (!this._closingDefer) {
             this._closingDefer = new Deferred();
             this._checkClose();
         }
         return this._closingDefer.promise;
-    }
-    _checkClose() {
+    };
+    TransactionLockHelper.prototype._checkClose = function () {
         if (!this._closed && this._closingDefer && !this.hasTransaction()) {
             this._closed = true;
             this._closingDefer.resolve(void 0);
         }
-    }
-    hasTransaction() {
+    };
+    TransactionLockHelper.prototype.hasTransaction = function () {
         return this._pendingTransactions.length > 0 ||
-            lodash_1.some(this._exclusiveLocks, (value) => value) ||
-            lodash_1.some(this._readOnlyCounts, (value) => value > 0);
-    }
-    openTransaction(storeNames, exclusive) {
+            lodash_1.some(this._exclusiveLocks, function (value) { return value; }) ||
+            lodash_1.some(this._readOnlyCounts, function (value) { return value > 0; });
+    };
+    TransactionLockHelper.prototype.openTransaction = function (storeNames, exclusive) {
+        var _this = this;
         if (storeNames) {
-            const missingStore = lodash_1.find(storeNames, name => !lodash_1.some(this._schema.stores, store => name === store.name));
+            var missingStore = lodash_1.find(storeNames, function (name) { return !lodash_1.some(_this._schema.stores, function (store) { return name === store.name; }); });
             if (missingStore) {
                 return Promise.reject('Opened a transaction with a store name (' + missingStore + ') not defined in your schema!');
             }
         }
-        const completionDefer = new Deferred();
-        const newToken = {
+        var completionDefer = new Deferred();
+        var newToken = {
             // Undefined means lock all stores
-            storeNames: storeNames || lodash_1.map(this._schema.stores, store => store.name),
-            exclusive,
+            storeNames: storeNames || lodash_1.map(this._schema.stores, function (store) { return store.name; }),
+            exclusive: exclusive,
             completionPromise: completionDefer.promise
         };
-        const pendingTrans = {
+        var pendingTrans = {
             token: newToken,
             opened: false,
             openDefer: new Deferred(),
-            completionDefer
+            completionDefer: completionDefer
         };
         this._pendingTransactions.push(pendingTrans);
         this._checkNextTransactions();
         return pendingTrans.openDefer.promise;
-    }
-    transactionComplete(token) {
-        const pendingTransIndex = lodash_1.findIndex(this._pendingTransactions, trans => trans.token === token);
+    };
+    TransactionLockHelper.prototype.transactionComplete = function (token) {
+        var pendingTransIndex = lodash_1.findIndex(this._pendingTransactions, function (trans) { return trans.token === token; });
         if (pendingTransIndex !== -1) {
-            const pendingTrans = this._pendingTransactions[pendingTransIndex];
+            var pendingTrans = this._pendingTransactions[pendingTransIndex];
             if (pendingTrans.completionDefer) {
                 pendingTrans.hadSuccess = true;
-                const toResolve = pendingTrans.completionDefer;
+                var toResolve = pendingTrans.completionDefer;
                 this._pendingTransactions.splice(pendingTransIndex, 1);
                 pendingTrans.completionDefer = undefined;
                 toResolve.resolve(void 0);
@@ -104,14 +112,14 @@ class TransactionLockHelper {
             throw new Error('Completing a transaction that is no longer tracked. Stores: ' + token.storeNames.join(','));
         }
         this._cleanTransaction(token);
-    }
-    transactionFailed(token, message) {
-        const pendingTransIndex = lodash_1.findIndex(this._pendingTransactions, trans => trans.token === token);
+    };
+    TransactionLockHelper.prototype.transactionFailed = function (token, message) {
+        var pendingTransIndex = lodash_1.findIndex(this._pendingTransactions, function (trans) { return trans.token === token; });
         if (pendingTransIndex !== -1) {
-            const pendingTrans = this._pendingTransactions[pendingTransIndex];
+            var pendingTrans = this._pendingTransactions[pendingTransIndex];
             if (pendingTrans.completionDefer) {
                 pendingTrans.hadSuccess = false;
-                const toResolve = pendingTrans.completionDefer;
+                var toResolve = pendingTrans.completionDefer;
                 this._pendingTransactions.splice(pendingTransIndex, 1);
                 pendingTrans.completionDefer = undefined;
                 toResolve.reject(new Error(message));
@@ -126,58 +134,67 @@ class TransactionLockHelper {
                 message);
         }
         this._cleanTransaction(token);
-    }
-    _cleanTransaction(token) {
+    };
+    TransactionLockHelper.prototype._cleanTransaction = function (token) {
+        var _this = this;
         if (token.exclusive) {
-            lodash_1.each(token.storeNames, storeName => {
-                assert_1.ok(this._exclusiveLocks[storeName], 'Missing expected exclusive lock for store: ' + storeName);
-                this._exclusiveLocks[storeName] = false;
+            lodash_1.each(token.storeNames, function (storeName) {
+                assert_1.ok(_this._exclusiveLocks[storeName], 'Missing expected exclusive lock for store: ' + storeName);
+                _this._exclusiveLocks[storeName] = false;
             });
         }
         else {
-            lodash_1.each(token.storeNames, storeName => {
-                assert_1.ok(this._readOnlyCounts[storeName] > 0, 'Missing expected readonly lock for store: ' + storeName);
-                this._readOnlyCounts[storeName]--;
+            lodash_1.each(token.storeNames, function (storeName) {
+                assert_1.ok(_this._readOnlyCounts[storeName] > 0, 'Missing expected readonly lock for store: ' + storeName);
+                _this._readOnlyCounts[storeName]--;
             });
         }
         this._checkNextTransactions();
-    }
-    _checkNextTransactions() {
-        if (lodash_1.some(this._exclusiveLocks, lock => lock) && !this._supportsDiscreteTransactions) {
+    };
+    TransactionLockHelper.prototype._checkNextTransactions = function () {
+        var _this = this;
+        if (lodash_1.some(this._exclusiveLocks, function (lock) { return lock; }) && !this._supportsDiscreteTransactions) {
             // In these cases, no more transactions will be possible.  Break out early.
             return;
         }
-        for (let i = 0; i < this._pendingTransactions.length;) {
-            const trans = this._pendingTransactions[i];
+        var _loop_1 = function (i) {
+            var trans = this_1._pendingTransactions[i];
             if (trans.opened) {
                 i++;
-                continue;
+                return out_i_1 = i, "continue";
             }
-            if (this._closingDefer) {
-                this._pendingTransactions.splice(i, 1);
+            if (this_1._closingDefer) {
+                this_1._pendingTransactions.splice(i, 1);
                 trans.openDefer.reject('Closing Provider');
-                continue;
+                return out_i_1 = i, "continue";
             }
-            if (lodash_1.some(trans.token.storeNames, storeName => this._exclusiveLocks[storeName] ||
-                (trans.token.exclusive && this._readOnlyCounts[storeName] > 0))) {
+            if (lodash_1.some(trans.token.storeNames, function (storeName) { return _this._exclusiveLocks[storeName] ||
+                (trans.token.exclusive && _this._readOnlyCounts[storeName] > 0); })) {
                 i++;
-                continue;
+                return out_i_1 = i, "continue";
             }
             trans.opened = true;
             if (trans.token.exclusive) {
-                lodash_1.each(trans.token.storeNames, storeName => {
-                    this._exclusiveLocks[storeName] = true;
+                lodash_1.each(trans.token.storeNames, function (storeName) {
+                    _this._exclusiveLocks[storeName] = true;
                 });
             }
             else {
-                lodash_1.each(trans.token.storeNames, storeName => {
-                    this._readOnlyCounts[storeName]++;
+                lodash_1.each(trans.token.storeNames, function (storeName) {
+                    _this._readOnlyCounts[storeName]++;
                 });
             }
             trans.openDefer.resolve(trans.token);
+            out_i_1 = i;
+        };
+        var this_1 = this, out_i_1;
+        for (var i = 0; i < this._pendingTransactions.length;) {
+            _loop_1(i);
+            i = out_i_1;
         }
         this._checkClose();
-    }
-}
+    };
+    return TransactionLockHelper;
+}());
 exports.TransactionLockHelper = TransactionLockHelper;
 //# sourceMappingURL=TransactionLockHelper.js.map
