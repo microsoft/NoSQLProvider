@@ -6,7 +6,9 @@ import { KeyComponentType, DbSchema, DbProvider, openListOfProviders, QuerySortO
 import { InMemoryProvider } from '../InMemoryProvider';
 import { IndexedDbProvider } from '../IndexedDbProvider';
 
-import { isSafari, serializeValueToOrderableString } from '../NoSqlProviderUtils';
+import { 
+    serializeValueToOrderableString
+} from '../NoSqlProviderUtils';
 
 let cleanupFile = false;
 type TestObj = { id?: string, val: string };
@@ -55,11 +57,7 @@ describe('NoSqlProvider', function () {
         provsToTest = ['memory'];
     } else {
         provsToTest = ['memory'];
-        if (!isSafari()) {
-            // Safari has broken indexeddb support, so let's not test it there.  Everywhere else should have it.
-            // In IE, indexeddb will auto-run in fake keys mode, so if all is working, this is 2x the same test (but let's make sure!)
-            provsToTest.push('indexeddb', 'indexeddbfakekeys');
-        }
+        provsToTest.push('indexeddb', 'indexeddbfakekeys');
     }
 
     it('Number/value/type sorting', () => {

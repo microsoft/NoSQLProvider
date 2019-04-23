@@ -53,11 +53,7 @@ describe('NoSqlProvider', function () {
     }
     else {
         provsToTest = ['memory'];
-        if (!NoSqlProviderUtils_1.isSafari()) {
-            // Safari has broken indexeddb support, so let's not test it there.  Everywhere else should have it.
-            // In IE, indexeddb will auto-run in fake keys mode, so if all is working, this is 2x the same test (but let's make sure!)
-            provsToTest.push('indexeddb', 'indexeddbfakekeys');
-        }
+        provsToTest.push('indexeddb', 'indexeddbfakekeys');
     }
     it('Number/value/type sorting', () => {
         const pairsToTest = [

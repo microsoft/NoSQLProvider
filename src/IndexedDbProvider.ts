@@ -94,14 +94,6 @@ export class IndexedDbProvider extends DbProvider {
             return Promise.reject<void>('No support for IndexedDB in this browser');
         }
 
-        if (typeof (navigator) !== 'undefined' && ((navigator.userAgent.indexOf('Safari') !== -1 &&
-            navigator.userAgent.indexOf('Chrome') === -1 && navigator.userAgent.indexOf('BB10') === -1) ||
-            (navigator.userAgent.indexOf('Mobile Crosswalk') !== -1))) {
-            // Safari doesn't support indexeddb properly, so don't let it try
-            // Android crosswalk indexeddb is slow, don't use it
-            return Promise.reject<void>('Safari doesn\'t properly implement IndexedDB');
-        }
-
         if (wipeIfExists) {
             try {
                 this._dbFactory.deleteDatabase(dbName);
