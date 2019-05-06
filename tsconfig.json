@@ -4,6 +4,8 @@
         "noResolve": false,
         "module": "commonjs",
         "target": "es5",
+        "downlevelIteration": false,
+        "importHelpers": true,
         "outDir": "dist/",
         "typeRoots": [
             "node_modules/@types"
