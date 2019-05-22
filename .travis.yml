@@ -1,6 +1,6 @@
 language: node_js
 packages: 
-	      - gcc-4.8
+  - gcc-4.8
 node_js:
   - "node"
 cache:
