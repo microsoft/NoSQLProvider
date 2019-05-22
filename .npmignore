@@ -10,3 +10,4 @@ test.html
 tsconfig.json
 webpack.config.js
 README.md
+.DS_Store
