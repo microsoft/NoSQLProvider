@@ -1,8 +1,13 @@
 language: node_js
-dist: trusty
+packages: 
+	      - gcc-4.8
 node_js:
   - "node"
 cache:
   directories:
     - "node_modules"
 script: npm run ci-test
+before_install:
+  - if [ $TRAVIS_OS_NAME == "linux" ]; then
+      export CXX="g++-4.8" CC="gcc-4.8" DISPLAY=:99.0;
+    fi
