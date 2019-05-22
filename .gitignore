@@ -5,3 +5,4 @@
 *.user
 /NoSQLProviderTestsPack.js
 /dist
+.DS_Store
