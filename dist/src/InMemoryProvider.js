@@ -12,19 +12,30 @@ var __extends = (this && this.__extends) || (function () {
             ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
             function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
         return extendStatics(d, b);
-    }
+    };
     return function (d, b) {
         extendStatics(d, b);
         function __() { this.constructor = d; }
         d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     };
 })();
+var __values = (this && this.__values) || function (o) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator], i = 0;
+    if (m) return m.call(o);
+    return {
+        next: function () {
+            if (o && i >= o.length) o = void 0;
+            return { value: o && o[i++], done: !o };
+        }
+    };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 var lodash_1 = require("lodash");
 var FullTextSearchHelpers_1 = require("./FullTextSearchHelpers");
 var NoSqlProvider_1 = require("./NoSqlProvider");
 var NoSqlProviderUtils_1 = require("./NoSqlProviderUtils");
 var TransactionLockHelper_1 = require("./TransactionLockHelper");
+var red_black_tree_1 = require("@collectable/red-black-tree");
 // Very simple in-memory dbprovider for handling IE inprivate windows (and unit tests, maybe?)
 var InMemoryProvider = /** @class */ (function (_super) {
     __extends(InMemoryProvider, _super);
@@ -71,13 +82,13 @@ var InMemoryTransaction = /** @class */ (function () {
         this._lockHelper = _lockHelper;
         this._transToken = _transToken;
         this._stores = {};
-        // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
+        // Close the transaction on the next microtick.  By definition, anything is completed synchronously here, so after an event tick
         // goes by, there can't have been anything pending.
-        this._openTimer = setTimeout(function () {
-            _this._openTimer = undefined;
+        this._openPromise = Promise.resolve(void 0).then(function () {
+            _this._openPromise = undefined;
             _this._commitTransaction();
             _this._lockHelper.transactionComplete(_this._transToken);
-        }, 0);
+        });
     }
     InMemoryTransaction.prototype._commitTransaction = function () {
         lodash_1.each(this._stores, function (store) {
@@ -92,9 +103,8 @@ var InMemoryTransaction = /** @class */ (function () {
             store.internal_rollbackPendingData();
         });
         this._stores = {};
-        if (this._openTimer) {
-            clearTimeout(this._openTimer);
-            this._openTimer = undefined;
+        if (this._openPromise) {
+            this._openPromise = undefined;
         }
         this._lockHelper.transactionFailed(this._transToken, 'InMemoryTransaction Aborted');
     };
@@ -117,7 +127,7 @@ var InMemoryTransaction = /** @class */ (function () {
         return ims;
     };
     InMemoryTransaction.prototype.internal_isOpen = function () {
-        return !!this._openTimer;
+        return !!this._openPromise;
     };
     return InMemoryTransaction;
 }());
@@ -269,17 +279,14 @@ var InMemoryIndex = /** @class */ (function (_super) {
         var _this = _super.call(this, indexSchema, primaryKeyPath) || this;
         _this._trans = _trans;
         _this._mergedData = _mergedData;
+        _this._rbIndex = red_black_tree_1.empty(function (a, b) { return a.localeCompare(b); }, false);
+        _this._calcChunkedData();
         return _this;
     }
     // Warning: This function can throw, make sure to trap.
     InMemoryIndex.prototype._calcChunkedData = function () {
         var _this = this;
-        if (!this._indexSchema) {
-            // Primary key -- use data intact
-            return this._mergedData;
-        }
         // If it's not the PK index, re-pivot the data to be keyed off the key value built from the keypath
-        var data = {};
         lodash_1.each(this._mergedData, function (item) {
             // Each item may be non-unique so store as an array of items for each key
             var keys;
@@ -300,30 +307,34 @@ var InMemoryIndex = /** @class */ (function (_super) {
             else {
                 keys = [NoSqlProviderUtils_1.getSerializedKeyForKeypath(item, _this._keyPath)];
             }
-            lodash_1.each(keys, function (key) {
-                if (!data[key]) {
-                    data[key] = [item];
-                }
-                else {
-                    data[key].push(item);
-                }
-            });
+            lodash_1.each(keys, function (key) { return red_black_tree_1.set(key, item, _this._rbIndex); });
         });
-        return data;
     };
     InMemoryIndex.prototype.getAll = function (reverseOrSortOrder, limit, offset) {
-        var _this = this;
+        var e_1, _a;
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
-        var data = lodash_1.attempt(function () {
-            return _this._calcChunkedData();
-        });
-        if (lodash_1.isError(data)) {
-            return Promise.reject(data);
+        limit = limit ? limit : this._rbIndex._size;
+        offset = offset ? offset : 0;
+        var data = new Array(limit);
+        var reverse = (reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse);
+        var iterator = red_black_tree_1.iterateFromIndex(reverse, offset, this._rbIndex);
+        var i = 0;
+        try {
+            for (var iterator_1 = __values(iterator), iterator_1_1 = iterator_1.next(); !iterator_1_1.done; iterator_1_1 = iterator_1.next()) {
+                var item = iterator_1_1.value;
+                data[i] = item;
+            }
         }
-        var sortedKeys = lodash_1.keys(data).sort();
-        return this._returnResultsFromKeys(data, sortedKeys, reverseOrSortOrder, limit, offset);
+        catch (e_1_1) { e_1 = { error: e_1_1 }; }
+        finally {
+            try {
+                if (iterator_1_1 && !iterator_1_1.done && (_a = iterator_1.return)) _a.call(iterator_1);
+            }
+            finally { if (e_1) throw e_1.error; }
+        }
+        return Promise.resolve(data);
     };
     InMemoryIndex.prototype.getOnly = function (key, reverseOrSortOrder, limit, offset) {
         return this.getRange(key, key, false, false, reverseOrSortOrder, limit, offset);
@@ -333,16 +344,44 @@ var InMemoryIndex = /** @class */ (function (_super) {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
-        var data;
-        var sortedKeys;
-        var err = lodash_1.attempt(function () {
-            data = _this._calcChunkedData();
-            sortedKeys = _this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).sort();
+        var values = lodash_1.attempt(function () {
+            var e_2, _a;
+            var reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse;
+            limit = limit ? limit : 0;
+            offset = offset ? offset : 0;
+            var keyLow = NoSqlProviderUtils_1.serializeKeyToString(keyLowRange, _this._keyPath);
+            var keyHigh = NoSqlProviderUtils_1.serializeKeyToString(keyHighRange, _this._keyPath);
+            var iterator = reverse ? red_black_tree_1.iterateKeysFromLast(_this._rbIndex) : red_black_tree_1.iterateKeysFromFirst(_this._rbIndex);
+            var values = [];
+            try {
+                for (var iterator_2 = __values(iterator), iterator_2_1 = iterator_2.next(); !iterator_2_1.done; iterator_2_1 = iterator_2.next()) {
+                    var key = iterator_2_1.value;
+                    if ((key > keyLow || (key === keyLow && !lowRangeExclusive)) &&
+                        (key < keyHigh || (key === keyHigh && !highRangeExclusive))) {
+                        if (offset > 0) {
+                            offset--;
+                            continue;
+                        }
+                        if (values.length > limit) {
+                            break;
+                        }
+                        values.push(red_black_tree_1.get(key, _this._rbIndex));
+                    }
+                }
+            }
+            catch (e_2_1) { e_2 = { error: e_2_1 }; }
+            finally {
+                try {
+                    if (iterator_2_1 && !iterator_2_1.done && (_a = iterator_2.return)) _a.call(iterator_2);
+                }
+                finally { if (e_2) throw e_2.error; }
+            }
+            return values;
         });
-        if (err) {
-            return Promise.reject(err);
+        if (lodash_1.isError(values)) {
+            return Promise.reject(values);
         }
-        return this._returnResultsFromKeys(data, sortedKeys, reverseOrSortOrder, limit, offset);
+        return Promise.resolve(values);
     };
     InMemoryIndex.prototype.getKeysForRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
         var _this = this;
@@ -350,8 +389,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
             return Promise.reject('InMemoryTransaction already closed');
         }
         var keys = lodash_1.attempt(function () {
-            var data = _this._calcChunkedData();
-            return _this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+            return _this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (lodash_1.isError(keys)) {
             return Promise.reject(void 0);
@@ -359,38 +397,34 @@ var InMemoryIndex = /** @class */ (function (_super) {
         return Promise.resolve(keys);
     };
     // Warning: This function can throw, make sure to trap.
-    InMemoryIndex.prototype._getKeysForRange = function (data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
+    InMemoryIndex.prototype._getKeysForRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
+        var e_3, _a;
         var keyLow = NoSqlProviderUtils_1.serializeKeyToString(keyLowRange, this._keyPath);
         var keyHigh = NoSqlProviderUtils_1.serializeKeyToString(keyHighRange, this._keyPath);
-        return lodash_1.filter(lodash_1.keys(data), function (key) {
-            return (key > keyLow || (key === keyLow && !lowRangeExclusive)) && (key < keyHigh || (key === keyHigh && !highRangeExclusive));
-        });
-    };
-    InMemoryIndex.prototype._returnResultsFromKeys = function (data, sortedKeys, reverseOrSortOrder, limit, offset) {
-        if (reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse) {
-            sortedKeys = lodash_1.reverse(sortedKeys);
+        var iterator = red_black_tree_1.iterateKeysFromFirst(this._rbIndex);
+        var keys = [];
+        try {
+            for (var iterator_3 = __values(iterator), iterator_3_1 = iterator_3.next(); !iterator_3_1.done; iterator_3_1 = iterator_3.next()) {
+                var key = iterator_3_1.value;
+                if ((key > keyLow || (key === keyLow && !lowRangeExclusive)) && (key < keyHigh || (key === keyHigh && !highRangeExclusive))) {
+                    keys.push(key);
+                }
+            }
         }
-        if (offset) {
-            sortedKeys = sortedKeys.slice(offset);
+        catch (e_3_1) { e_3 = { error: e_3_1 }; }
+        finally {
+            try {
+                if (iterator_3_1 && !iterator_3_1.done && (_a = iterator_3.return)) _a.call(iterator_3);
+            }
+            finally { if (e_3) throw e_3.error; }
         }
-        if (limit) {
-            sortedKeys = sortedKeys.slice(0, limit);
-        }
-        var results = lodash_1.map(sortedKeys, function (key) { return data[key]; });
-        return Promise.resolve(lodash_1.flatten(results));
+        return keys;
     };
     InMemoryIndex.prototype.countAll = function () {
-        var _this = this;
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
-        var data = lodash_1.attempt(function () {
-            return _this._calcChunkedData();
-        });
-        if (lodash_1.isError(data)) {
-            return Promise.reject(data);
-        }
-        return Promise.resolve(lodash_1.keys(data).length);
+        return Promise.resolve(this._rbIndex._size);
     };
     InMemoryIndex.prototype.countOnly = function (key) {
         return this.countRange(key, key, false, false);
@@ -401,8 +435,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
             return Promise.reject('InMemoryTransaction already closed');
         }
         var keys = lodash_1.attempt(function () {
-            var data = _this._calcChunkedData();
-            return _this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+            return _this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (lodash_1.isError(keys)) {
             return Promise.reject(keys);

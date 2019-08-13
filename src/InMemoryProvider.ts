@@ -6,14 +6,21 @@
  * NoSqlProvider provider setup for a non-persisted in-memory database backing provider.
  */
 
-import { attempt, isError, each, Dictionary, includes, assign, compact, map, find, keys, flatten, reverse, filter } from 'lodash';
-import  { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
-import  { StoreSchema, DbProvider, DbSchema, DbTransaction, 
-    DbIndex, IndexSchema, DbStore, QuerySortOrder, ItemType, KeyPathType, KeyType } from './NoSqlProvider';
-import { arrayify, serializeKeyToString, formListOfSerializedKeys, 
-    getSerializedKeyForKeypath, getValueForSingleKeypath } from  './NoSqlProviderUtils';
+import { attempt, isError, each, Dictionary, includes, compact, map, find, values, flatten } from 'lodash';
+import { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
+import {
+    StoreSchema, DbProvider, DbSchema, DbTransaction,
+    DbIndex, IndexSchema, DbStore, QuerySortOrder, ItemType, KeyPathType, KeyType
+} from './NoSqlProvider';
+import {
+    arrayify, serializeKeyToString, formListOfSerializedKeys,
+    getSerializedKeyForKeypath, getValueForSingleKeypath
+} from './NoSqlProviderUtils';
 import { TransactionToken, TransactionLockHelper } from './TransactionLockHelper';
-
+import {
+    empty, RedBlackTreeStructure, set, iterateFromIndex,
+    iterateKeysFromFirst, get, iterateKeysFromLast, has, remove
+} from '@collectable/red-black-tree';
 export interface StoreData {
     data: Dictionary<ItemType>;
     schema: StoreSchema;
@@ -23,7 +30,7 @@ export interface StoreData {
 export class InMemoryProvider extends DbProvider {
     private _stores: { [storeName: string]: StoreData } = {};
 
-    private _lockHelper: TransactionLockHelper|undefined;
+    private _lockHelper: TransactionLockHelper | undefined;
 
     open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
@@ -59,7 +66,7 @@ export class InMemoryProvider extends DbProvider {
 
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
 class InMemoryTransaction implements DbTransaction {
-    private _openTimer: number|undefined;
+    private _openTimer: number | undefined;
 
     private _stores: Dictionary<InMemoryStore> = {};
 
@@ -123,23 +130,23 @@ class InMemoryTransaction implements DbTransaction {
 }
 
 class InMemoryStore implements DbStore {
-    private _pendingCommitDataChanges: Dictionary<ItemType|undefined>|undefined;
+    private _pendingCommitDataChanges: Dictionary<ItemType | undefined> | undefined;
 
     private _committedStoreData: Dictionary<ItemType>;
     private _mergedData: Dictionary<ItemType>;
     private _storeSchema: StoreSchema;
-
+    private _indices: Dictionary<InMemoryIndex>;
     constructor(private _trans: InMemoryTransaction, storeInfo: StoreData) {
         this._storeSchema = storeInfo.schema;
         this._committedStoreData = storeInfo.data;
-
+        this._indices = {};
         this._mergedData = this._committedStoreData;
     }
 
     private _checkDataClone(): void {
         if (!this._pendingCommitDataChanges) {
             this._pendingCommitDataChanges = {};
-            this._mergedData = assign({}, this._committedStoreData);
+            this._mergedData = this._committedStoreData;
         }
     }
 
@@ -161,7 +168,7 @@ class InMemoryStore implements DbStore {
         this._mergedData = this._committedStoreData;
     }
 
-    get(key: KeyType): Promise<ItemType|undefined> {
+    get(key: KeyType): Promise<ItemType | undefined> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
@@ -176,7 +183,7 @@ class InMemoryStore implements DbStore {
         return Promise.resolve(this._mergedData[joinedKey]);
     }
 
-    getMultiple(keyOrKeys: KeyType|KeyType[]): Promise<ItemType[]> {
+    getMultiple(keyOrKeys: KeyType | KeyType[]): Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
@@ -191,7 +198,7 @@ class InMemoryStore implements DbStore {
         return Promise.resolve(compact(map(joinedKeys, key => this._mergedData[key])));
     }
 
-    put(itemOrItems: ItemType|ItemType[]): Promise<void> {
+    put(itemOrItems: ItemType | ItemType[]): Promise<void> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject<void>('InMemoryTransaction already closed');
         }
@@ -202,6 +209,11 @@ class InMemoryStore implements DbStore {
 
                 this._pendingCommitDataChanges!!![pk] = item;
                 this._mergedData[pk] = item;
+                if (this._storeSchema.indexes) {
+                    for (const index of this._storeSchema.indexes) {
+                        (this.openIndex(index.name) as InMemoryIndex).put(item);
+                    }
+                }
             });
         });
         if (err) {
@@ -210,7 +222,7 @@ class InMemoryStore implements DbStore {
         return Promise.resolve<void>(void 0);
     }
 
-    remove(keyOrKeys: KeyType|KeyType[]): Promise<void> {
+    remove(keyOrKeys: KeyType | KeyType[]): Promise<void> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject<void>('InMemoryTransaction already closed');
         }
@@ -237,15 +249,18 @@ class InMemoryStore implements DbStore {
         });
         if (!index || isError(index)) {
             return Promise.reject<void>('Index "' + indexName + '" not found');
-        }            
+        }
         return index.getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).then(keys => {
             return this.removeInternal(keys);
         });
-    }     
+    }
 
     openPrimaryKey(): DbIndex {
         this._checkDataClone();
-        return new InMemoryIndex(this._trans, this._mergedData, undefined, this._storeSchema.primaryKeyPath);
+        if (!this._indices["pk"]) {
+            this._indices["pk"] = new InMemoryIndex(this._trans, this._mergedData, undefined as any, this._storeSchema.primaryKeyPath);
+        }
+        return this._indices["pk"];
     }
 
     openIndex(indexName: string): DbIndex {
@@ -255,7 +270,11 @@ class InMemoryStore implements DbStore {
         }
 
         this._checkDataClone();
-        return new InMemoryIndex(this._trans, this._mergedData, indexSchema, this._storeSchema.primaryKeyPath);
+        if (!this._indices[indexSchema.name]) {
+            this._indices[indexSchema.name] = new InMemoryIndex(this._trans, this._mergedData, indexSchema, this._storeSchema.primaryKeyPath);
+
+        }
+        return this._indices[indexSchema.name];
     }
 
     clearAllData(): Promise<void> {
@@ -279,34 +298,37 @@ class InMemoryStore implements DbStore {
         each(keys, key => {
             this._pendingCommitDataChanges!!![key] = undefined;
             delete this._mergedData[key];
+            (this.openPrimaryKey() as InMemoryIndex).remove(key);
         });
+        each(this._storeSchema.indexes, (index) => {
+            this._indices[index.name] = new InMemoryIndex(this._trans, this._mergedData, index, this._storeSchema.primaryKeyPath);
+        });
+
         return Promise.resolve<void>(void 0);
     }
 }
 
 // Note: Currently maintains nothing interesting -- rebuilds the results every time from scratch.  Scales like crap.
 class InMemoryIndex extends DbIndexFTSFromRangeQueries {
-    constructor(private _trans: InMemoryTransaction, private _mergedData: Dictionary<ItemType>,
-            indexSchema: IndexSchema|undefined, primaryKeyPath: KeyPathType) {
+    private _rbIndex: RedBlackTreeStructure<string, ItemType[]>;
+    constructor(private _trans: InMemoryTransaction, _mergedData: Dictionary<ItemType>,
+        indexSchema: IndexSchema, primaryKeyPath: KeyPathType) {
         super(indexSchema, primaryKeyPath);
+        this._rbIndex = empty<string, ItemType[]>((a: string, b: string) => a.localeCompare(b), false);
+        this.put(values(_mergedData));
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _calcChunkedData(): Dictionary<ItemType[]>|Dictionary<ItemType> {
-        if (!this._indexSchema) {
-            // Primary key -- use data intact
-            return this._mergedData;
-        }
-
+    public put(itemOrItems: ItemType | ItemType[]): void {
+        const items = arrayify(itemOrItems);
         // If it's not the PK index, re-pivot the data to be keyed off the key value built from the keypath
-        let data: Dictionary<ItemType[]> = {};
-        each(this._mergedData, item => {
+        each(items, item => {
             // Each item may be non-unique so store as an array of items for each key
-            let keys: string[]|undefined;
-            if (this._indexSchema!!!.fullText) {
+            let keys: string[] | undefined;
+            if (this._indexSchema && this._indexSchema!!!.fullText) {
                 keys = map(getFullTextIndexWordsForItem(<string>this._keyPath, item), val =>
                     serializeKeyToString(val, <string>this._keyPath));
-            } else if (this._indexSchema!!!.multiEntry) {
+            } else if (this._indexSchema && this._indexSchema!!!.multiEntry) {
                 // Have to extract the multiple entries into this alternate table...
                 const valsRaw = getValueForSingleKeypath(item, <string>this._keyPath);
                 if (valsRaw) {
@@ -316,16 +338,20 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
             } else {
                 keys = [getSerializedKeyForKeypath(item, this._keyPath)!!!];
             }
-
             each(keys, key => {
-                if (!data[key]) {
-                    data[key] = [item];
+                if (has(key, this._rbIndex)) {
+                    const existingItems = get(key, this._rbIndex)!!! as ItemType[];
+                    existingItems.push(item);
+                    this._rbIndex = set<string, ItemType[]>(key, existingItems, this._rbIndex); 
                 } else {
-                    data[key].push(item);
+                    this._rbIndex = set(key, [item], this._rbIndex); 
                 }
             });
         });
-        return data;
+    }
+
+    public remove(key: string) {
+        this._rbIndex = remove(key, this._rbIndex);
     }
 
     getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
@@ -333,39 +359,62 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
             return Promise.reject('InMemoryTransaction already closed');
         }
 
-        const data = attempt(() => {
-            return this._calcChunkedData();
-        });
-        if (isError(data)) {
-            return Promise.reject(data);
+        limit = limit ? limit : this._rbIndex._size;
+        offset = offset ? offset : 0;
+        const data = new Array<ItemType[]>(limit);
+        const reverse = (reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse);
+        const iterator = iterateFromIndex(reverse, offset, this._rbIndex);
+        let i = 0;
+        for (const item of iterator) {
+            data[i] = item.value;
+            i++;
+            if (i >= limit) {
+                break;
+            }
         }
-
-        const sortedKeys = keys(data).sort();
-        return this._returnResultsFromKeys(data, sortedKeys, reverseOrSortOrder, limit, offset);
+        return Promise.resolve(flatten(data));
     }
 
     getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
-            : Promise<ItemType[]> {
+        : Promise<ItemType[]> {
         return this.getRange(key, key, false, false, reverseOrSortOrder, limit, offset);
     }
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
+        reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
 
-        let data: Dictionary<ItemType[]>|Dictionary<ItemType>;
-        let sortedKeys: string[];
-        const err = attempt(() => {
-            data = this._calcChunkedData();
-            sortedKeys = this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).sort();
+        const values = attempt(() => {
+            const reverse = reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse;
+            limit = limit ? limit : this._rbIndex._size;
+            offset = offset ? offset : 0;
+            const keyLow = serializeKeyToString(keyLowRange, this._keyPath);
+            const keyHigh = serializeKeyToString(keyHighRange, this._keyPath);
+            const iterator = reverse ? iterateKeysFromLast(this._rbIndex) : iterateKeysFromFirst(this._rbIndex);
+            const values = [] as ItemType[][];
+            for (const key of iterator) {
+                if (
+                    (key > keyLow || (key === keyLow && !lowRangeExclusive)) &&
+                    (key < keyHigh || (key === keyHigh && !highRangeExclusive))) {
+                    if (offset > 0) {
+                        offset--;
+                        continue;
+                    }
+                    if (values.length >= limit) {
+                        break;
+                    }
+                    values.push(get(key, this._rbIndex) as ItemType[]);
+                }
+            }
+            return values;
         });
-        if (err) {
-            return Promise.reject(err);
+        if (isError(values)) {
+            return Promise.reject(values);
         }
 
-        return this._returnResultsFromKeys(data!!!, sortedKeys!!!, reverseOrSortOrder, limit, offset);
+        return Promise.resolve(flatten(values));
     }
 
     getKeysForRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
@@ -374,8 +423,7 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
             return Promise.reject('InMemoryTransaction already closed');
         }
         const keys = attempt(() => {
-            const data = this._calcChunkedData();
-            return this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+            return this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (isError(keys)) {
             return Promise.reject(void 0);
@@ -384,43 +432,26 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _getKeysForRange(data: Dictionary<ItemType[]>|Dictionary<ItemType>, keyLowRange: KeyType, keyHighRange: KeyType,
-            lowRangeExclusive?: boolean, highRangeExclusive?: boolean): string[] {
+    private _getKeysForRange(keyLowRange: KeyType, keyHighRange: KeyType,
+        lowRangeExclusive?: boolean, highRangeExclusive?: boolean): string[] {
         const keyLow = serializeKeyToString(keyLowRange, this._keyPath);
         const keyHigh = serializeKeyToString(keyHighRange, this._keyPath);
-        return filter(keys(data), key =>
-            (key > keyLow || (key === keyLow && !lowRangeExclusive)) && (key < keyHigh || (key === keyHigh && !highRangeExclusive)));
-    }
-
-    private _returnResultsFromKeys(data: Dictionary<ItemType[]> | Dictionary<ItemType>, sortedKeys: string[],
-            reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number) {
-        if (reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse) {
-            sortedKeys = reverse(sortedKeys);
+        const iterator = iterateKeysFromFirst(this._rbIndex);
+        const keys = [];
+        for (const key of iterator) {
+            if ((key > keyLow || (key === keyLow && !lowRangeExclusive)) && (key < keyHigh || (key === keyHigh && !highRangeExclusive))) {
+                keys.push(key);
+            }
         }
-
-        if (offset) {
-            sortedKeys = sortedKeys.slice(offset);
-        }
-
-        if (limit) {
-            sortedKeys = sortedKeys.slice(0, limit);
-        }
-
-        let results = map(sortedKeys, key => data[key]);
-        return Promise.resolve(flatten(results));
+        return keys;
     }
 
     countAll(): Promise<number> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
-        const data = attempt(() => {
-            return this._calcChunkedData();
-        });
-        if (isError(data)) {
-            return Promise.reject(data);
-        }
-        return Promise.resolve(keys(data).length);
+
+        return Promise.resolve(this._rbIndex._size);
     }
 
     countOnly(key: KeyType): Promise<number> {
@@ -428,14 +459,13 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
     }
 
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
-            : Promise<number> {
+        : Promise<number> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
 
         const keys = attempt(() => {
-            const data = this._calcChunkedData();
-            return this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
+            return this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (isError(keys)) {
             return Promise.reject(keys);
