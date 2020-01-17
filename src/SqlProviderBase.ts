@@ -767,7 +767,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             startTime = Date.now();
         }
 
-        let promise = this._trans.internal_getResultFromQuery('SELECT nsp_data FROM ' + this._schema.name +
+        let promise = this._trans.internal_getResultFromQuery<ItemType|undefined>('SELECT nsp_data FROM ' + this._schema.name +
             ' WHERE nsp_pk = ?', [joinedKey]);
         if (this._verbose) {
             promise = promise.finally(() => {
@@ -794,7 +794,7 @@ class SqlStore implements NoSqlProvider.DbStore {
             startTime = Date.now();
         }
 
-        let promise = this._trans.internal_getResultsFromQuery('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk IN (' +
+        let promise = this._trans.internal_getResultsFromQuery<ItemType[]>('SELECT nsp_data FROM ' + this._schema.name + ' WHERE nsp_pk IN (' +
             generateParamPlaceholder(joinedKeys.length) + ')', joinedKeys);
         if (this._verbose) {
             promise = promise.finally(() => {

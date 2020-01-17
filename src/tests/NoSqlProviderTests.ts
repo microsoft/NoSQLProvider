@@ -74,7 +74,7 @@ describe('NoSqlProvider', function () {
                 }
                 console.log('path/file.txt was deleted');
                 callback();
-              });
+            });
         }
     });
 
@@ -91,7 +91,7 @@ describe('NoSqlProvider', function () {
             provsToTest.push('indexeddb', 'indexeddbfakekeys');
         }
 
-        if (window.openDatabase) {
+        if (window.openDatabase !== undefined) {
             // WebSQL theoretically supported!
             provsToTest.push('websql', 'websqlnofts3');
         }
@@ -1287,7 +1287,7 @@ describe('NoSqlProvider', function () {
                             if (provName.indexOf('sql') !== -1) {
                                 // Check that we batch the upgrade by spying on number of queries indirectly
                                 // This only affects sql-based tests
-                                transactionSpy = sinon.spy(SqlTransaction.prototype, 'internal_getResultsFromQuery');
+                                transactionSpy = sinon.spy(SqlTransaction.prototype, 'internal_getResultsFromQuery') as any;
                             }
                             return openProvider(provName, {
                                 version: 2,
@@ -2207,7 +2207,7 @@ describe('NoSqlProvider', function () {
                                     return prov.close();
                                 });
                             }).then(() => {
-                                storeSpy = sinon.spy(SqlTransaction.prototype, 'getStore');
+                                storeSpy = sinon.spy(SqlTransaction.prototype, 'getStore') as any;
                                 return openProvider(provName, {
                                     version: 2,
                                     stores: [
