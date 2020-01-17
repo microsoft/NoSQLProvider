@@ -27,6 +27,29 @@ declare global {
     }
 }
 
+function getBrowserInfo() {
+    // From https://stackoverflow.com/questions/5916900/how-can-you-detect-the-version-of-a-browser
+    let ua = navigator.userAgent, tem, M = ua.match(/(opera|chrome|safari|firefox|msie|trident(?=\/))\/?\s*(\d+)/i) || []; 
+    if (/trident/i.test(M[1])) {
+        tem = /\brv[ :]+(\d+)/g.exec(ua) || []; 
+        return { name: 'IE', version: (tem[1] || '') };
+    }   
+    if (M[1] === 'Chrome') {
+        tem = ua.match(/\bOPR|Edge\/(\d+)/);
+        if (tem != null) {
+            return { name: 'Opera', version: tem[1] };
+        }
+    }   
+    M = M[2] ? [M[1], M[2]] : [navigator.appName, navigator.appVersion, '-?'];
+    if ((tem = ua.match(/version\/(\d+)/i)) != null) {
+        M.splice(1, 1, tem[1]);
+    }
+    return {
+        name: M[0],
+        version: M[1],
+    };
+}
+
 // The DbProvider implementation for IndexedDB.  This one is fairly straightforward since the library's access patterns pretty
 // closely mirror IndexedDB's.  We mostly do a lot of wrapping of the APIs into JQuery promises and have some fancy footwork to
 // do semi-automatic schema upgrades.
@@ -94,12 +117,19 @@ export class IndexedDbProvider extends NoSqlProvider.DbProvider {
             return SyncTasks.Rejected<void>('No support for IndexedDB in this browser');
         }
 
-        if (typeof (navigator) !== 'undefined' && ((navigator.userAgent.indexOf('Safari') !== -1 &&
-                navigator.userAgent.indexOf('Chrome') === -1 && navigator.userAgent.indexOf('BB10') === -1) ||
-                (navigator.userAgent.indexOf('Mobile Crosswalk') !== -1))) {
-            // Safari doesn't support indexeddb properly, so don't let it try
-            // Android crosswalk indexeddb is slow, don't use it
-            return SyncTasks.Rejected<void>('Safari doesn\'t properly implement IndexedDB');
+        if (typeof (navigator) !== 'undefined') {
+            // In a browser of some sort, so check for some known deficient IndexedDB implementations...
+
+            const browserInfo = getBrowserInfo();
+            if (browserInfo.name === 'Safari' && Number(browserInfo.version) < 10) {
+                // Safari < 10 doesn't support indexeddb properly, so don't let it try
+                return SyncTasks.Rejected<void>('Safari versions before 10.0 don\'t properly implement IndexedDB');
+            }
+    
+            if (navigator.userAgent.indexOf('Mobile Crosswalk') !== -1) {
+                // Android crosswalk indexeddb is slow, don't use it
+                return SyncTasks.Rejected<void>('Android Crosswalk\'s IndexedDB implementation is very slow');
+            }
         }
 
         if (wipeIfExists) {
@@ -477,7 +507,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             }
         }
 
-        return IndexedDbProvider.WrapRequest(this._store.get(key))
+        return IndexedDbProvider.WrapRequest<ItemType|undefined>(this._store.get(key))
             .then(val => removeFullTextMetadataAndReturn(this._schema, val));
     }
 
@@ -495,8 +525,9 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         }
 
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
-        return SyncTasks.all(_.map(keys, key =>
-            IndexedDbProvider.WrapRequest(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))))
+        return SyncTasks.all(
+                _.map(keys, key => IndexedDbProvider.WrapRequest<ItemType|undefined>(this._store.get(key))
+                .then(val => removeFullTextMetadataAndReturn(this._schema, val))))
             .then(_.compact);
     }
 
@@ -716,7 +747,8 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             // Get based on the keys from the index store, which have refkeys that point back to the original store
             return IndexedDbIndex.getFromCursorRequest<{ key: string, refkey: any }>(req, limit, offset).then(rets => {
                 // Now get the original items using the refkeys from the index store, which are PKs on the main store
-                const getters = _.map(rets, ret => IndexedDbProvider.WrapRequest(this._fakedOriginalStore!!!.get(ret.refkey)));
+                const getters = _.map(rets, ret => IndexedDbProvider.WrapRequest<{ key: string, refkey: any }>(
+                    this._fakedOriginalStore!!!.get(ret.refkey)));
                 return SyncTasks.all(getters);
             });
         } else {

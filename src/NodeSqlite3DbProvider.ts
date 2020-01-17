@@ -140,7 +140,7 @@ class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
         });
     }
 
-    runQuery(sql: string, parameters?: any[]): SyncTasks.Promise<any[]> {
+    runQuery(sql: string, parameters: any[] = []): SyncTasks.Promise<any[]> {
         if (!this._isTransactionOpen()) {
             return SyncTasks.Rejected('SqliteSqlTransaction already closed');
         }

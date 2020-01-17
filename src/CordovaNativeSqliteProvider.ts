@@ -65,12 +65,16 @@ export interface SqlitePluginDbParams extends SqlitePluginDbOptionalParams {
     location: number;
 }
 
+export interface CordovaTransactionCallback {
+    (transaction: CordovaTransaction): void;
+}
+
 export interface SqliteDatabase {
     openDBs: string[];
-    transaction(transaction: CordovaTransaction, error: SqlProviderBase.SQLTransactionErrorCallback,
-        success: SqlProviderBase.SQLTransactionCallback): void;
-    readTransaction(transaction: CordovaTransaction, error: SqlProviderBase.SQLTransactionErrorCallback,
-        success: SqlProviderBase.SQLTransactionCallback): void;
+    transaction(callback?: CordovaTransactionCallback, errorCallback?: SqlProviderBase.SQLTransactionErrorCallback,
+        successCallback?: SqlProviderBase.SQLVoidCallback): void;
+    readTransaction(callback?: CordovaTransactionCallback, errorCallback?: SqlProviderBase.SQLTransactionErrorCallback,
+        successCallback?: SqlProviderBase.SQLVoidCallback): void;
     open(success: SqliteSuccessCallback, error: SqliteErrorCallback): void;
     close(success: SqliteSuccessCallback, error: SqliteErrorCallback): void;
     executeSql(statement: string, params?: any[], success?: SqlProviderBase.SQLStatementCallback,
