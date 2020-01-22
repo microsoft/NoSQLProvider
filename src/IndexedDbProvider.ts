@@ -507,7 +507,7 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
             }
         }
 
-        return IndexedDbProvider.WrapRequest(this._store.get(key))
+        return IndexedDbProvider.WrapRequest<ItemType|undefined>(this._store.get(key))
             .then(val => removeFullTextMetadataAndReturn(this._schema, val));
     }
 
@@ -525,8 +525,9 @@ class IndexedDbStore implements NoSqlProvider.DbStore {
         }
 
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
-        return SyncTasks.all(_.map(keys, key =>
-            IndexedDbProvider.WrapRequest(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))))
+        return SyncTasks.all(
+                _.map(keys, key => IndexedDbProvider.WrapRequest<ItemType|undefined>(this._store.get(key))
+                .then(val => removeFullTextMetadataAndReturn(this._schema, val))))
             .then(_.compact);
     }
 
@@ -746,7 +747,8 @@ class IndexedDbIndex extends FullTextSearchHelpers.DbIndexFTSFromRangeQueries {
             // Get based on the keys from the index store, which have refkeys that point back to the original store
             return IndexedDbIndex.getFromCursorRequest<{ key: string, refkey: any }>(req, limit, offset).then(rets => {
                 // Now get the original items using the refkeys from the index store, which are PKs on the main store
-                const getters = _.map(rets, ret => IndexedDbProvider.WrapRequest(this._fakedOriginalStore!!!.get(ret.refkey)));
+                const getters = _.map(rets, ret => IndexedDbProvider.WrapRequest<{ key: string, refkey: any }>(
+                    this._fakedOriginalStore!!!.get(ret.refkey)));
                 return SyncTasks.all(getters);
             });
         } else {
