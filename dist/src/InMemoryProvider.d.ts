@@ -28,7 +28,7 @@ declare class InMemoryTransaction implements DbTransaction {
     private _transToken;
     private _stores;
     private _openTimer;
-    constructor(_prov: InMemoryProvider, _lockHelper: TransactionLockHelper, _transToken: TransactionToken);
+    constructor(_prov: InMemoryProvider, _lockHelper: TransactionLockHelper, _transToken: TransactionToken, writeNeeded: boolean);
     private _commitTransaction;
     getCompletionPromise(): Promise<void>;
     abort(): void;
@@ -42,8 +42,8 @@ declare class InMemoryIndex extends DbIndexFTSFromRangeQueries {
     constructor(_mergedData: Map<string, ItemType>, indexSchema: IndexSchema, primaryKeyPath: KeyPathType);
     internal_SetTransaction(trans: InMemoryTransaction): void;
     internal_getKeysFromItem(item: ItemType): string[] | undefined;
-    put(itemOrItems: ItemType | ItemType[]): void;
-    remove(key: string): void;
+    put(itemOrItems: ItemType | ItemType[], skipTransactionOnCreation?: boolean): void;
+    remove(key: string, skipTransactionOnCreation?: boolean): void;
     getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
     getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;

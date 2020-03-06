@@ -52,7 +52,7 @@ export class InMemoryProvider extends DbProvider {
 
     openTransaction(storeNames: string[], writeNeeded: boolean): Promise<DbTransaction> {
         return this._lockHelper!!!.openTransaction(storeNames, writeNeeded).then((token: any) =>
-            new InMemoryTransaction(this, this._lockHelper!!!, token));
+            new InMemoryTransaction(this, this._lockHelper!!!, token, writeNeeded));
     }
 
     close(): Promise<void> {
@@ -70,14 +70,21 @@ export class InMemoryProvider extends DbProvider {
 class InMemoryTransaction implements DbTransaction {
     private _stores: Map<string, InMemoryStore> = new Map();
     private _openTimer: number | undefined;
-    constructor(private _prov: InMemoryProvider, private _lockHelper: TransactionLockHelper, private _transToken: TransactionToken) {
+    constructor(private _prov: InMemoryProvider, private _lockHelper: TransactionLockHelper, private _transToken: TransactionToken, writeNeeded: boolean) {
          // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
         // goes by, there can't have been anything pending.
-        this._openTimer = setTimeout(() => {
+        if (writeNeeded) {
+            this._openTimer = setTimeout(() => {
+                this._openTimer = undefined;
+                this._commitTransaction();
+                this._lockHelper.transactionComplete(this._transToken);
+            }, 0) as any as number;
+        } else {
             this._openTimer = undefined;
             this._commitTransaction();
             this._lockHelper.transactionComplete(this._transToken);
-        }, 0) as any as number;
+        }
+        
     }
 
     private _commitTransaction(): void {
@@ -157,10 +164,6 @@ class InMemoryStore implements DbStore {
     }
 
     get(key: KeyType): Promise<ItemType | undefined> {
-        if (!this._trans.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
-
         const joinedKey = attempt(() => {
             return serializeKeyToString(key, this._storeSchema.primaryKeyPath);
         });
@@ -172,10 +175,6 @@ class InMemoryStore implements DbStore {
     }
 
     getMultiple(keyOrKeys: KeyType | KeyType[]): Promise<ItemType[]> {
-        if (!this._trans.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
-
         const joinedKeys = attempt(() => {
             return formListOfSerializedKeys(keyOrKeys, this._storeSchema.primaryKeyPath);
         });
@@ -318,7 +317,7 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         primaryKeyPath: KeyPathType) {
         super(indexSchema, primaryKeyPath);
         this._rbIndex = empty<string, ItemType[]>(stringCompare, true);
-        this.put(values(_mergedData));
+        this.put(values(_mergedData), true);
     }
 
     public internal_SetTransaction(trans: InMemoryTransaction) {
@@ -344,7 +343,10 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
     }
 
     // Warning: This function can throw, make sure to trap.
-    public put(itemOrItems: ItemType | ItemType[]): void {
+    public put(itemOrItems: ItemType | ItemType[], skipTransactionOnCreation?: boolean): void {
+        if (!skipTransactionOnCreation && !this._trans!.internal_isOpen()) {
+            throw new Error('InMemoryTransaction already closed');
+        }
         const items = arrayify(itemOrItems);
         // If it's not the PK index, re-pivot the data to be keyed off the key value built from the keypath
         each(items, item => {
@@ -363,15 +365,14 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         });
     }
 
-    public remove(key: string) {
-          remove(key, this._rbIndex);
+    public remove(key: string, skipTransactionOnCreation?: boolean) {
+        if (!skipTransactionOnCreation && !this._trans!.internal_isOpen()) {
+            throw new Error('InMemoryTransaction already closed');
+        }
+        remove(key, this._rbIndex);
     }
 
     getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
-        if (!this._trans!.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
-
         limit = limit ? limit : this._rbIndex._size;
         offset = offset ? offset : 0;
         const data = new Array<ItemType>(limit);
@@ -395,10 +396,6 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
         reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
-        if (!this._trans!.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
-
         const values = attempt(() => {
             const reverse = reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse;
             limit = limit ? limit : this._rbIndex._size;
@@ -432,9 +429,6 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
 
     getKeysForRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
         : Promise<any[]> {
-        if (!this._trans!.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
         const keys = attempt(() => {
             return this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
@@ -460,10 +454,6 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
     }
 
     countAll(): Promise<number> {
-        if (!this._trans!.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
-
         return Promise.resolve(this._rbIndex._size);
     }
 
@@ -473,10 +463,6 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
 
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
         : Promise<number> {
-        if (!this._trans!.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
-
         const keys = attempt(() => {
             return this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
