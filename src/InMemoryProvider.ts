@@ -70,7 +70,11 @@ export class InMemoryProvider extends DbProvider {
 class InMemoryTransaction implements DbTransaction {
     private _stores: Map<string, InMemoryStore> = new Map();
     private _openTimer: number | undefined;
-    constructor(private _prov: InMemoryProvider, private _lockHelper: TransactionLockHelper, private _transToken: TransactionToken, writeNeeded: boolean) {
+    constructor(
+        private _prov: InMemoryProvider, 
+        private _lockHelper: TransactionLockHelper, 
+        private _transToken: TransactionToken, 
+        writeNeeded: boolean) {
          // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
         // goes by, there can't have been anything pending.
         if (writeNeeded) {

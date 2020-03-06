@@ -60,7 +60,7 @@ var InMemoryProvider = /** @class */ (function (_super) {
     InMemoryProvider.prototype.openTransaction = function (storeNames, writeNeeded) {
         var _this = this;
         return this._lockHelper.openTransaction(storeNames, writeNeeded).then(function (token) {
-            return new InMemoryTransaction(_this, _this._lockHelper, token);
+            return new InMemoryTransaction(_this, _this._lockHelper, token, writeNeeded);
         });
     };
     InMemoryProvider.prototype.close = function () {
@@ -77,7 +77,7 @@ var InMemoryProvider = /** @class */ (function (_super) {
 exports.InMemoryProvider = InMemoryProvider;
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
 var InMemoryTransaction = /** @class */ (function () {
-    function InMemoryTransaction(_prov, _lockHelper, _transToken) {
+    function InMemoryTransaction(_prov, _lockHelper, _transToken, writeNeeded) {
         var _this = this;
         this._prov = _prov;
         this._lockHelper = _lockHelper;
@@ -85,11 +85,18 @@ var InMemoryTransaction = /** @class */ (function () {
         this._stores = new Map();
         // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
         // goes by, there can't have been anything pending.
-        this._openTimer = setTimeout(function () {
-            _this._openTimer = undefined;
-            _this._commitTransaction();
-            _this._lockHelper.transactionComplete(_this._transToken);
-        }, 0);
+        if (writeNeeded) {
+            this._openTimer = setTimeout(function () {
+                _this._openTimer = undefined;
+                _this._commitTransaction();
+                _this._lockHelper.transactionComplete(_this._transToken);
+            }, 0);
+        }
+        else {
+            this._openTimer = undefined;
+            this._commitTransaction();
+            this._lockHelper.transactionComplete(this._transToken);
+        }
     }
     InMemoryTransaction.prototype._commitTransaction = function () {
         this._stores.forEach(function (store) {
@@ -136,34 +143,20 @@ var InMemoryStore = /** @class */ (function () {
     function InMemoryStore(_trans, storeInfo) {
         this._trans = _trans;
         this._storeSchema = storeInfo.schema;
-        this._committedStoreData = storeInfo.data;
+        this._committedStoreData = new Map(storeInfo.data);
         this._indices = storeInfo.indices;
-        this._mergedData = this._committedStoreData;
+        this._mergedData = storeInfo.data;
     }
-    InMemoryStore.prototype._checkDataClone = function () {
-        if (!(this._pendingCommitDataChanges && this._pendingCommitDataChanges.size > 0)) {
-            this._pendingCommitDataChanges = new Map();
-            this._mergedData = this._committedStoreData;
-        }
-    };
     InMemoryStore.prototype.internal_commitPendingData = function () {
-        var _this = this;
-        lodash_1.each(this._pendingCommitDataChanges, function (val, key) {
-            if (val === undefined) {
-                _this._committedStoreData.delete(key);
-            }
-            else {
-                _this._committedStoreData.set(key, val);
-            }
-        });
-        this._pendingCommitDataChanges = undefined;
-        this._mergedData = this._committedStoreData;
+        this._committedStoreData = new Map(this._mergedData);
         // Indices were already updated, theres no need to update them now. 
     };
     InMemoryStore.prototype.internal_rollbackPendingData = function () {
         var _this = this;
-        this._pendingCommitDataChanges = undefined;
-        this._mergedData = this._committedStoreData;
+        this._mergedData.clear();
+        this._committedStoreData.forEach(function (val, key) {
+            _this._mergedData.set(key, val);
+        });
         // Recreate all indexes on a roll back.
         lodash_1.each(this._storeSchema.indexes, function (index) {
             _this._indices.set(index.name, new InMemoryIndex(_this._mergedData, index, _this._storeSchema.primaryKeyPath));
@@ -171,9 +164,6 @@ var InMemoryStore = /** @class */ (function () {
     };
     InMemoryStore.prototype.get = function (key) {
         var _this = this;
-        if (!this._trans.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
         var joinedKey = lodash_1.attempt(function () {
             return NoSqlProviderUtils_1.serializeKeyToString(key, _this._storeSchema.primaryKeyPath);
         });
@@ -184,9 +174,6 @@ var InMemoryStore = /** @class */ (function () {
     };
     InMemoryStore.prototype.getMultiple = function (keyOrKeys) {
         var _this = this;
-        if (!this._trans.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
         var joinedKeys = lodash_1.attempt(function () {
             return NoSqlProviderUtils_1.formListOfSerializedKeys(keyOrKeys, _this._storeSchema.primaryKeyPath);
         });
@@ -200,7 +187,6 @@ var InMemoryStore = /** @class */ (function () {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
-        this._checkDataClone();
         var err = lodash_1.attempt(function () {
             lodash_1.each(NoSqlProviderUtils_1.arrayify(itemOrItems), function (item) {
                 var e_1, _a;
@@ -209,7 +195,6 @@ var InMemoryStore = /** @class */ (function () {
                 if (existingItem) {
                     _this._removeFromIndices(pk, existingItem);
                 }
-                _this._pendingCommitDataChanges.set(pk, item);
                 _this._mergedData.set(pk, item);
                 _this.openPrimaryKey().put(item);
                 if (_this._storeSchema.indexes) {
@@ -239,7 +224,6 @@ var InMemoryStore = /** @class */ (function () {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
-        this._checkDataClone();
         var joinedKeys = lodash_1.attempt(function () {
             return NoSqlProviderUtils_1.formListOfSerializedKeys(keyOrKeys, _this._storeSchema.primaryKeyPath);
         });
@@ -264,7 +248,6 @@ var InMemoryStore = /** @class */ (function () {
         });
     };
     InMemoryStore.prototype.openPrimaryKey = function () {
-        this._checkDataClone();
         if (!this._indices.get('pk')) {
             this._indices.set('pk', new InMemoryIndex(this._mergedData, undefined, this._storeSchema.primaryKeyPath));
         }
@@ -277,7 +260,6 @@ var InMemoryStore = /** @class */ (function () {
         if (!indexSchema) {
             throw new Error('Index not found: ' + indexName);
         }
-        this._checkDataClone();
         if (!this._indices.has(indexSchema.name)) {
             this._indices.set(indexSchema.name, new InMemoryIndex(this._mergedData, indexSchema, this._storeSchema.primaryKeyPath));
         }
@@ -290,11 +272,10 @@ var InMemoryStore = /** @class */ (function () {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
-        this._checkDataClone();
-        lodash_1.each(this._mergedData, function (_val, key) {
-            _this._pendingCommitDataChanges.delete(key);
-        });
         this._mergedData = new Map();
+        lodash_1.each(this._storeSchema.indexes, function (index) {
+            _this._indices.set(index.name, new InMemoryIndex(_this._mergedData, index, _this._storeSchema.primaryKeyPath));
+        });
         return Promise.resolve(void 0);
     };
     InMemoryStore.prototype._removeInternal = function (keys) {
@@ -302,10 +283,8 @@ var InMemoryStore = /** @class */ (function () {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
-        this._checkDataClone();
         lodash_1.each(keys, function (key) {
             var existingItem = _this._mergedData.get(key);
-            _this._pendingCommitDataChanges.delete(key);
             _this._mergedData.delete(key);
             if (existingItem) {
                 _this._removeFromIndices(key, existingItem);
@@ -330,7 +309,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
     function InMemoryIndex(_mergedData, indexSchema, primaryKeyPath) {
         var _this = _super.call(this, indexSchema, primaryKeyPath) || this;
         _this._rbIndex = red_black_tree_1.empty(core_1.stringCompare, true);
-        _this.put(lodash_1.values(_mergedData));
+        _this.put(lodash_1.values(_mergedData), true);
         return _this;
     }
     InMemoryIndex.prototype.internal_SetTransaction = function (trans) {
@@ -359,8 +338,11 @@ var InMemoryIndex = /** @class */ (function (_super) {
         return keys;
     };
     // Warning: This function can throw, make sure to trap.
-    InMemoryIndex.prototype.put = function (itemOrItems) {
+    InMemoryIndex.prototype.put = function (itemOrItems, skipTransactionOnCreation) {
         var _this = this;
+        if (!skipTransactionOnCreation && !this._trans.internal_isOpen()) {
+            throw new Error('InMemoryTransaction already closed');
+        }
         var items = NoSqlProviderUtils_1.arrayify(itemOrItems);
         // If it's not the PK index, re-pivot the data to be keyed off the key value built from the keypath
         lodash_1.each(items, function (item) {
@@ -378,14 +360,14 @@ var InMemoryIndex = /** @class */ (function (_super) {
             });
         });
     };
-    InMemoryIndex.prototype.remove = function (key) {
+    InMemoryIndex.prototype.remove = function (key, skipTransactionOnCreation) {
+        if (!skipTransactionOnCreation && !this._trans.internal_isOpen()) {
+            throw new Error('InMemoryTransaction already closed');
+        }
         red_black_tree_1.remove(key, this._rbIndex);
     };
     InMemoryIndex.prototype.getAll = function (reverseOrSortOrder, limit, offset) {
         var e_2, _a;
-        if (!this._trans.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
         limit = limit ? limit : this._rbIndex._size;
         offset = offset ? offset : 0;
         var data = new Array(limit);
@@ -416,9 +398,6 @@ var InMemoryIndex = /** @class */ (function (_super) {
     };
     InMemoryIndex.prototype.getRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverseOrSortOrder, limit, offset) {
         var _this = this;
-        if (!this._trans.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
         var values = lodash_1.attempt(function () {
             var e_3, _a;
             var reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse;
@@ -460,9 +439,6 @@ var InMemoryIndex = /** @class */ (function (_super) {
     };
     InMemoryIndex.prototype.getKeysForRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
         var _this = this;
-        if (!this._trans.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
         var keys = lodash_1.attempt(function () {
             return _this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
@@ -496,9 +472,6 @@ var InMemoryIndex = /** @class */ (function (_super) {
         return keys;
     };
     InMemoryIndex.prototype.countAll = function () {
-        if (!this._trans.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
         return Promise.resolve(this._rbIndex._size);
     };
     InMemoryIndex.prototype.countOnly = function (key) {
@@ -506,9 +479,6 @@ var InMemoryIndex = /** @class */ (function (_super) {
     };
     InMemoryIndex.prototype.countRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
         var _this = this;
-        if (!this._trans.internal_isOpen()) {
-            return Promise.reject('InMemoryTransaction already closed');
-        }
         var keys = lodash_1.attempt(function () {
             return _this._getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
