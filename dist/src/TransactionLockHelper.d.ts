@@ -12,6 +12,15 @@ export interface TransactionToken {
     readonly storeNames: string[];
     readonly exclusive: boolean;
 }
+export declare class Deferred<T> {
+    private _promise;
+    private _reject;
+    private _resolve;
+    constructor();
+    readonly promise: Promise<T>;
+    resolve(value?: T | PromiseLike<T> | undefined): void;
+    reject(reason?: any): void;
+}
 export declare class TransactionLockHelper {
     private _schema;
     private _supportsDiscreteTransactions;

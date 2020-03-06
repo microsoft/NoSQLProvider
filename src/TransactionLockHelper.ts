@@ -18,7 +18,7 @@ export interface TransactionToken {
     readonly exclusive: boolean;
 }
 
-class Deferred<T> {
+export class Deferred<T> {
     private _promise: Promise<T>;
     private _reject: (reason?: any) => void = <(reason?: any) => void>(<unknown>undefined);
     private _resolve: (value?: T | PromiseLike<T> | undefined) => void

@@ -12,6 +12,7 @@
   },
   "main": "dist/index.js",
   "dependencies": {
+    "@collectable/core": "^5.0.1",
     "@collectable/red-black-tree": "^5.0.1",
     "@types/lodash": "4.14.116",
     "lodash": "^4.0.0",

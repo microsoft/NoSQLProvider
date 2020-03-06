@@ -33,22 +33,23 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var lodash_1 = require("lodash");
 var FullTextSearchHelpers_1 = require("./FullTextSearchHelpers");
 var NoSqlProvider_1 = require("./NoSqlProvider");
+var core_1 = require("@collectable/core");
 var NoSqlProviderUtils_1 = require("./NoSqlProviderUtils");
 var TransactionLockHelper_1 = require("./TransactionLockHelper");
 var red_black_tree_1 = require("@collectable/red-black-tree");
-// Very simple in-memory dbprovider for handling IE inprivate windows (and unit tests, maybe?)
+// Very simple in-memory dbprov ider for handling IE inprivate windows (and unit tests, maybe?)
 var InMemoryProvider = /** @class */ (function (_super) {
     __extends(InMemoryProvider, _super);
     function InMemoryProvider() {
         var _this = _super !== null && _super.apply(this, arguments) || this;
-        _this._stores = {};
+        _this._stores = new Map();
         return _this;
     }
     InMemoryProvider.prototype.open = function (dbName, schema, wipeIfExists, verbose) {
         var _this = this;
         _super.prototype.open.call(this, dbName, schema, wipeIfExists, verbose);
         lodash_1.each(this._schema.stores, function (storeSchema) {
-            _this._stores[storeSchema.name] = { schema: storeSchema, data: {} };
+            _this._stores.set(storeSchema.name, { schema: storeSchema, data: new Map(), indices: new Map() });
         });
         this._lockHelper = new TransactionLockHelper_1.TransactionLockHelper(schema, true);
         return Promise.resolve(void 0);
@@ -65,11 +66,11 @@ var InMemoryProvider = /** @class */ (function (_super) {
     InMemoryProvider.prototype.close = function () {
         var _this = this;
         return this._lockHelper.closeWhenPossible().then(function () {
-            _this._stores = {};
+            _this._stores = new Map();
         });
     };
     InMemoryProvider.prototype.internal_getStore = function (name) {
-        return this._stores[name];
+        return this._stores.get(name);
     };
     return InMemoryProvider;
 }(NoSqlProvider_1.DbProvider));
@@ -81,17 +82,17 @@ var InMemoryTransaction = /** @class */ (function () {
         this._prov = _prov;
         this._lockHelper = _lockHelper;
         this._transToken = _transToken;
-        this._stores = {};
-        // Close the transaction on the next microtick.  By definition, anything is completed synchronously here, so after an event tick
+        this._stores = new Map();
+        // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
         // goes by, there can't have been anything pending.
-        this._openPromise = Promise.resolve(void 0).then(function () {
-            _this._openPromise = undefined;
+        this._openTimer = setTimeout(function () {
+            _this._openTimer = undefined;
             _this._commitTransaction();
             _this._lockHelper.transactionComplete(_this._transToken);
-        });
+        }, 0);
     }
     InMemoryTransaction.prototype._commitTransaction = function () {
-        lodash_1.each(this._stores, function (store) {
+        this._stores.forEach(function (store) {
             store.internal_commitPendingData();
         });
     };
@@ -99,12 +100,12 @@ var InMemoryTransaction = /** @class */ (function () {
         return this._transToken.completionPromise;
     };
     InMemoryTransaction.prototype.abort = function () {
-        lodash_1.each(this._stores, function (store) {
+        this._stores.forEach(function (store) {
             store.internal_rollbackPendingData();
         });
-        this._stores = {};
-        if (this._openPromise) {
-            this._openPromise = undefined;
+        if (this._openTimer) {
+            clearTimeout(this._openTimer);
+            this._openTimer = undefined;
         }
         this._lockHelper.transactionFailed(this._transToken, 'InMemoryTransaction Aborted');
     };
@@ -115,19 +116,19 @@ var InMemoryTransaction = /** @class */ (function () {
         if (!lodash_1.includes(NoSqlProviderUtils_1.arrayify(this._transToken.storeNames), storeName)) {
             throw new Error('Store not found in transaction-scoped store list: ' + storeName);
         }
-        if (this._stores[storeName]) {
-            return this._stores[storeName];
+        if (this._stores.has(storeName)) {
+            return this._stores.get(storeName);
         }
         var store = this._prov.internal_getStore(storeName);
         if (!store) {
             throw new Error('Store not found: ' + storeName);
         }
         var ims = new InMemoryStore(this, store);
-        this._stores[storeName] = ims;
+        this._stores.set(storeName, ims);
         return ims;
     };
     InMemoryTransaction.prototype.internal_isOpen = function () {
-        return !!this._openPromise;
+        return !!this._openTimer;
     };
     return InMemoryTransaction;
 }());
@@ -136,30 +137,37 @@ var InMemoryStore = /** @class */ (function () {
         this._trans = _trans;
         this._storeSchema = storeInfo.schema;
         this._committedStoreData = storeInfo.data;
+        this._indices = storeInfo.indices;
         this._mergedData = this._committedStoreData;
     }
     InMemoryStore.prototype._checkDataClone = function () {
-        if (!this._pendingCommitDataChanges) {
-            this._pendingCommitDataChanges = {};
-            this._mergedData = lodash_1.assign({}, this._committedStoreData);
+        if (!(this._pendingCommitDataChanges && this._pendingCommitDataChanges.size > 0)) {
+            this._pendingCommitDataChanges = new Map();
+            this._mergedData = this._committedStoreData;
         }
     };
     InMemoryStore.prototype.internal_commitPendingData = function () {
         var _this = this;
         lodash_1.each(this._pendingCommitDataChanges, function (val, key) {
             if (val === undefined) {
-                delete _this._committedStoreData[key];
+                _this._committedStoreData.delete(key);
             }
             else {
-                _this._committedStoreData[key] = val;
+                _this._committedStoreData.set(key, val);
             }
         });
         this._pendingCommitDataChanges = undefined;
         this._mergedData = this._committedStoreData;
+        // Indices were already updated, theres no need to update them now. 
     };
     InMemoryStore.prototype.internal_rollbackPendingData = function () {
+        var _this = this;
         this._pendingCommitDataChanges = undefined;
         this._mergedData = this._committedStoreData;
+        // Recreate all indexes on a roll back.
+        lodash_1.each(this._storeSchema.indexes, function (index) {
+            _this._indices.set(index.name, new InMemoryIndex(_this._mergedData, index, _this._storeSchema.primaryKeyPath));
+        });
     };
     InMemoryStore.prototype.get = function (key) {
         var _this = this;
@@ -172,7 +180,7 @@ var InMemoryStore = /** @class */ (function () {
         if (lodash_1.isError(joinedKey)) {
             return Promise.reject(joinedKey);
         }
-        return Promise.resolve(this._mergedData[joinedKey]);
+        return Promise.resolve(this._mergedData.get(joinedKey));
     };
     InMemoryStore.prototype.getMultiple = function (keyOrKeys) {
         var _this = this;
@@ -185,7 +193,7 @@ var InMemoryStore = /** @class */ (function () {
         if (lodash_1.isError(joinedKeys)) {
             return Promise.reject(joinedKeys);
         }
-        return Promise.resolve(lodash_1.compact(lodash_1.map(joinedKeys, function (key) { return _this._mergedData[key]; })));
+        return Promise.resolve(lodash_1.compact(lodash_1.map(joinedKeys, function (key) { return _this._mergedData.get(key); })));
     };
     InMemoryStore.prototype.put = function (itemOrItems) {
         var _this = this;
@@ -195,9 +203,30 @@ var InMemoryStore = /** @class */ (function () {
         this._checkDataClone();
         var err = lodash_1.attempt(function () {
             lodash_1.each(NoSqlProviderUtils_1.arrayify(itemOrItems), function (item) {
+                var e_1, _a;
                 var pk = NoSqlProviderUtils_1.getSerializedKeyForKeypath(item, _this._storeSchema.primaryKeyPath);
-                _this._pendingCommitDataChanges[pk] = item;
-                _this._mergedData[pk] = item;
+                var existingItem = _this._mergedData.get(pk);
+                if (existingItem) {
+                    _this._removeFromIndices(pk, existingItem);
+                }
+                _this._pendingCommitDataChanges.set(pk, item);
+                _this._mergedData.set(pk, item);
+                _this.openPrimaryKey().put(item);
+                if (_this._storeSchema.indexes) {
+                    try {
+                        for (var _b = __values(_this._storeSchema.indexes), _c = _b.next(); !_c.done; _c = _b.next()) {
+                            var index = _c.value;
+                            _this.openIndex(index.name).put(item);
+                        }
+                    }
+                    catch (e_1_1) { e_1 = { error: e_1_1 }; }
+                    finally {
+                        try {
+                            if (_c && !_c.done && (_a = _b.return)) _a.call(_b);
+                        }
+                        finally { if (e_1) throw e_1.error; }
+                    }
+                }
             });
         });
         if (err) {
@@ -217,7 +246,7 @@ var InMemoryStore = /** @class */ (function () {
         if (lodash_1.isError(joinedKeys)) {
             return Promise.reject(joinedKeys);
         }
-        return this.removeInternal(joinedKeys);
+        return this._removeInternal(joinedKeys);
     };
     InMemoryStore.prototype.removeRange = function (indexName, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
         var _this = this;
@@ -231,12 +260,17 @@ var InMemoryStore = /** @class */ (function () {
             return Promise.reject('Index "' + indexName + '" not found');
         }
         return index.getKeysForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).then(function (keys) {
-            return _this.removeInternal(keys);
+            return _this._removeInternal(keys);
         });
     };
     InMemoryStore.prototype.openPrimaryKey = function () {
         this._checkDataClone();
-        return new InMemoryIndex(this._trans, this._mergedData, undefined, this._storeSchema.primaryKeyPath);
+        if (!this._indices.get('pk')) {
+            this._indices.set('pk', new InMemoryIndex(this._mergedData, undefined, this._storeSchema.primaryKeyPath));
+        }
+        var index = this._indices.get('pk');
+        index.internal_SetTransaction(this._trans);
+        return index;
     };
     InMemoryStore.prototype.openIndex = function (indexName) {
         var indexSchema = lodash_1.find(this._storeSchema.indexes, function (idx) { return idx.name === indexName; });
@@ -244,7 +278,12 @@ var InMemoryStore = /** @class */ (function () {
             throw new Error('Index not found: ' + indexName);
         }
         this._checkDataClone();
-        return new InMemoryIndex(this._trans, this._mergedData, indexSchema, this._storeSchema.primaryKeyPath);
+        if (!this._indices.has(indexSchema.name)) {
+            this._indices.set(indexSchema.name, new InMemoryIndex(this._mergedData, indexSchema, this._storeSchema.primaryKeyPath));
+        }
+        var index = this._indices.get(indexSchema.name);
+        index.internal_SetTransaction(this._trans);
+        return index;
     };
     InMemoryStore.prototype.clearAllData = function () {
         var _this = this;
@@ -253,65 +292,97 @@ var InMemoryStore = /** @class */ (function () {
         }
         this._checkDataClone();
         lodash_1.each(this._mergedData, function (_val, key) {
-            _this._pendingCommitDataChanges[key] = undefined;
+            _this._pendingCommitDataChanges.delete(key);
         });
-        this._mergedData = {};
+        this._mergedData = new Map();
         return Promise.resolve(void 0);
     };
-    InMemoryStore.prototype.removeInternal = function (keys) {
+    InMemoryStore.prototype._removeInternal = function (keys) {
         var _this = this;
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
         this._checkDataClone();
         lodash_1.each(keys, function (key) {
-            _this._pendingCommitDataChanges[key] = undefined;
-            delete _this._mergedData[key];
+            var existingItem = _this._mergedData.get(key);
+            _this._pendingCommitDataChanges.delete(key);
+            _this._mergedData.delete(key);
+            if (existingItem) {
+                _this._removeFromIndices(key, existingItem);
+            }
         });
         return Promise.resolve(void 0);
+    };
+    InMemoryStore.prototype._removeFromIndices = function (key, item) {
+        var _this = this;
+        this.openPrimaryKey().remove(key);
+        lodash_1.each(this._storeSchema.indexes, function (index) {
+            var ind = _this.openIndex(index.name);
+            var keys = ind.internal_getKeysFromItem(item);
+            lodash_1.each(keys, function (key) { return ind.remove(key); });
+        });
     };
     return InMemoryStore;
 }());
 // Note: Currently maintains nothing interesting -- rebuilds the results every time from scratch.  Scales like crap.
 var InMemoryIndex = /** @class */ (function (_super) {
     __extends(InMemoryIndex, _super);
-    function InMemoryIndex(_trans, _mergedData, indexSchema, primaryKeyPath) {
+    function InMemoryIndex(_mergedData, indexSchema, primaryKeyPath) {
         var _this = _super.call(this, indexSchema, primaryKeyPath) || this;
-        _this._trans = _trans;
-        _this._mergedData = _mergedData;
-        _this._rbIndex = red_black_tree_1.empty(function (a, b) { return a.localeCompare(b); }, false);
-        _this._calcChunkedData();
+        _this._rbIndex = red_black_tree_1.empty(core_1.stringCompare, true);
+        _this.put(lodash_1.values(_mergedData));
         return _this;
     }
-    // Warning: This function can throw, make sure to trap.
-    InMemoryIndex.prototype._calcChunkedData = function () {
+    InMemoryIndex.prototype.internal_SetTransaction = function (trans) {
+        this._trans = trans;
+    };
+    InMemoryIndex.prototype.internal_getKeysFromItem = function (item) {
         var _this = this;
-        // If it's not the PK index, re-pivot the data to be keyed off the key value built from the keypath
-        lodash_1.each(this._mergedData, function (item) {
-            // Each item may be non-unique so store as an array of items for each key
-            var keys;
-            if (_this._indexSchema.fullText) {
-                keys = lodash_1.map(FullTextSearchHelpers_1.getFullTextIndexWordsForItem(_this._keyPath, item), function (val) {
+        var keys;
+        if (this._indexSchema && this._indexSchema.fullText) {
+            keys = lodash_1.map(FullTextSearchHelpers_1.getFullTextIndexWordsForItem(this._keyPath, item), function (val) {
+                return NoSqlProviderUtils_1.serializeKeyToString(val, _this._keyPath);
+            });
+        }
+        else if (this._indexSchema && this._indexSchema.multiEntry) {
+            // Have to extract the multiple entries into this alternate table...
+            var valsRaw = NoSqlProviderUtils_1.getValueForSingleKeypath(item, this._keyPath);
+            if (valsRaw) {
+                keys = lodash_1.map(NoSqlProviderUtils_1.arrayify(valsRaw), function (val) {
                     return NoSqlProviderUtils_1.serializeKeyToString(val, _this._keyPath);
                 });
             }
-            else if (_this._indexSchema.multiEntry) {
-                // Have to extract the multiple entries into this alternate table...
-                var valsRaw = NoSqlProviderUtils_1.getValueForSingleKeypath(item, _this._keyPath);
-                if (valsRaw) {
-                    keys = lodash_1.map(NoSqlProviderUtils_1.arrayify(valsRaw), function (val) {
-                        return NoSqlProviderUtils_1.serializeKeyToString(val, _this._keyPath);
-                    });
+        }
+        else {
+            keys = [NoSqlProviderUtils_1.getSerializedKeyForKeypath(item, this._keyPath)];
+        }
+        return keys;
+    };
+    // Warning: This function can throw, make sure to trap.
+    InMemoryIndex.prototype.put = function (itemOrItems) {
+        var _this = this;
+        var items = NoSqlProviderUtils_1.arrayify(itemOrItems);
+        // If it's not the PK index, re-pivot the data to be keyed off the key value built from the keypath
+        lodash_1.each(items, function (item) {
+            // Each item may be non-unique so store as an array of items for each key
+            var keys = _this.internal_getKeysFromItem(item);
+            lodash_1.each(keys, function (key) {
+                if (red_black_tree_1.has(key, _this._rbIndex)) {
+                    var existingItems = red_black_tree_1.get(key, _this._rbIndex);
+                    existingItems.push(item);
+                    red_black_tree_1.set(key, existingItems, _this._rbIndex);
                 }
-            }
-            else {
-                keys = [NoSqlProviderUtils_1.getSerializedKeyForKeypath(item, _this._keyPath)];
-            }
-            lodash_1.each(keys, function (key) { return red_black_tree_1.set(key, item, _this._rbIndex); });
+                else {
+                    red_black_tree_1.set(key, [item], _this._rbIndex);
+                }
+            });
         });
     };
+    InMemoryIndex.prototype.remove = function (key) {
+        red_black_tree_1.remove(key, this._rbIndex);
+    };
     InMemoryIndex.prototype.getAll = function (reverseOrSortOrder, limit, offset) {
-        var e_1, _a;
+        var e_2, _a;
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
@@ -324,15 +395,19 @@ var InMemoryIndex = /** @class */ (function (_super) {
         try {
             for (var iterator_1 = __values(iterator), iterator_1_1 = iterator_1.next(); !iterator_1_1.done; iterator_1_1 = iterator_1.next()) {
                 var item = iterator_1_1.value;
-                data[i] = item;
+                data[i] = item.value[0];
+                i++;
+                if (i >= limit) {
+                    break;
+                }
             }
         }
-        catch (e_1_1) { e_1 = { error: e_1_1 }; }
+        catch (e_2_1) { e_2 = { error: e_2_1 }; }
         finally {
             try {
                 if (iterator_1_1 && !iterator_1_1.done && (_a = iterator_1.return)) _a.call(iterator_1);
             }
-            finally { if (e_1) throw e_1.error; }
+            finally { if (e_2) throw e_2.error; }
         }
         return Promise.resolve(data);
     };
@@ -345,9 +420,9 @@ var InMemoryIndex = /** @class */ (function (_super) {
             return Promise.reject('InMemoryTransaction already closed');
         }
         var values = lodash_1.attempt(function () {
-            var e_2, _a;
+            var e_3, _a;
             var reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse;
-            limit = limit ? limit : 0;
+            limit = limit ? limit : _this._rbIndex._size;
             offset = offset ? offset : 0;
             var keyLow = NoSqlProviderUtils_1.serializeKeyToString(keyLowRange, _this._keyPath);
             var keyHigh = NoSqlProviderUtils_1.serializeKeyToString(keyHighRange, _this._keyPath);
@@ -362,19 +437,19 @@ var InMemoryIndex = /** @class */ (function (_super) {
                             offset--;
                             continue;
                         }
-                        if (values.length > limit) {
+                        if (values.length >= limit) {
                             break;
                         }
-                        values.push(red_black_tree_1.get(key, _this._rbIndex));
+                        values = values.concat(red_black_tree_1.get(key, _this._rbIndex));
                     }
                 }
             }
-            catch (e_2_1) { e_2 = { error: e_2_1 }; }
+            catch (e_3_1) { e_3 = { error: e_3_1 }; }
             finally {
                 try {
                     if (iterator_2_1 && !iterator_2_1.done && (_a = iterator_2.return)) _a.call(iterator_2);
                 }
-                finally { if (e_2) throw e_2.error; }
+                finally { if (e_3) throw e_3.error; }
             }
             return values;
         });
@@ -398,7 +473,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
     };
     // Warning: This function can throw, make sure to trap.
     InMemoryIndex.prototype._getKeysForRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
-        var e_3, _a;
+        var e_4, _a;
         var keyLow = NoSqlProviderUtils_1.serializeKeyToString(keyLowRange, this._keyPath);
         var keyHigh = NoSqlProviderUtils_1.serializeKeyToString(keyHighRange, this._keyPath);
         var iterator = red_black_tree_1.iterateKeysFromFirst(this._rbIndex);
@@ -411,12 +486,12 @@ var InMemoryIndex = /** @class */ (function (_super) {
                 }
             }
         }
-        catch (e_3_1) { e_3 = { error: e_3_1 }; }
+        catch (e_4_1) { e_4 = { error: e_4_1 }; }
         finally {
             try {
                 if (iterator_3_1 && !iterator_3_1.done && (_a = iterator_3.return)) _a.call(iterator_3);
             }
-            finally { if (e_3) throw e_3.error; }
+            finally { if (e_4) throw e_4.error; }
         }
         return keys;
     };
