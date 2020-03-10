@@ -4,7 +4,7 @@
 
 "@collectable/core@^5.0.1":
   version "5.0.1"
-  resolved "https://domoreexp.pkgs.visualstudio.com/_packaging/npm-mirror/npm/registry/@collectable/core/-/core-5.0.1.tgz#f36ea4676b31d619681bfae8105c4114c205663d"
+  resolved "https://registry.yarnpkg.com/@collectable/core/-/core-5.0.1.tgz#f36ea4676b31d619681bfae8105c4114c205663d"
   integrity sha1-826kZ2sx1hloG/roEFxBFMIFZj0=
   dependencies:
     "@frptools/corelib" "^1.1.0"
