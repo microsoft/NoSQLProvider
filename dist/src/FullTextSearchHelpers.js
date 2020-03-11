@@ -6,6 +6,26 @@
 *
 * Reusable helper classes and functions for supporting Full Text Search.
 */
+var __read = (this && this.__read) || function (o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+};
+var __spread = (this && this.__spread) || function () {
+    for (var ar = [], i = 0; i < arguments.length; i++) ar = ar.concat(__read(arguments[i]));
+    return ar;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 var lodash_1 = require("lodash");
 var regexp_i18n_1 = require("regexp-i18n");
@@ -60,14 +80,14 @@ var DbIndexFTSFromRangeQueries = /** @class */ (function () {
                 return Promise.reject(uniquers);
             }
             if (resolution === NoSqlProvider_1.FullTextTermResolution.Or) {
-                var data = lodash_1.values(lodash_1.assign.apply(void 0, [{}].concat(uniquers)));
+                var data = lodash_1.values(lodash_1.assign.apply(void 0, __spread([{}], uniquers)));
                 if (limit) {
                     return lodash_1.take(data, limit);
                 }
                 return Promise.resolve(data);
             }
             if (resolution === NoSqlProvider_1.FullTextTermResolution.And) {
-                var first = uniquers[0], others_1 = uniquers.slice(1);
+                var _a = __read(uniquers), first = _a[0], others_1 = _a.slice(1);
                 var dic = lodash_1.pickBy(first, function (_value, key) { return lodash_1.every(others_1, function (set) { return key in set; }); });
                 var data = lodash_1.values(dic);
                 if (limit) {

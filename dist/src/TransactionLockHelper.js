@@ -35,6 +35,7 @@ var Deferred = /** @class */ (function () {
     };
     return Deferred;
 }());
+exports.Deferred = Deferred;
 var TransactionLockHelper = /** @class */ (function () {
     function TransactionLockHelper(_schema, _supportsDiscreteTransactions) {
         var _this = this;
