@@ -763,6 +763,25 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         return this._resolveCursorResult(req, limit, offset);
     }
 
+    getMultiple(keyOrKeys: KeyType | KeyType[])
+    : Promise<ItemType[]> {
+
+        const keys = attempt(() => {
+            const keys = formListOfKeys(keyOrKeys, this._keyPath);
+
+            if (this._fakeComplicatedKeys && isCompoundKeyPath(this._keyPath)) {
+                return map(keys, key => serializeKeyToString(key, this._keyPath));
+            }
+            return keys;
+        });
+        if (isError(keys)) {
+            return Promise.reject(keys);
+        }
+
+        // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
+        return Promise.all<object[]>(map(keys, key =>
+            IndexedDbProvider.WrapRequest(this._store.get(key))));
+    }
     // Warning: This function can throw, make sure to trap.
     private _getKeyRangeForOnly(key: KeyType): IDBKeyRange {
         if (this._fakeComplicatedKeys && isCompoundKeyPath(this._keyPath)) {

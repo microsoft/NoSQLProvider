@@ -328,6 +328,28 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         return data;
     }
 
+    getMultiple(keyOrKeys: KeyType|KeyType[]): Promise<ItemType[]> {
+        if (!this._trans.internal_isOpen()) {
+            return Promise.reject('InMemoryTransaction already closed');
+        }
+
+        const joinedKeys = attempt(() => {
+            return formListOfSerializedKeys(keyOrKeys, this._keyPath);
+        });
+        if (isError(joinedKeys)) {
+            return Promise.reject(joinedKeys);
+        }
+
+        const data = attempt(() => {
+            return this._calcChunkedData();
+        });
+        if (isError(data)) {
+            return Promise.reject(data);
+        }
+
+        return this._returnResultsFromKeys(data, joinedKeys);
+    }
+
     getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
