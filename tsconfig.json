@@ -3,27 +3,31 @@
         "declaration": true,
         "noResolve": false,
         "module": "commonjs",
-        "target": "es6",
+        "target": "es5",
         "outDir": "dist/",
         "typeRoots": [
             "node_modules/@types"
         ],
+        "downlevelIteration": true,
         "noImplicitAny": true,
         "noImplicitReturns": true,
         "noImplicitThis": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
         "strictPropertyInitialization": true,
-        "strictNullChecks": true,        
+        "strictNullChecks": true,
         "forceConsistentCasingInFileNames": true,
         "strict": true,
-        "sourceMap": true
+        "sourceMap": true,
+        "lib": [
+            "es2015",
+            "dom",
+            "es2016"
+        ]
     },
-
     "filesGlob": [
         "src/**/*{ts,tsx}"
     ],
-
     "exclude": [
         "dist",
         "node_modules"
