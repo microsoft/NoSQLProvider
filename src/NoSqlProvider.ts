@@ -174,11 +174,10 @@ export abstract class DbProvider {
 
         if (indexName) {
             return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
-                // only inMemory Provider doesn't have the support
                 return index.getMultiple(keyOrKeys);
             });
         }
-        // in worker scenario we only issue request for indexedDBProvider
+
         return this._getStoreTransaction(storeName, false).then(store => {
             return store.getMultiple(keyOrKeys);
         });

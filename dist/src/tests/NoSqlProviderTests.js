@@ -798,12 +798,7 @@ describe('NoSqlProvider', function () {
                                     assert.equal(ret.length, 2);
                                     ret.forEach(function (r) { assert.equal(r.val, 'b'); });
                                 });
-                                var g5 = prov.getMultiple('test', ['x', 'y'], 'key').then(function (retVal) {
-                                    var ret = retVal;
-                                    assert.equal(ret.length, 2);
-                                    ret.forEach(function (r) { assert.equal(r.val, 'b'); });
-                                });
-                                return Promise.all([g1, g2, g2b, g2c, g3, g4, g5]).then(function () {
+                                return Promise.all([g1, g2, g2b, g2c, g3, g4]).then(function () {
                                     return prov.close();
                                 });
                             });
@@ -863,6 +858,41 @@ describe('NoSqlProvider', function () {
                         })
                             .then(function () {
                             return prov.close();
+                        });
+                    }).then(function () { return done(); }, function (err) { return done(err); });
+                });
+                it('MultiEntry multipart indexed tests - getMultiple', function (done) {
+                    openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id',
+                                indexes: [
+                                    {
+                                        name: 'key',
+                                        multiEntry: true,
+                                        keyPath: 'k.k'
+                                    }
+                                ]
+                            }
+                        ]
+                    }, true).then(function (prov) {
+                        return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
+                            .then(function () {
+                            var g = prov.getMultiple('test', ['x', 'y'], 'key').then(function (retVal) {
+                                var ret = retVal;
+                                assert.equal(ret.length, 2);
+                                ret.forEach(function (r) { assert.equal(r.val, 'b'); });
+                            });
+                            var g1 = prov.getMultiple('test', ['lala'], 'key').then(function (retVal) {
+                                var ret = retVal;
+                                assert.equal(ret.length, 1);
+                                assert.equal(ret[0], undefined);
+                            });
+                            return Promise.all([g, g1]).then(function () {
+                                return prov.close();
+                            });
                         });
                     }).then(function () { return done(); }, function (err) { return done(err); });
                 });

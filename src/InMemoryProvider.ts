@@ -376,13 +376,12 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         if (isError(joinedKeys)) {
             return Promise.reject(joinedKeys);
         }
-        
-        if (Array.isArray(keyOrKeys)) {
-            var sortedKeys = keyOrKeys.sort();
-            return this.getRange(sortedKeys[0], sortedKeys[sortedKeys.length - 1], false, false);
-        }
 
-        return this.getRange(keyOrKeys, keyOrKeys, false, false);
+        let values = [] as ItemType[];
+        for (const key of joinedKeys) {
+            values = values.concat(get(key, this._rbIndex) as ItemType[]);
+        }
+        return Promise.resolve(values);
     }
 
     public remove(key: string, skipTransactionOnCreation?: boolean) {

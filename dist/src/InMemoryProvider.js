@@ -362,17 +362,28 @@ var InMemoryIndex = /** @class */ (function (_super) {
     };
     InMemoryIndex.prototype.getMultiple = function (keyOrKeys) {
         var _this = this;
+        var e_2, _a;
         var joinedKeys = lodash_1.attempt(function () {
             return NoSqlProviderUtils_1.formListOfSerializedKeys(keyOrKeys, _this._keyPath);
         });
         if (lodash_1.isError(joinedKeys)) {
             return Promise.reject(joinedKeys);
         }
-        if (Array.isArray(keyOrKeys)) {
-            var sortedKeys = keyOrKeys.sort();
-            return this.getRange(sortedKeys[0], sortedKeys[sortedKeys.length - 1], false, false);
+        var values = [];
+        try {
+            for (var joinedKeys_1 = __values(joinedKeys), joinedKeys_1_1 = joinedKeys_1.next(); !joinedKeys_1_1.done; joinedKeys_1_1 = joinedKeys_1.next()) {
+                var key = joinedKeys_1_1.value;
+                values = values.concat(red_black_tree_1.get(key, this._rbIndex));
+            }
         }
-        return this.getRange(keyOrKeys, keyOrKeys, false, false);
+        catch (e_2_1) { e_2 = { error: e_2_1 }; }
+        finally {
+            try {
+                if (joinedKeys_1_1 && !joinedKeys_1_1.done && (_a = joinedKeys_1.return)) _a.call(joinedKeys_1);
+            }
+            finally { if (e_2) throw e_2.error; }
+        }
+        return Promise.resolve(values);
     };
     InMemoryIndex.prototype.remove = function (key, skipTransactionOnCreation) {
         if (!skipTransactionOnCreation && !this._trans.internal_isOpen()) {
@@ -381,7 +392,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
         red_black_tree_1.remove(key, this._rbIndex);
     };
     InMemoryIndex.prototype.getAll = function (reverseOrSortOrder, limit, offset) {
-        var e_2, _a;
+        var e_3, _a;
         limit = limit ? limit : this._rbIndex._size;
         offset = offset ? offset : 0;
         var data = new Array(limit);
@@ -398,12 +409,12 @@ var InMemoryIndex = /** @class */ (function (_super) {
                 }
             }
         }
-        catch (e_2_1) { e_2 = { error: e_2_1 }; }
+        catch (e_3_1) { e_3 = { error: e_3_1 }; }
         finally {
             try {
                 if (iterator_1_1 && !iterator_1_1.done && (_a = iterator_1.return)) _a.call(iterator_1);
             }
-            finally { if (e_2) throw e_2.error; }
+            finally { if (e_3) throw e_3.error; }
         }
         return Promise.resolve(data);
     };
@@ -413,7 +424,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
     InMemoryIndex.prototype.getRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive, reverseOrSortOrder, limit, offset) {
         var _this = this;
         var values = lodash_1.attempt(function () {
-            var e_3, _a;
+            var e_4, _a;
             var reverse = reverseOrSortOrder === true || reverseOrSortOrder === NoSqlProvider_1.QuerySortOrder.Reverse;
             limit = limit ? limit : _this._rbIndex._size;
             offset = offset ? offset : 0;
@@ -437,12 +448,12 @@ var InMemoryIndex = /** @class */ (function (_super) {
                     }
                 }
             }
-            catch (e_3_1) { e_3 = { error: e_3_1 }; }
+            catch (e_4_1) { e_4 = { error: e_4_1 }; }
             finally {
                 try {
                     if (iterator_2_1 && !iterator_2_1.done && (_a = iterator_2.return)) _a.call(iterator_2);
                 }
-                finally { if (e_3) throw e_3.error; }
+                finally { if (e_4) throw e_4.error; }
             }
             return values;
         });
@@ -463,7 +474,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
     };
     // Warning: This function can throw, make sure to trap.
     InMemoryIndex.prototype._getKeysForRange = function (keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive) {
-        var e_4, _a;
+        var e_5, _a;
         var keyLow = NoSqlProviderUtils_1.serializeKeyToString(keyLowRange, this._keyPath);
         var keyHigh = NoSqlProviderUtils_1.serializeKeyToString(keyHighRange, this._keyPath);
         var iterator = red_black_tree_1.iterateKeysFromFirst(this._rbIndex);
@@ -476,12 +487,12 @@ var InMemoryIndex = /** @class */ (function (_super) {
                 }
             }
         }
-        catch (e_4_1) { e_4 = { error: e_4_1 }; }
+        catch (e_5_1) { e_5 = { error: e_5_1 }; }
         finally {
             try {
                 if (iterator_3_1 && !iterator_3_1.done && (_a = iterator_3.return)) _a.call(iterator_3);
             }
-            finally { if (e_4) throw e_4.error; }
+            finally { if (e_5) throw e_5.error; }
         }
         return keys;
     };
