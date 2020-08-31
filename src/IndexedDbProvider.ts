@@ -482,7 +482,6 @@ class IndexedDbStore implements DbStore {
         if (isError(keys)) {
             return Promise.reject(keys);
         }
-        
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
         return Promise.all(map(keys, key =>
             IndexedDbProvider.WrapRequest(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))))
