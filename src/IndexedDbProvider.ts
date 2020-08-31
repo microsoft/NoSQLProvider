@@ -482,7 +482,7 @@ class IndexedDbStore implements DbStore {
         if (isError(keys)) {
             return Promise.reject(keys);
         }
-
+        
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
         return Promise.all(map(keys, key =>
             IndexedDbProvider.WrapRequest(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))))
@@ -755,7 +755,7 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         return this._resolveCursorResult(req, limit, offset);
     }
 
-    getMultiple(keyOrKeys: KeyType | KeyType[])
+    async getMultiple(keyOrKeys: KeyType | KeyType[])
     : Promise<ItemType[]> {
 
         const keys = attempt(() => {
@@ -770,9 +770,18 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
             return Promise.reject(keys);
         }
 
-        // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
-        return Promise.all<object[]>(map(keys, key =>
-            IndexedDbProvider.WrapRequest(this._store.get(key))));
+        let values = [] as ItemType[];
+        if (this._store.getAll && !this._fakeComplicatedKeys) {
+            for (const key of keys) {
+                values =  values.concat(await IndexedDbProvider.WrapRequest(this._store.get(key)));
+            }
+        } else {
+            for (const key of keys) {
+                values = values.concat(await this.getOnly(key));
+            }
+        }
+
+        return Promise.resolve(values && values[0] === undefined ? [] : values); 
     }
     // Warning: This function can throw, make sure to trap.
     private _getKeyRangeForOnly(key: KeyType): IDBKeyRange {

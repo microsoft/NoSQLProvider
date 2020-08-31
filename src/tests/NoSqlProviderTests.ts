@@ -118,7 +118,7 @@ describe('NoSqlProvider', function () {
                                 }
                             ]
                         };
-                        return openProvider(provName, schema, true)
+                        openProvider(provName, schema, true)
                             .then(prov => {
                                 // insert some stuff
                                 return prov.put('test', { id: 'a', val: 'b' })
@@ -946,8 +946,7 @@ describe('NoSqlProvider', function () {
                                 });
                                 var g1 = prov.getMultiple('test', ['lala'], 'key').then(retVal => {
                                     const ret = retVal as TestObj[];
-                                    assert.equal(ret.length, 1);
-                                    assert.equal(ret[0], undefined);
+                                    assert.equal(ret.length, 0);
                                 });
                                 return Promise.all([g, g1]).then(() => {
                                     return prov.close();

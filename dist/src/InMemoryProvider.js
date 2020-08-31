@@ -383,7 +383,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
             }
             finally { if (e_2) throw e_2.error; }
         }
-        return Promise.resolve(values);
+        return Promise.resolve(values && values[0] === undefined ? [] : values);
     };
     InMemoryIndex.prototype.remove = function (key, skipTransactionOnCreation) {
         if (!skipTransactionOnCreation && !this._trans.internal_isOpen()) {

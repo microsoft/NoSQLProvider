@@ -109,7 +109,7 @@ describe('NoSqlProvider', function () {
                                 }
                             ]
                         };
-                        return openProvider(provName, schema, true)
+                        openProvider(provName, schema, true)
                             .then(function (prov) {
                             // insert some stuff
                             return prov.put('test', { id: 'a', val: 'b' })
@@ -887,8 +887,7 @@ describe('NoSqlProvider', function () {
                             });
                             var g1 = prov.getMultiple('test', ['lala'], 'key').then(function (retVal) {
                                 var ret = retVal;
-                                assert.equal(ret.length, 1);
-                                assert.equal(ret[0], undefined);
+                                assert.equal(ret.length, 0);
                             });
                             return Promise.all([g, g1]).then(function () {
                                 return prov.close();
