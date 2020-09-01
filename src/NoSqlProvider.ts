@@ -171,15 +171,8 @@ export abstract class DbProvider {
     }
 
     getMultiple(storeName: string, keyOrKeys: KeyType | KeyType[], indexName?: string): Promise<ItemType[]> {
-
-        if (indexName) {
-            return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
-                return index.getMultiple(keyOrKeys);
-            });
-        }
-
-        return this._getStoreTransaction(storeName, false).then(store => {
-            return store.getMultiple(keyOrKeys);
+        return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
+            return index.getMultiple(keyOrKeys);
         });
     }
 

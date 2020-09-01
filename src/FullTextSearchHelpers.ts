@@ -94,7 +94,7 @@ export abstract class DbIndexFTSFromRangeQueries implements DbIndex {
 
     abstract getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
         : Promise<ItemType[]>;
-    abstract getMultiple(eyOrKeys: KeyType | KeyType[])
+    abstract getMultiple(keyOrKeys: KeyType | KeyType[])
         : Promise<ItemType[]>;
     abstract getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
         : Promise<ItemType[]>;

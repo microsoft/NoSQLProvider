@@ -381,7 +381,7 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         for (const key of joinedKeys) {
             values = values.concat(get(key, this._rbIndex) as ItemType[]);
         }
-        return Promise.resolve(values && values[0] === undefined ? [] : values);
+        return Promise.resolve(compact(values));
     }
 
     public remove(key: string, skipTransactionOnCreation?: boolean) {

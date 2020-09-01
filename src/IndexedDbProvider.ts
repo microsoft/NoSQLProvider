@@ -6,7 +6,7 @@
  * NoSqlProvider provider setup for IndexedDB, a web browser storage module.
  */
 
-import { each, some, find, includes, isObject, attempt, isError, map, filter, compact, clone, isArray, noop } from 'lodash';
+import { each, some, find, includes, isObject, attempt, isError, map, filter, compact, clone, isArray, noop, flatten } from 'lodash';
 
 import { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
 import { DbProvider, DbSchema, DbStore, DbTransaction, StoreSchema, DbIndex, QuerySortOrder, IndexSchema } from './NoSqlProvider';
@@ -754,7 +754,7 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         return this._resolveCursorResult(req, limit, offset);
     }
 
-    async getMultiple(keyOrKeys: KeyType | KeyType[])
+    getMultiple(keyOrKeys: KeyType | KeyType[])
     : Promise<ItemType[]> {
 
         const keys = attempt(() => {
@@ -769,18 +769,11 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
             return Promise.reject(keys);
         }
 
-        let values = [] as ItemType[];
-        if (this._store.getAll && !this._fakeComplicatedKeys) {
-            for (const key of keys) {
-                values =  values.concat(await IndexedDbProvider.WrapRequest(this._store.get(key)));
-            }
-        } else {
-            for (const key of keys) {
-                values = values.concat(await this.getOnly(key));
-            }
+        if (this._store.get && !this._fakeComplicatedKeys) {
+            return Promise.all<object[]>(map(keys, key => IndexedDbProvider.WrapRequest(this._store.get(key)))).then(compact);
         }
 
-        return Promise.resolve(values && values[0] === undefined ? [] : values); 
+        return Promise.all(map(keys, key => this.getOnly(key))).then(vals => compact(flatten(vals)));
     }
     // Warning: This function can throw, make sure to trap.
     private _getKeyRangeForOnly(key: KeyType): IDBKeyRange {
