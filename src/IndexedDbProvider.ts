@@ -759,10 +759,6 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
 
         const keys = attempt(() => {
             const keys = formListOfKeys(keyOrKeys, this._keyPath);
-
-            if (this._fakeComplicatedKeys && isCompoundKeyPath(this._keyPath)) {
-                return map(keys, key => serializeKeyToString(key, this._keyPath));
-            }
             return keys;
         });
         if (isError(keys)) {

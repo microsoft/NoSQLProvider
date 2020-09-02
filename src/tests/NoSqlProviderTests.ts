@@ -192,6 +192,12 @@ describe('NoSqlProvider', function () {
                             }
                         };
 
+                        let t0 = prov.getMultiple('test', compound ? formIndex(1, 1) : 'indexa1', indexName).then(retVal => {
+                            const ret = retVal as TestObj[];
+                            assert.equal(ret.length, 1, 'getMultiple');
+                            [1].forEach(v => { assert(find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
+                        });
+
                         let t1 = prov.getAll('test', indexName).then(retVal => {
                             const ret = retVal as TestObj[];
                             assert.equal(ret.length, 5, 'getAll');
@@ -332,7 +338,7 @@ describe('NoSqlProvider', function () {
                             assert.equal(ret, 1, 'countRange--');
                         });
                         
-                        return Promise.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3b3, t3b4, t3c, t3d, t3d2, t3d3,
+                        return Promise.all([t0, t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3b3, t3b4, t3c, t3d, t3d2, t3d3,
                             t3d4, t4, t4count, t5, t5count, t6, t6count]).then(() => {
                                 if (compound) {
                                     let tt1 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))

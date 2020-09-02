@@ -692,9 +692,9 @@ var IndexedDbIndex = /** @class */ (function (_super) {
         var _this = this;
         var keys = lodash_1.attempt(function () {
             var keys = NoSqlProviderUtils_1.formListOfKeys(keyOrKeys, _this._keyPath);
-            if (_this._fakeComplicatedKeys && NoSqlProviderUtils_1.isCompoundKeyPath(_this._keyPath)) {
-                return lodash_1.map(keys, function (key) { return NoSqlProviderUtils_1.serializeKeyToString(key, _this._keyPath); });
-            }
+            // if (this._fakeComplicatedKeys && isCompoundKeyPath(this._keyPath)) {
+            //     return map(keys, key => serializeKeyToString(key, this._keyPath));
+            // }
             return keys;
         });
         if (lodash_1.isError(keys)) {
