@@ -6,7 +6,7 @@
  * NoSqlProvider provider setup for a non-persisted in-memory database backing provider.
  */
 
-import { attempt, isError, each, includes, compact, map, find, values } from 'lodash';
+import { attempt, isError, each, includes, compact, map, find, values, flatten } from 'lodash';
 import { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
 import {
     StoreSchema, DbProvider, DbSchema, DbTransaction,
@@ -379,9 +379,9 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
 
         let values = [] as ItemType[];
         for (const key of joinedKeys) {
-            values = values.concat(get(key, this._rbIndex) as ItemType[]);
+            values.push(get(key, this._rbIndex) as ItemType[]);
         }
-        return Promise.resolve(compact(values));
+        return Promise.resolve(compact(flatten(values)));
     }
 
     public remove(key: string, skipTransactionOnCreation?: boolean) {

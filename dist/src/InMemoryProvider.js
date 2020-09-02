@@ -373,7 +373,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
         try {
             for (var joinedKeys_1 = __values(joinedKeys), joinedKeys_1_1 = joinedKeys_1.next(); !joinedKeys_1_1.done; joinedKeys_1_1 = joinedKeys_1.next()) {
                 var key = joinedKeys_1_1.value;
-                values = values.concat(red_black_tree_1.get(key, this._rbIndex));
+                values.push(red_black_tree_1.get(key, this._rbIndex));
             }
         }
         catch (e_2_1) { e_2 = { error: e_2_1 }; }
@@ -383,7 +383,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
             }
             finally { if (e_2) throw e_2.error; }
         }
-        return Promise.resolve(lodash_1.compact(values));
+        return Promise.resolve(lodash_1.compact(lodash_1.flatten(values)));
     };
     InMemoryIndex.prototype.remove = function (key, skipTransactionOnCreation) {
         if (!skipTransactionOnCreation && !this._trans.internal_isOpen()) {
