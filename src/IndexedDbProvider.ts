@@ -769,6 +769,8 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
             return Promise.all<object[]>(map(keys, key => IndexedDbProvider.WrapRequest(this._store.get(key)))).then(compact);
         }
 
+        // when dealing with fakeComplicatedKeys, the store tries to store key and refkey, not the entire object.
+        // therefore it calls getOnly to get the whole object through openCursor
         return Promise.all(map(keys, key => this.getOnly(key))).then(vals => compact(flatten(vals)));
     }
     // Warning: This function can throw, make sure to trap.
