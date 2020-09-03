@@ -45,6 +45,7 @@ export declare enum FullTextTermResolution {
 }
 export interface DbIndex {
     getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
+    getMultiple(keyOrKeys: KeyType | KeyType[]): Promise<ItemType[]>;
     getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
     getKeysForRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean): Promise<any[]>;
@@ -81,7 +82,7 @@ export declare abstract class DbProvider {
     protected abstract _deleteDatabaseInternal(): Promise<void>;
     private _getStoreTransaction;
     get(storeName: string, key: KeyType): Promise<ItemType | undefined>;
-    getMultiple(storeName: string, keyOrKeys: KeyType | KeyType[]): Promise<ItemType[]>;
+    getMultiple(storeName: string, keyOrKeys: KeyType | KeyType[], indexName?: string): Promise<ItemType[]>;
     put(storeName: string, itemOrItems: ItemType | ItemType[]): Promise<void>;
     remove(storeName: string, keyOrKeys: KeyType | KeyType[]): Promise<void>;
     removeRange(storeName: string, indexName: string, keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean): Promise<void>;

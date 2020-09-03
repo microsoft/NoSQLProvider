@@ -688,6 +688,23 @@ var IndexedDbIndex = /** @class */ (function (_super) {
         var req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     };
+    IndexedDbIndex.prototype.getMultiple = function (keyOrKeys) {
+        var _this = this;
+        var keys = lodash_1.attempt(function () {
+            var keys = NoSqlProviderUtils_1.formListOfKeys(keyOrKeys, _this._keyPath);
+            // if (this._fakeComplicatedKeys && isCompoundKeyPath(this._keyPath)) {
+            //     return map(keys, key => serializeKeyToString(key, this._keyPath));
+            // }
+            return keys;
+        });
+        if (lodash_1.isError(keys)) {
+            return Promise.reject(keys);
+        }
+        if (this._store.get && !this._fakeComplicatedKeys) {
+            return Promise.all(lodash_1.map(keys, function (key) { return IndexedDbProvider.WrapRequest(_this._store.get(key)); })).then(lodash_1.compact);
+        }
+        return Promise.all(lodash_1.map(keys, function (key) { return _this.getOnly(key); })).then(function (vals) { return lodash_1.compact(lodash_1.flatten(vals)); });
+    };
     // Warning: This function can throw, make sure to trap.
     IndexedDbIndex.prototype._getKeyRangeForOnly = function (key) {
         if (this._fakeComplicatedKeys && NoSqlProviderUtils_1.isCompoundKeyPath(this._keyPath)) {

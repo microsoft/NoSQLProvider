@@ -118,7 +118,7 @@ describe('NoSqlProvider', function () {
                                 }
                             ]
                         };
-                        return openProvider(provName, schema, true)
+                        openProvider(provName, schema, true)
                             .then(prov => {
                                 // insert some stuff
                                 return prov.put('test', { id: 'a', val: 'b' })
@@ -191,6 +191,12 @@ describe('NoSqlProvider', function () {
                                 return 'indexa' + i;
                             }
                         };
+
+                        let t0 = prov.getMultiple('test', compound ? formIndex(1, 1) : 'indexa1', indexName).then(retVal => {
+                            const ret = retVal as TestObj[];
+                            assert.equal(ret.length, 1, 'getMultiple');
+                            [1].forEach(v => { assert(find(ret, r => r.val === 'val' + v), 'cant find ' + v); });
+                        });
 
                         let t1 = prov.getAll('test', indexName).then(retVal => {
                             const ret = retVal as TestObj[];
@@ -331,8 +337,8 @@ describe('NoSqlProvider', function () {
                         let t6count = prov.countRange('test', indexName, formIndex(2), formIndex(4), true, true).then(ret => {
                             assert.equal(ret, 1, 'countRange--');
                         });
-
-                        return Promise.all([t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3b3, t3b4, t3c, t3d, t3d2, t3d3,
+                        
+                        return Promise.all([t0, t1, t1count, t1b, t1c, t2, t2count, t3, t3count, t3b, t3b2, t3b3, t3b4, t3c, t3d, t3d2, t3d3,
                             t3d4, t4, t4count, t5, t5count, t6, t6count]).then(() => {
                                 if (compound) {
                                     let tt1 = prov.getRange('test', indexName, formIndex(2, 2), formIndex(4, 3))
@@ -382,7 +388,7 @@ describe('NoSqlProvider', function () {
                 };
 
                 it('Simple primary key put/get/getAll', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -409,7 +415,7 @@ describe('NoSqlProvider', function () {
                 });
 
                 it('Empty gets/puts', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -433,7 +439,7 @@ describe('NoSqlProvider', function () {
                 });
 
                 it('getMultiple with blank', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -453,7 +459,7 @@ describe('NoSqlProvider', function () {
                 });
 
                 it('Removing items', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -487,7 +493,7 @@ describe('NoSqlProvider', function () {
                 });
 
                 it('Remove range (inclusive low/high)', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -519,7 +525,7 @@ describe('NoSqlProvider', function () {
                 });                
 
                 it('Remove range (exclusive low, inclusive high)', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -552,7 +558,7 @@ describe('NoSqlProvider', function () {
                 });
 
                 it('Remove range (inclusive low, exclusive high)', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -585,7 +591,7 @@ describe('NoSqlProvider', function () {
                 });
 
                 it('Remove range (exclusive low, exclusive high)', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -619,7 +625,7 @@ describe('NoSqlProvider', function () {
                 });     
                 
                 it('Remove range (nothing done)', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -651,7 +657,7 @@ describe('NoSqlProvider', function () {
                 });   
                 
                 it('Remove range (all removed)', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -678,7 +684,7 @@ describe('NoSqlProvider', function () {
                 });                          
 
                 it('Invalid Key Type', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -701,7 +707,7 @@ describe('NoSqlProvider', function () {
                 });
 
                 it('Primary Key Basic KeyPath', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -716,7 +722,7 @@ describe('NoSqlProvider', function () {
 
                 for (let i = 0; i <= 1; i++) {
                     it('Simple index put/get, getAll, getOnly, and getRange' + (i === 0 ? '' : ' (includeData)'), (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -738,7 +744,7 @@ describe('NoSqlProvider', function () {
                 }
 
                 it('Multipart primary key basic test', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -752,7 +758,7 @@ describe('NoSqlProvider', function () {
                 });
 
                 it('Multipart index basic test', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -772,7 +778,7 @@ describe('NoSqlProvider', function () {
                 });
 
                 it('Compound primary key basic test', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -786,7 +792,7 @@ describe('NoSqlProvider', function () {
                 });
 
                 it('Compound index basic test', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -807,7 +813,7 @@ describe('NoSqlProvider', function () {
 
                 for (let i = 0; i <= 1; i++) {
                     it('MultiEntry multipart indexed tests' + (i === 0 ? '' : ' (includeData)'), (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -867,7 +873,7 @@ describe('NoSqlProvider', function () {
                 }
 
                 it('MultiEntry multipart indexed - update index', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -920,8 +926,43 @@ describe('NoSqlProvider', function () {
                     }).then(() => done(), (err) => done(err));
                 });
 
+                it('MultiEntry multipart indexed tests - getMultiple', (done) => {
+                    openProvider(provName, {
+                        version: 1,
+                        stores: [
+                            {
+                                name: 'test',
+                                primaryKeyPath: 'id',
+                                indexes: [
+                                    {
+                                        name: 'key',
+                                        multiEntry: true,
+                                        keyPath: 'k.k'
+                                    }
+                                ]
+                            }
+                        ]
+                    }, true).then(prov => {
+                        return prov.put('test', { id: 'a', id2: '1', val: 'b', k: { k: ['w', 'x', 'y', 'z'] } })
+                            .then(() => {
+                                var g = prov.getMultiple('test', ['x', 'y'], 'key').then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 2);
+                                    ret.forEach(r => { assert.equal(r.val, 'b'); });
+                                });
+                                var g1 = prov.getMultiple('test', ['lala'], 'key').then(retVal => {
+                                    const ret = retVal as TestObj[];
+                                    assert.equal(ret.length, 0);
+                                });
+                                return Promise.all([g, g1]).then(() => {
+                                    return prov.close();
+                                });
+                            });
+                    }).then(() => done(), (err) => done(err));
+                });
+
                 it('MultiEntry multipart indexed tests - Compound Key', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -979,7 +1020,7 @@ describe('NoSqlProvider', function () {
                 });
 
                 it('MultiEntry multipart indexed - update index - Compound', (done) => {
-                    return openProvider(provName, {
+                    openProvider(provName, {
                         version: 1,
                         stores: [
                             {
@@ -1036,7 +1077,7 @@ describe('NoSqlProvider', function () {
 
                 describe('Transaction Semantics', () => {
                     it('Testing transaction expiration', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1071,7 +1112,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Testing aborting', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1105,7 +1146,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Testing read/write transaction locks', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1156,7 +1197,7 @@ describe('NoSqlProvider', function () {
             if (provName.indexOf('memory') === -1) {
                 describe('Schema Upgrades', () => {
                     it('Opening an older DB version', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 2,
                             stores: [
                                 {
@@ -1189,7 +1230,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Basic NOOP schema upgrade path', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1220,7 +1261,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Adding new store', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1272,7 +1313,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Removing old store', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1307,7 +1348,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Remove store with index', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1346,7 +1387,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Add index', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1445,18 +1486,18 @@ describe('NoSqlProvider', function () {
                     }
 
                     it('Add index - Large records - batched upgrade', (done) => {
-                        return testBatchUpgrade(10000).then(() => done(), (err) => done(err));
+                        testBatchUpgrade(10000).then(() => done(), (err) => done(err));
                     });
 
                     it('Add index - small records - No batch upgrade', (done) => {
-                        return testBatchUpgrade(1).then(() => done(), (err) => done(err));
+                        testBatchUpgrade(1).then(() => done(), (err) => done(err));
                     });
 
                     if (provName.indexOf('indexeddb') !== 0) {
                         // This migration works on indexeddb because we don't check the types and the browsers silently accept it but just
                         // neglect to index the field...
                         it('Add index to boolean field should fail', (done) => {
-                            return openProvider(provName, {
+                            openProvider(provName, {
                                 version: 1,
                                 stores: [
                                     {
@@ -1491,7 +1532,7 @@ describe('NoSqlProvider', function () {
                     }
 
                     it('Add multiEntry index', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1541,7 +1582,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Changing multiEntry index', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1599,7 +1640,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Removing old index', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1638,7 +1679,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Changing index keypath', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1686,7 +1727,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Change non-multientry index to includeDataInIndex', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1738,7 +1779,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Change non-multientry index from includeDataInIndex', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1791,7 +1832,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Change multientry index to includeDataInIndex', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1847,7 +1888,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Change multientry index from includeDataInIndex', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1904,7 +1945,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Adding new FTS store', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -1961,7 +2002,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Adding new FTS index', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -2006,7 +2047,7 @@ describe('NoSqlProvider', function () {
                     });
 
                     it('Removing FTS index', (done) => {
-                        return openProvider(provName, {
+                        openProvider(provName, {
                             version: 1,
                             stores: [
                                 {
@@ -2109,7 +2150,7 @@ describe('NoSqlProvider', function () {
                         });
 
                         it('Adding two indexes at once - backfill and not', (done) => {
-                            return openProvider(provName, {
+                            openProvider(provName, {
                                 version: 1,
                                 stores: [
                                     {
@@ -2170,7 +2211,7 @@ describe('NoSqlProvider', function () {
                         });
 
                         it('Change no backfill index into a normal index', (done) => {
-                            return openProvider(provName, {
+                            openProvider(provName, {
                                 version: 1,
                                 stores: [
                                     {
@@ -2226,7 +2267,7 @@ describe('NoSqlProvider', function () {
                         });
 
                         it('Perform two updates which require no backfill', (done) => {
-                            return openProvider(provName, {
+                            openProvider(provName, {
                                 version: 1,
                                 stores: [
                                     {
@@ -2309,7 +2350,7 @@ describe('NoSqlProvider', function () {
                         });
 
                         it('Removes index without pulling data to JS', (done) => {
-                            return openProvider(provName, {
+                            openProvider(provName, {
                                 version: 1,
                                 stores: [
                                     {
@@ -2360,7 +2401,7 @@ describe('NoSqlProvider', function () {
                         });
 
                         it('Add and remove index in the same upgrade', (done) => {
-                            return openProvider(provName, {
+                            openProvider(provName, {
                                 version: 1,
                                 stores: [
                                     {
@@ -2419,7 +2460,7 @@ describe('NoSqlProvider', function () {
             }
 
             it('Full Text Index', (done) => {
-                return openProvider(provName, {
+                openProvider(provName, {
                     version: 1,
                     stores: [
                         {

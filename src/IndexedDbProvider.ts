@@ -6,7 +6,7 @@
  * NoSqlProvider provider setup for IndexedDB, a web browser storage module.
  */
 
-import { each, some, find, includes, isObject, attempt, isError, map, filter, compact, clone, isArray, noop } from 'lodash';
+import { each, some, find, includes, isObject, attempt, isError, map, filter, compact, clone, isArray, noop, flatten } from 'lodash';
 
 import { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
 import { DbProvider, DbSchema, DbStore, DbTransaction, StoreSchema, DbIndex, QuerySortOrder, IndexSchema } from './NoSqlProvider';
@@ -482,7 +482,6 @@ class IndexedDbStore implements DbStore {
         if (isError(keys)) {
             return Promise.reject(keys);
         }
-
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
         return Promise.all(map(keys, key =>
             IndexedDbProvider.WrapRequest(this._store.get(key)).then(val => removeFullTextMetadataAndReturn(this._schema, val))))
@@ -755,6 +754,25 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         return this._resolveCursorResult(req, limit, offset);
     }
 
+    getMultiple(keyOrKeys: KeyType | KeyType[])
+    : Promise<ItemType[]> {
+
+        const keys = attempt(() => {
+            const keys = formListOfKeys(keyOrKeys, this._keyPath);
+            return keys;
+        });
+        if (isError(keys)) {
+            return Promise.reject(keys);
+        }
+
+        if (this._store.get && !this._fakeComplicatedKeys) {
+            return Promise.all<object[]>(map(keys, key => IndexedDbProvider.WrapRequest(this._store.get(key)))).then(compact);
+        }
+
+        // when dealing with fakeComplicatedKeys, the store tries to store key and refkey, not the entire object.
+        // therefore it calls getOnly to get the whole object through openCursor
+        return Promise.all(map(keys, key => this.getOnly(key))).then(vals => compact(flatten(vals)));
+    }
     // Warning: This function can throw, make sure to trap.
     private _getKeyRangeForOnly(key: KeyType): IDBKeyRange {
         if (this._fakeComplicatedKeys && isCompoundKeyPath(this._keyPath)) {

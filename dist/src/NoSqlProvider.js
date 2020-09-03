@@ -72,9 +72,9 @@ var DbProvider = /** @class */ (function () {
             return store.get(key);
         });
     };
-    DbProvider.prototype.getMultiple = function (storeName, keyOrKeys) {
-        return this._getStoreTransaction(storeName, false).then(function (store) {
-            return store.getMultiple(keyOrKeys);
+    DbProvider.prototype.getMultiple = function (storeName, keyOrKeys, indexName) {
+        return this._getStoreIndexTransaction(storeName, false, indexName).then(function (index) {
+            return index.getMultiple(keyOrKeys);
         });
     };
     DbProvider.prototype.put = function (storeName, itemOrItems) {

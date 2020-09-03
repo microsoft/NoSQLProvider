@@ -60,6 +60,7 @@ export enum FullTextTermResolution {
 // Interface type describing an index being opened for querying.
 export interface DbIndex {
     getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
+    getMultiple(keyOrKeys: KeyType | KeyType[]): Promise<ItemType[]>;
     getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
         reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;
@@ -169,9 +170,9 @@ export abstract class DbProvider {
         });
     }
 
-    getMultiple(storeName: string, keyOrKeys: KeyType | KeyType[]): Promise<ItemType[]> {
-        return this._getStoreTransaction(storeName, false).then(store => {
-            return store.getMultiple(keyOrKeys);
+    getMultiple(storeName: string, keyOrKeys: KeyType | KeyType[], indexName?: string): Promise<ItemType[]> {
+        return this._getStoreIndexTransaction(storeName, false, indexName).then(index => {
+            return index.getMultiple(keyOrKeys);
         });
     }
 
