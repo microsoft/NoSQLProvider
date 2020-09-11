@@ -320,7 +320,7 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         indexSchema: IndexSchema,
         primaryKeyPath: KeyPathType) {
         super(indexSchema, primaryKeyPath);
-        this._rbIndex = empty<string, ItemType[]>(stringCompare, true);
+        this._rbIndex = empty<string, ItemType[]>(stringCompare, false);
         this.put(values(_mergedData), true);
     }
 

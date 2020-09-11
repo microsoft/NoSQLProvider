@@ -308,7 +308,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
     __extends(InMemoryIndex, _super);
     function InMemoryIndex(_mergedData, indexSchema, primaryKeyPath) {
         var _this = _super.call(this, indexSchema, primaryKeyPath) || this;
-        _this._rbIndex = red_black_tree_1.empty(core_1.stringCompare, true);
+        _this._rbIndex = red_black_tree_1.empty(core_1.stringCompare, false);
         _this.put(lodash_1.values(_mergedData), true);
         return _this;
     }
