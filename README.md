@@ -19,13 +19,13 @@ Coming soon.
 ## Compiling
 ### Source
 ```bash
-npm install
-npm run build
+yarn install
+yarn build
 ```
 ### Tests
 ```bash
-npm install
-npm run webtest
+yarn install
+yarn webtest
 ```
 
 ## Testing
