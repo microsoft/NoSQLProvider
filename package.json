@@ -20,15 +20,15 @@
   },
   "devDependencies": {
     "@types/mocha": "5.2.7",
-    "@types/sinon": "^7.5.1",
     "@types/node": "13.1.7",
+    "@types/sinon": "^7.5.1",
     "awesome-typescript-loader": "^5.2.1",
     "mocha": "^7.0.0",
     "sinon": "^8.1.0",
     "sqlite3": "^4.1.1",
     "tslint": "^5.20.1",
     "tslint-microsoft-contrib": "^6.2.0",
-    "typescript": "3.7.5",
+    "typescript": "^4.0",
     "webpack": "^4.41.5",
     "webpack-cli": "^3.3.10"
   },
