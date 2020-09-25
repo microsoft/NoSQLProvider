@@ -7,15 +7,15 @@
  * Can pass :memory: to the dbName for it to use an in-memory sqlite instance that's blown away each close() call.
  */
 
-import sqlite3 = require('sqlite3');
-import SyncTasks = require('synctasks');
+import { Database, verbose } from 'sqlite3';
+import * as SyncTasks from 'synctasks';
 
-import NoSqlProvider = require('./NoSqlProvider');
-import SqlProviderBase = require('./SqlProviderBase');
-import TransactionLockHelper, { TransactionToken } from './TransactionLockHelper';
+import { DbSchema } from './NoSqlProvider';
+import { SqlProviderBase, SqlTransaction } from  './SqlProviderBase';
+import { TransactionLockHelper, TransactionToken } from './TransactionLockHelper';
 
-export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBase {
-    private _db: sqlite3.Database|undefined;
+export default class NodeSqlite3DbProvider extends SqlProviderBase {
+    private _db: Database|undefined;
 
     private _lockHelper: TransactionLockHelper|undefined;
 
@@ -23,21 +23,21 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBa
         super(supportsFTS3);
     }
 
-    open(dbName: string, schema: NoSqlProvider.DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
-        super.open(dbName, schema, wipeIfExists, verbose);
+    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, setVerbose: boolean): SyncTasks.Promise<void> {
+        super.open(dbName, schema, wipeIfExists, setVerbose);
 
-        if (verbose) {
-            sqlite3.verbose();
+        if (setVerbose) {
+            verbose();
         }
 
-        this._db = new sqlite3.Database(dbName);
+        this._db = new Database(dbName);
 
         this._lockHelper = new TransactionLockHelper(schema, false);
 
         return this._ourVersionChecker(wipeIfExists);
     }
 
-    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlProviderBase.SqlTransaction> {
+    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlTransaction> {
         if (!this._db) {
             return SyncTasks.Rejected('Can\'t openTransaction on a closed database');
         }
@@ -83,12 +83,12 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase.SqlProviderBa
     }
 }
 
-class NodeSqlite3Transaction extends SqlProviderBase.SqlTransaction {
+class NodeSqlite3Transaction extends SqlTransaction {
     private _openTimer: number|undefined;
     private _openQueryCount = 0;
 
-    constructor(private _db: sqlite3.Database, private _lockHelper: TransactionLockHelper, private _transToken: TransactionToken,
-            schema: NoSqlProvider.DbSchema, verbose: boolean, supportsFTS3: boolean) {
+    constructor(private _db: Database, private _lockHelper: TransactionLockHelper, private _transToken: TransactionToken,
+            schema: DbSchema, verbose: boolean, supportsFTS3: boolean) {
         super(schema, verbose, 999, supportsFTS3);
 
         this._setTimer();
