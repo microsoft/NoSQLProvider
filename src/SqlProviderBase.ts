@@ -7,12 +7,21 @@
  */
 
 import { ok } from 'assert';
-import { repeat, map, isError, attempt, includes, filter, flatten, partition, intersection, some, keyBy, noop, isEqual, find, indexOf, fill, each } from 'lodash';
+import {
+    repeat, map, isError, attempt, includes, filter, flatten, partition,
+    intersection, some, keyBy, noop, isEqual, find, indexOf, fill, each
+} from 'lodash';
 import * as SyncTasks from 'synctasks';
 
 import { getFullTextIndexWordsForItem, breakAndNormalizeSearchPhrase } from './FullTextSearchHelpers';
-import { ItemType, IndexSchema, StoreSchema, DbProvider, DbIndex, DbSchema, DbStore, DbTransaction, QuerySortOrder, FullTextTermResolution } from './NoSqlProvider';
-import { serializeKeyToString, isCompoundKeyPath, formListOfSerializedKeys, getSerializedKeyForKeypath, arrayify, getValueForSingleKeypath } from './NoSqlProviderUtils';
+import {
+    ItemType, IndexSchema, StoreSchema, DbProvider,
+    DbIndex, DbSchema, DbStore, DbTransaction, QuerySortOrder, FullTextTermResolution
+} from './NoSqlProvider';
+import {
+    serializeKeyToString, isCompoundKeyPath, formListOfSerializedKeys,
+    getSerializedKeyForKeypath, arrayify, getValueForSingleKeypath
+} from './NoSqlProviderUtils';
 
 // Extending interfaces that should be in lib.d.ts but aren't for some reason.
 export interface SQLVoidCallback {
@@ -80,7 +89,7 @@ export abstract class SqlProviderBase extends DbProvider {
         // NOP
     }
 
-    abstract openTransaction(storeNames: string[]|undefined, writeNeeded: boolean): SyncTasks.Promise<SqlTransaction>;
+    abstract openTransaction(storeNames: string[] | undefined, writeNeeded: boolean): SyncTasks.Promise<SqlTransaction>;
 
     private _getMetadata(trans: SqlTransaction): SyncTasks.Promise<{ name: string; value: string; }[]> {
         // Create table if needed
@@ -96,7 +105,7 @@ export abstract class SqlProviderBase extends DbProvider {
 
     private _getDbVersion(): SyncTasks.Promise<number> {
         return this.openTransaction(undefined, true).then(trans => {
-              // Create table if needed
+            // Create table if needed
             return trans.runQuery('CREATE TABLE IF NOT EXISTS metadata (name TEXT PRIMARY KEY, value TEXT)').then(() => {
                 return trans.runQuery('SELECT value from metadata where name=?', [schemaVersionKey]).then(data => {
                     if (data && data[0] && data[0].value) {
@@ -123,7 +132,7 @@ export abstract class SqlProviderBase extends DbProvider {
                     // Needs a schema upgrade/change
                     if (!wipeIfExists && this._schema!!!.version < oldVersion) {
                         console.log('Database version too new (' + oldVersion + ') for schema version (' + this._schema!!!.version +
-                             '). Wiping!');
+                            '). Wiping!');
                         wipeIfExists = true;
                     }
 
@@ -154,7 +163,7 @@ export abstract class SqlProviderBase extends DbProvider {
                     }
                     return metaObj;
                 })
-                .filter(meta => !!meta && !!meta.storeName);
+                    .filter(meta => !!meta && !!meta.storeName);
 
             return trans.runQuery('SELECT type, name, tbl_name, sql from sqlite_master', [])
                 .then(rows => {
@@ -311,7 +320,7 @@ export abstract class SqlProviderBase extends DbProvider {
                                             return trans.runQuery('CREATE TABLE IF NOT EXISTS ' + indexIdentifier +
                                                 ' (nsp_key TEXT, nsp_refpk TEXT' +
                                                 (index.includeDataInIndex ? ', nsp_data TEXT' : '') + ')').then(() => {
-                                                    return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') + 
+                                                    return trans.runQuery('CREATE ' + (index.unique ? 'UNIQUE ' : '') +
                                                         'INDEX IF NOT EXISTS ' +
                                                         indexIdentifier + '_pi ON ' + indexIdentifier + ' (nsp_key, nsp_refpk' +
                                                         (index.includeDataInIndex ? ', nsp_data' : '') + ')');
@@ -345,9 +354,9 @@ export abstract class SqlProviderBase extends DbProvider {
                             const indexColumnsNames = map(columnBasedIndices, index => 'nsp_i_' + index.name + ' TEXT');
                             fieldList = fieldList.concat(indexColumnsNames);
                             const tableMakerSql = 'CREATE TABLE ' + storeSchema.name + ' (' + fieldList.join(', ') + ')';
-                            
+
                             const currentIndexMetas = filter(indexMetadata, meta => meta.storeName === storeSchema.name);
-                            
+
                             const indexIdentifierDictionary = keyBy(storeSchema.indexes, index => getIndexIdentifier(storeSchema, index));
                             const indexMetaDictionary = keyBy(currentIndexMetas, meta => meta.key);
 
@@ -358,10 +367,10 @@ export abstract class SqlProviderBase extends DbProvider {
                             const existingIndexColumns = intersection(existingIndices, columnBasedIndices);
 
                             // find indices in the meta that do not exist in the new schema
-                            const allRemovedIndexMetas = filter(currentIndexMetas, meta => 
+                            const allRemovedIndexMetas = filter(currentIndexMetas, meta =>
                                 !indexIdentifierDictionary[meta.key]);
 
-                            const [removedTableIndexMetas, removedColumnIndexMetas] = partition(allRemovedIndexMetas, 
+                            const [removedTableIndexMetas, removedColumnIndexMetas] = partition(allRemovedIndexMetas,
                                 meta => indexUsesSeparateTable(meta.index, this._supportsFTS3));
 
                             // find new indices which don't require backfill
@@ -373,7 +382,7 @@ export abstract class SqlProviderBase extends DbProvider {
                             const newIndexColumnsNoBackfill = intersection(newNoBackfillIndices, columnBasedIndices);
 
                             const columnAdder = () => {
-                                const addQueries = map(newIndexColumnsNoBackfill, index => 
+                                const addQueries = map(newIndexColumnsNoBackfill, index =>
                                     trans.runQuery('ALTER TABLE ' + storeSchema.name + ' ADD COLUMN ' + 'nsp_i_' + index.name + ' TEXT')
                                 );
 
@@ -395,7 +404,7 @@ export abstract class SqlProviderBase extends DbProvider {
                                 return some(storeSchema.indexes, index => {
                                     const indexIdentifier = getIndexIdentifier(storeSchema, index);
                                     const indexMeta = indexMetaDictionary[indexIdentifier];
-                                    
+
                                     // if there's a new index that doesn't require backfill, continue
                                     // If there's a new index that requires backfill - we need to migrate 
                                     if (!indexMeta) {
@@ -404,7 +413,7 @@ export abstract class SqlProviderBase extends DbProvider {
 
                                     // If the index schemas don't match - we need to migrate
                                     if (!isEqual(indexMeta.index, index)) {
-                                        return true;    
+                                        return true;
                                     }
 
                                     // Check that indicies actually exist in the right place
@@ -428,7 +437,7 @@ export abstract class SqlProviderBase extends DbProvider {
                             };
 
                             const dropIndexTables = (tableNames: string[]) => {
-                                return map(tableNames, tableName => 
+                                return map(tableNames, tableName =>
                                     trans.runQuery('DROP TABLE IF EXISTS ' + storeSchema.name + '_' + tableName)
                                 );
                             };
@@ -444,9 +453,9 @@ export abstract class SqlProviderBase extends DbProvider {
 
                             // find is there are some columns that should be, but are not indices
                             // this is to fix a mismatch between the schema in metadata and the actual table state
-                            const someIndicesMissing = some(columnBasedIndices, index => 
-                                columnExists(storeSchema.name, 'nsp_i_' + index.name) 
-                                    && !includes(indexNames[storeSchema.name], getIndexIdentifier(storeSchema, index))
+                            const someIndicesMissing = some(columnBasedIndices, index =>
+                                columnExists(storeSchema.name, 'nsp_i_' + index.name)
+                                && !includes(indexNames[storeSchema.name], getIndexIdentifier(storeSchema, index))
                             );
 
                             // If the table exists, check if we can to determine if a migration is needed
@@ -456,7 +465,7 @@ export abstract class SqlProviderBase extends DbProvider {
                             const tableExists = includes(tableNames, storeSchema.name);
                             const doFullMigration = tableExists && needsFullMigration();
                             const doSqlInPlaceMigration = tableExists && !doFullMigration && removedColumnIndexMetas.length > 0;
-                            const adddNewColumns = tableExists && !doFullMigration && !doSqlInPlaceMigration 
+                            const adddNewColumns = tableExists && !doFullMigration && !doSqlInPlaceMigration
                                 && newNoBackfillIndices.length > 0;
                             const recreateIndices = tableExists && !doFullMigration && !doSqlInPlaceMigration && someIndicesMissing;
 
@@ -468,7 +477,7 @@ export abstract class SqlProviderBase extends DbProvider {
                             };
 
                             const indexTableAndMetaDropper = () => {
-                                const indexTablesToDrop = doFullMigration 
+                                const indexTablesToDrop = doFullMigration
                                     ? indexTables[storeSchema.name] : removedTableIndexMetas.map(meta => meta.key);
                                 return SyncTasks.all([deleteFromMeta(allRemovedIndexMetas), ...dropIndexTables(indexTablesToDrop)]);
                             };
@@ -476,8 +485,8 @@ export abstract class SqlProviderBase extends DbProvider {
                             if (!tableExists) {
                                 // Table doesn't exist -- just go ahead and create it without the migration path
                                 tableQueries.push(tableMaker());
-                            } 
-                            
+                            }
+
                             if (doFullMigration) {
                                 // Migrate the data over using our existing put functions
                                 // (since it will do the right things with the indexes)
@@ -487,7 +496,7 @@ export abstract class SqlProviderBase extends DbProvider {
                                     let batchSize = Math.max(1, Math.floor(DB_MIGRATION_MAX_BYTE_TARGET / esimatedSize));
                                     let store = trans.getStore(storeSchema.name);
                                     return trans.internal_getResultsFromQuery('SELECT nsp_data FROM temp_' + storeSchema.name + ' LIMIT ' +
-                                            batchSize + ' OFFSET ' + batchOffset)
+                                        batchSize + ' OFFSET ' + batchOffset)
                                         .then(objs => {
                                             return store.put(objs).then(() => {
                                                 // Are we done migrating?
@@ -496,7 +505,7 @@ export abstract class SqlProviderBase extends DbProvider {
                                                 }
                                                 return jsMigrator(batchOffset + batchSize);
                                             });
-                                    });
+                                        });
                                 };
 
                                 tableQueries.push(
@@ -504,23 +513,23 @@ export abstract class SqlProviderBase extends DbProvider {
                                         indexTableAndMetaDropper(),
                                         dropColumnIndices(),
                                     ])
-                                    .then(createTempTable)
-                                    .then(tableMaker)
-                                    .then(() => {
-                                        return jsMigrator();
-                                    })
-                                    .then(dropTempTable)
+                                        .then(createTempTable)
+                                        .then(tableMaker)
+                                        .then(() => {
+                                            return jsMigrator();
+                                        })
+                                        .then(dropTempTable)
                                 );
-                            } 
-                            
+                            }
+
                             if (doSqlInPlaceMigration) {
                                 const sqlInPlaceMigrator = () => {
-                                    const columnsToCopy = ['nsp_pk', 'nsp_data',  
+                                    const columnsToCopy = ['nsp_pk', 'nsp_data',
                                         ...map(existingIndexColumns, index => 'nsp_i_' + index.name)
                                     ].join(', ');
 
                                     return trans.runQuery('INSERT INTO ' + storeSchema.name + ' (' + columnsToCopy + ')' +
-                                        ' SELECT ' + columnsToCopy + 
+                                        ' SELECT ' + columnsToCopy +
                                         ' FROM temp_' + storeSchema.name);
                                 };
 
@@ -529,14 +538,14 @@ export abstract class SqlProviderBase extends DbProvider {
                                         indexTableAndMetaDropper(),
                                         dropColumnIndices(),
                                     ])
-                                    .then(createTempTable)
-                                    .then(tableMaker)
-                                    .then(sqlInPlaceMigrator)
-                                    .then(dropTempTable)
+                                        .then(createTempTable)
+                                        .then(tableMaker)
+                                        .then(sqlInPlaceMigrator)
+                                        .then(dropTempTable)
                                 );
 
                             }
-                            
+
                             if (adddNewColumns) {
                                 const newIndexMaker = () => indexMaker(newNoBackfillIndices);
 
@@ -565,10 +574,10 @@ export abstract class SqlTransaction implements DbTransaction {
     private _isOpen = true;
 
     constructor(
-            protected _schema: DbSchema,
-            protected _verbose: boolean,
-            protected _maxVariables: number,
-            private _supportsFTS3: boolean) {
+        protected _schema: DbSchema,
+        protected _verbose: boolean,
+        protected _maxVariables: number,
+        private _supportsFTS3: boolean) {
         if (this._verbose) {
             console.log('Opening Transaction');
         }
@@ -612,7 +621,7 @@ export abstract class SqlTransaction implements DbTransaction {
         });
     }
 
-    internal_getResultFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T|undefined> {
+    internal_getResultFromQuery<T>(sql: string, parameters?: any[]): SyncTasks.Promise<T | undefined> {
         return this.internal_getResultsFromQuery<T>(sql, parameters)
             .then(rets => rets.length < 1 ? undefined : rets[0]);
     }
@@ -669,11 +678,11 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
     private _pendingQueries: SyncTasks.Deferred<any>[] = [];
 
     constructor(protected _trans: SQLTransaction, schema: DbSchema, verbose: boolean, maxVariables: number,
-            supportsFTS3: boolean) {
+        supportsFTS3: boolean) {
         super(schema, verbose, maxVariables, supportsFTS3);
     }
 
-    abstract getErrorHandlerReturnValue(): boolean;    
+    abstract getErrorHandlerReturnValue(): boolean;
 
     // If an external provider of the transaction determines that the transaction has failed but won't report its failures
     // (i.e. in the case of WebSQL), we need a way to kick the hanging queries that they're going to fail since otherwise
@@ -704,7 +713,7 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
                 const index = indexOf(this._pendingQueries, deferred);
                 if (index !== -1) {
                     let rows = [];
-                    for (let  i = 0; i < rs.rows.length; i++) {
+                    for (let i = 0; i < rs.rows.length; i++) {
                         rows.push(rs.rows.item(i));
                     }
                     this._pendingQueries.splice(index, 1);
@@ -749,11 +758,11 @@ export abstract class SqliteSqlTransaction extends SqlTransaction {
 // glue for index/compound key support.
 class SqlStore implements DbStore {
     constructor(private _trans: SqlTransaction, private _schema: StoreSchema, private _replaceUnicode: boolean,
-            private _supportsFTS3: boolean, private _verbose: boolean) {
+        private _supportsFTS3: boolean, private _verbose: boolean) {
         // Empty
     }
 
-    get(key: KeyType): SyncTasks.Promise<ItemType|undefined> {
+    get(key: KeyType): SyncTasks.Promise<ItemType | undefined> {
         const joinedKey = attempt(() => {
             return serializeKeyToString(key, this._schema.primaryKeyPath);
         });
@@ -766,7 +775,7 @@ class SqlStore implements DbStore {
             startTime = Date.now();
         }
 
-        let promise = this._trans.internal_getResultFromQuery<ItemType|undefined>('SELECT nsp_data FROM ' + this._schema.name +
+        let promise = this._trans.internal_getResultFromQuery<ItemType | undefined>('SELECT nsp_data FROM ' + this._schema.name +
             ' WHERE nsp_pk = ?', [joinedKey]);
         if (this._verbose) {
             promise = promise.finally(() => {
@@ -776,7 +785,7 @@ class SqlStore implements DbStore {
         return promise;
     }
 
-    getMultiple(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]> {
+    getMultiple(keyOrKeys: KeyType | KeyType[]): SyncTasks.Promise<ItemType[]> {
         const joinedKeys = attempt(() => {
             return formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
         });
@@ -806,7 +815,7 @@ class SqlStore implements DbStore {
 
     private static _unicodeFixer = new RegExp('[\u2028\u2029]', 'g');
 
-    put(itemOrItems: ItemType|ItemType[]): SyncTasks.Promise<void> {
+    put(itemOrItems: ItemType | ItemType[]): SyncTasks.Promise<void> {
         let items = arrayify(itemOrItems);
 
         if (items.length === 0) {
@@ -980,7 +989,7 @@ class SqlStore implements DbStore {
                 });
                 return SyncTasks.all(insertQueries).then(noop);
             }));
-            
+
         }
 
         let promise = SyncTasks.all(queries);
@@ -992,7 +1001,7 @@ class SqlStore implements DbStore {
         return promise.then(noop);
     }
 
-    remove(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<void> {
+    remove(keyOrKeys: KeyType | KeyType[]): SyncTasks.Promise<void> {
         const joinedKeys = attempt(() => {
             return formListOfSerializedKeys(keyOrKeys, this._schema.primaryKeyPath);
         });
@@ -1099,8 +1108,8 @@ class SqlStoreIndex implements DbIndex {
     private _indexTableName: string;
     private _keyPath: string | string[];
 
-    constructor(protected _trans: SqlTransaction, storeSchema: StoreSchema, indexSchema: IndexSchema|undefined,
-            private _supportsFTS3: boolean, private _verbose: boolean) {
+    constructor(protected _trans: SqlTransaction, storeSchema: StoreSchema, indexSchema: IndexSchema | undefined,
+        private _supportsFTS3: boolean, private _verbose: boolean) {
         if (!indexSchema) {
             // Going against the PK of the store
             this._tableName = storeSchema.name;
@@ -1133,7 +1142,7 @@ class SqlStoreIndex implements DbIndex {
     }
 
     private _handleQuery(sql: string, args?: any[], reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number,
-            offset?: number): SyncTasks.Promise<ItemType[]> {
+        offset?: number): SyncTasks.Promise<ItemType[]> {
         // Check if we must do some sort of ordering
         if (reverseOrSortOrder !== QuerySortOrder.None) {
             const reverse = reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse;
@@ -1174,7 +1183,7 @@ class SqlStoreIndex implements DbIndex {
     }
 
     getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
-            : SyncTasks.Promise<ItemType[]> {
+        : SyncTasks.Promise<ItemType[]> {
         const joinedKey = attempt(() => {
             return serializeKeyToString(key, this._keyPath);
         });
@@ -1199,7 +1208,7 @@ class SqlStoreIndex implements DbIndex {
     }
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+        reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         let checks: string;
         let args: string[];
         const err = attempt(() => {
@@ -1229,7 +1238,7 @@ class SqlStoreIndex implements DbIndex {
 
     // Warning: This function can throw, make sure to trap.
     private _getRangeChecks(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean,
-            highRangeExclusive?: boolean) {
+        highRangeExclusive?: boolean) {
         let checks: string[] = [];
         let args: string[] = [];
         if (keyLowRange !== null && keyLowRange !== undefined) {
@@ -1284,7 +1293,7 @@ class SqlStoreIndex implements DbIndex {
     }
 
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
-            : SyncTasks.Promise<number> {
+        : SyncTasks.Promise<number> {
         let checks: string;
         let args: string[];
         const err = attempt(() => {
@@ -1313,7 +1322,7 @@ class SqlStoreIndex implements DbIndex {
     }
 
     fullTextSearch(searchPhrase: string, resolution: FullTextTermResolution = FullTextTermResolution.And,
-            limit?: number): SyncTasks.Promise<ItemType[]> {
+        limit?: number): SyncTasks.Promise<ItemType[]> {
         let startTime: number;
         if (this._verbose) {
             startTime = Date.now();

@@ -10,7 +10,10 @@ import { each, some, find, includes, isObject, attempt, isError, map, filter, co
 import SyncTasks = require('synctasks');
 
 import { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
-import { DbProvider, DbSchema, DbStore, DbTransaction, StoreSchema, DbIndex, QuerySortOrder, IndexSchema, ItemType, KeyPathType, KeyType } from './NoSqlProvider';
+import {
+    DbProvider, DbSchema, DbStore, DbTransaction, StoreSchema, DbIndex,
+    QuerySortOrder, IndexSchema, ItemType, KeyPathType, KeyType
+} from './NoSqlProvider';
 import {
     isIE, isCompoundKeyPath, serializeKeyToString, getKeyForKeypath, arrayify, formListOfKeys,
     getValueForSingleKeypath, getSerializedKeyForKeypath
@@ -31,17 +34,17 @@ declare global {
 
 function getBrowserInfo() {
     // From https://stackoverflow.com/questions/5916900/how-can-you-detect-the-version-of-a-browser
-    let ua = navigator.userAgent, tem, M = ua.match(/(opera|chrome|safari|firefox|msie|trident(?=\/))\/?\s*(\d+)/i) || []; 
+    let ua = navigator.userAgent, tem, M = ua.match(/(opera|chrome|safari|firefox|msie|trident(?=\/))\/?\s*(\d+)/i) || [];
     if (/trident/i.test(M[1])) {
-        tem = /\brv[ :]+(\d+)/g.exec(ua) || []; 
+        tem = /\brv[ :]+(\d+)/g.exec(ua) || [];
         return { name: 'IE', version: (tem[1] || '') };
-    }   
+    }
     if (M[1] === 'Chrome') {
         tem = ua.match(/\bOPR|Edge\/(\d+)/);
         if (tem != null) {
             return { name: 'Opera', version: tem[1] };
         }
-    }   
+    }
     M = M[2] ? [M[1], M[2]] : [navigator.appName, navigator.appVersion, '-?'];
     if ((tem = ua.match(/version\/(\d+)/i)) != null) {
         M.splice(1, 1, tem[1]);
@@ -56,11 +59,11 @@ function getBrowserInfo() {
 // closely mirror IndexedDB's.  We mostly do a lot of wrapping of the APIs into JQuery promises and have some fancy footwork to
 // do semi-automatic schema upgrades.
 export class IndexedDbProvider extends DbProvider {
-    private _db: IDBDatabase|undefined;
+    private _db: IDBDatabase | undefined;
     private _dbFactory: IDBFactory;
     private _fakeComplicatedKeys: boolean;
 
-    private _lockHelper: TransactionLockHelper|undefined;
+    private _lockHelper: TransactionLockHelper | undefined;
 
     // By default, it uses the in-browser indexed db factory, but you can pass in an explicit factory.  Currently only used for unit tests.
     constructor(explicitDbFactory?: IDBFactory, explicitDbFactorySupportsCompoundKeys?: boolean) {
@@ -127,7 +130,7 @@ export class IndexedDbProvider extends DbProvider {
                 // Safari < 10 doesn't support indexeddb properly, so don't let it try
                 return SyncTasks.Rejected<void>('Safari versions before 10.0 don\'t properly implement IndexedDB');
             }
-    
+
             if (navigator.userAgent.indexOf('Mobile Crosswalk') !== -1) {
                 // Android crosswalk indexeddb is slow, don't use it
                 return SyncTasks.Rejected<void>('Android Crosswalk\'s IndexedDB implementation is very slow');
@@ -275,7 +278,7 @@ export class IndexedDbProvider extends DbProvider {
                 if (needsMigrate) {
                     // Walk every element in the store and re-put it to fill out the new index.
                     const fakeToken: TransactionToken = {
-                        storeNames: [ storeSchema.name ],
+                        storeNames: [storeSchema.name],
                         exclusive: false,
                         completionPromise: SyncTasks.Defer<void>().promise()
                     };
@@ -334,7 +337,7 @@ export class IndexedDbProvider extends DbProvider {
         if (isError(trans)) {
             return SyncTasks.Rejected(trans);
         }
-        
+
         const deferred = SyncTasks.Defer<void>();
 
         trans.onsuccess = () => {
@@ -396,8 +399,8 @@ export class IndexedDbProvider extends DbProvider {
 class IndexedDbTransaction implements DbTransaction {
     private _stores: IDBObjectStore[];
 
-    constructor(private _trans: IDBTransaction, lockHelper: TransactionLockHelper|undefined, private _transToken: TransactionToken,
-            private _schema: DbSchema, private _fakeComplicatedKeys: boolean) {
+    constructor(private _trans: IDBTransaction, lockHelper: TransactionLockHelper | undefined, private _transToken: TransactionToken,
+        private _schema: DbSchema, private _fakeComplicatedKeys: boolean) {
         this._stores = map(this._transToken.storeNames, storeName => this._trans.objectStore(storeName));
 
         if (lockHelper) {
@@ -412,7 +415,7 @@ class IndexedDbTransaction implements DbTransaction {
 
             this._trans.oncomplete = () => {
                 history.push('complete');
-                
+
                 lockHelper.transactionComplete(this._transToken);
             };
 
@@ -431,13 +434,13 @@ class IndexedDbTransaction implements DbTransaction {
 
             this._trans.onabort = () => {
                 history.push('abort-' + (this._trans.error ? this._trans.error.message : ''));
-                
+
                 if (history.length > 1) {
                     console.warn('IndexedDbTransaction Aborted after Resolution, Swallowing. Error: ' +
                         (this._trans.error ? this._trans.error.message : undefined) + ', History: ' + history.join(','));
                     return;
                 }
-                
+
                 lockHelper.transactionFailed(this._transToken, 'IndexedDbTransaction Aborted, Error: ' +
                     (this._trans.error ? this._trans.error.message : undefined) + ', History: ' + history.join(','));
             };
@@ -495,11 +498,11 @@ function removeFullTextMetadataAndReturn<T>(schema: StoreSchema, val: T): T {
 // a bunch of hacks to support compound keypaths on IE.
 class IndexedDbStore implements DbStore {
     constructor(private _store: IDBObjectStore, private _indexStores: IDBObjectStore[], private _schema: StoreSchema,
-            private _fakeComplicatedKeys: boolean) {
+        private _fakeComplicatedKeys: boolean) {
         // NOP
     }
 
-    get(key: KeyType): SyncTasks.Promise<ItemType|undefined> {
+    get(key: KeyType): SyncTasks.Promise<ItemType | undefined> {
         if (this._fakeComplicatedKeys && isCompoundKeyPath(this._schema.primaryKeyPath)) {
             const err = attempt(() => {
                 key = serializeKeyToString(key, this._schema.primaryKeyPath);
@@ -509,11 +512,11 @@ class IndexedDbStore implements DbStore {
             }
         }
 
-        return IndexedDbProvider.WrapRequest<ItemType|undefined>(this._store.get(key))
+        return IndexedDbProvider.WrapRequest<ItemType | undefined>(this._store.get(key))
             .then(val => removeFullTextMetadataAndReturn(this._schema, val));
     }
 
-    getMultiple(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]> {
+    getMultiple(keyOrKeys: KeyType | KeyType[]): SyncTasks.Promise<ItemType[]> {
         const keys = attempt(() => {
             const keys = formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
 
@@ -528,12 +531,12 @@ class IndexedDbStore implements DbStore {
 
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
         return SyncTasks.all(
-                map(keys, key => IndexedDbProvider.WrapRequest<ItemType|undefined>(this._store.get(key))
+            map(keys, key => IndexedDbProvider.WrapRequest<ItemType | undefined>(this._store.get(key))
                 .then(val => removeFullTextMetadataAndReturn(this._schema, val))))
             .then(compact);
     }
 
-    put(itemOrItems: ItemType|ItemType[]): SyncTasks.Promise<void> {
+    put(itemOrItems: ItemType | ItemType[]): SyncTasks.Promise<void> {
         let items = arrayify(itemOrItems);
 
         let promises: SyncTasks.Promise<void>[] = [];
@@ -627,7 +630,7 @@ class IndexedDbStore implements DbStore {
                             // object synchronously for the put call, so it's already been captured with the nsp_pk field intact.
                             delete (item as any)['nsp_pk'];
                         }
-                        
+
                         promises.push(IndexedDbProvider.WrapRequest<void>(req));
                     });
                 }
@@ -645,7 +648,7 @@ class IndexedDbStore implements DbStore {
         return SyncTasks.all(promises).then(noop);
     }
 
-    remove(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<void> {
+    remove(keyOrKeys: KeyType | KeyType[]): SyncTasks.Promise<void> {
         const keys = attempt(() => {
             const keys = formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
 
@@ -671,7 +674,7 @@ class IndexedDbStore implements DbStore {
                                 // compound, we're already faking complicated keys, so we know to serialize it to a string.  If not, use the
                                 // raw value.
                                 const tempRefKey = getKeyForKeypath(item, this._schema.primaryKeyPath)!!!;
-                                return isArray(this._schema.primaryKeyPath) ? 
+                                return isArray(this._schema.primaryKeyPath) ?
                                     serializeKeyToString(tempRefKey, this._schema.primaryKeyPath) :
                                     tempRefKey;
                             });
@@ -739,8 +742,8 @@ class IndexedDbStore implements DbStore {
 // a bunch of hacks to support compound keypaths on IE and some helpers to make the caller not have to walk the awkward cursor
 // result APIs to get their result list.  Also added ability to use an "index" for opening the primary key on a store.
 class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
-    constructor(private _store: IDBIndex | IDBObjectStore, indexSchema: IndexSchema|undefined,
-            primaryKeyPath: KeyPathType, private _fakeComplicatedKeys: boolean, private _fakedOriginalStore?: IDBObjectStore) {
+    constructor(private _store: IDBIndex | IDBObjectStore, indexSchema: IndexSchema | undefined,
+        primaryKeyPath: KeyPathType, private _fakeComplicatedKeys: boolean, private _fakedOriginalStore?: IDBObjectStore) {
         super(indexSchema, primaryKeyPath);
     }
 
@@ -768,7 +771,7 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
     }
 
     getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
-            : SyncTasks.Promise<ItemType[]> {
+        : SyncTasks.Promise<ItemType[]> {
         const keyRange = attempt(() => {
             return this._getKeyRangeForOnly(key);
         });
@@ -789,7 +792,7 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
     }
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+        reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         const keyRange = attempt(() => {
             return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
@@ -804,8 +807,8 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
 
     // Warning: This function can throw, make sure to trap.
     private _getKeyRangeForRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean,
-                highRangeExclusive?: boolean)
-            : IDBKeyRange {
+        highRangeExclusive?: boolean)
+        : IDBKeyRange {
         if (this._fakeComplicatedKeys && isCompoundKeyPath(this._keyPath)) {
             // IE has to switch to hacky pre-joined-compound-keys
             return IDBKeyRange.bound(serializeKeyToString(keyLowRange, this._keyPath),
@@ -833,7 +836,7 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
     }
 
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
-            : SyncTasks.Promise<number> {
+        : SyncTasks.Promise<number> {
         let keyRange = attempt(() => {
             return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
@@ -869,7 +872,7 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
     }
 
     static iterateOverCursorRequest(req: IDBRequest, func: (cursor: IDBCursor) => void, limit?: number, offset?: number)
-            : SyncTasks.Promise<void> {
+        : SyncTasks.Promise<void> {
         const deferred = SyncTasks.Defer<void>();
 
         let count = 0;

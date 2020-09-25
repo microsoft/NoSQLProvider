@@ -2275,21 +2275,21 @@ describe('NoSqlProvider', function () {
                                                 primaryKeyPath: 'id'
                                             }
                                         ]
-                                    }, false)
-                                        .then(prov => {
-                                            return prov.openTransaction(undefined, false).then(trans => {
-                                                return (trans as SqlTransaction).runQuery('SELECT name, value from metadata').then(fullMeta => {
-                                                    each(fullMeta, (meta: any) => {
-                                                        let metaObj = JSON.parse(meta.value);
-                                                        if (metaObj.storeName === 'test' && !!metaObj.index && metaObj.index.name === 'ind1') {
-                                                            assert.fail('Removed index should not exist in the meta!');
-                                                        }
-                                                    });
-                                                });
-                                            }).then(() => {
-                                                return prov.close();
+                                    }, false);
+                                })
+                                .then(prov => {
+                                    return prov.openTransaction(undefined, false).then(trans => {
+                                        return (trans as SqlTransaction).runQuery('SELECT name, value from metadata').then(fullMeta => {
+                                            each(fullMeta, (meta: any) => {
+                                                let metaObj = JSON.parse(meta.value);
+                                                if (metaObj.storeName === 'test' && !!metaObj.index && metaObj.index.name === 'ind1') {
+                                                    assert.fail('Removed index should not exist in the meta!');
+                                                }
                                             });
                                         });
+                                    }).then(() => {
+                                        return prov.close();
+                                    });
                                 });
                         });
 
