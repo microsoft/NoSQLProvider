@@ -64,20 +64,20 @@ function sleep(timeMs: number): SyncTasks.Promise<void> {
 }
 
 describe('NoSqlProvider', function () {
-    //this.timeout(60000);
-    after(callback => {
+    after('Cleaning up sqllite files', done => {
         if (cleanupFile) {
             var fs = require('fs');
-            fs.unlink('test', (err: any) => {
+            fs.unlink('./test', (err: any) => {
                 if (err) {
                     throw err;
                 }
-                console.log('path/file.txt was deleted');
-                callback();
+                console.log('test was deleted');
+                done();
             });
+        } else {
+            done();
         }
     });
-
     let provsToTest: string[];
     if (typeof window === 'undefined') {
         // Non-browser environment...
