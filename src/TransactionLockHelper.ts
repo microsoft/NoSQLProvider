@@ -7,11 +7,11 @@
  * store-specific lock info and releases transactions at the right time, when the underlying provider can't handle it.
  */
 
-import assert = require('assert');
-import _ = require('lodash');
-import SyncTasks = require('synctasks');
+import { ok } from 'assert';
+import { map, some, find, Dictionary, findIndex } from 'lodash';
 
-import NoSqlProvider = require('./NoSqlProvider');
+import { DbSchema } from './NoSqlProvider';
+import * as SyncTasks from 'synctasks';
 
 export interface TransactionToken {
     readonly completionPromise: SyncTasks.Promise<void>;
@@ -28,16 +28,16 @@ interface PendingTransaction {
     hadSuccess?: boolean;
 }
 
-class TransactionLockHelper {
+export class TransactionLockHelper {
     private _closingDefer: SyncTasks.Deferred<void>|undefined;
     private _closed = false;
 
-    private _exclusiveLocks: _.Dictionary<boolean> = {};
-    private _readOnlyCounts: _.Dictionary<number> = {};
+    private _exclusiveLocks: Dictionary<boolean> = {};
+    private _readOnlyCounts: Dictionary<number> = {};
 
     private _pendingTransactions: PendingTransaction[] = [];
     
-    constructor(private _schema: NoSqlProvider.DbSchema, private _supportsDiscreteTransactions: boolean) {
+    constructor(private _schema: DbSchema, private _supportsDiscreteTransactions: boolean) {
         for (const store of this._schema.stores) {
             this._exclusiveLocks[store.name] = false;
             this._readOnlyCounts[store.name] = 0;
@@ -62,13 +62,13 @@ class TransactionLockHelper {
 
     hasTransaction(): boolean {
         return this._pendingTransactions.length > 0 ||
-            _.some(this._exclusiveLocks, (value) => value) ||
-            _.some(this._readOnlyCounts, (value) => value > 0);
+            some(this._exclusiveLocks, (value) => value) ||
+            some(this._readOnlyCounts, (value) => value > 0);
     }
 
     openTransaction(storeNames: string[]|undefined, exclusive: boolean): SyncTasks.Promise<TransactionToken> {
         if (storeNames) {
-            const missingStore = _.find(storeNames, name => !_.some(this._schema.stores, store => name === store.name));
+            const missingStore = find(storeNames, name => !some(this._schema.stores, store => name === store.name));
             if (missingStore) {
                 return SyncTasks.Rejected('Opened a transaction with a store name (' + missingStore + ') not defined in your schema!');
             }
@@ -77,7 +77,7 @@ class TransactionLockHelper {
         const completionDefer = SyncTasks.Defer<void>();
         const newToken: TransactionToken = {
             // Undefined means lock all stores
-            storeNames: storeNames || _.map(this._schema.stores, store => store.name),
+            storeNames: storeNames || map(this._schema.stores, store => store.name),
             exclusive,
             completionPromise: completionDefer.promise()
         };
@@ -97,7 +97,7 @@ class TransactionLockHelper {
     }
 
     transactionComplete(token: TransactionToken) {
-        const pendingTransIndex = _.findIndex(this._pendingTransactions, trans => trans.token === token);
+        const pendingTransIndex = findIndex(this._pendingTransactions, trans => trans.token === token);
         if (pendingTransIndex !== -1) {
             const pendingTrans = this._pendingTransactions[pendingTransIndex];
             if (pendingTrans.completionDefer) {
@@ -119,7 +119,7 @@ class TransactionLockHelper {
     }
 
     transactionFailed(token: TransactionToken, message: string) {
-        const pendingTransIndex = _.findIndex(this._pendingTransactions, trans => trans.token === token);
+        const pendingTransIndex = findIndex(this._pendingTransactions, trans => trans.token === token);
         if (pendingTransIndex !== -1) {
             const pendingTrans = this._pendingTransactions[pendingTransIndex];
             if (pendingTrans.completionDefer) {
@@ -144,12 +144,12 @@ class TransactionLockHelper {
     private _cleanTransaction(token: TransactionToken) {
         if (token.exclusive) {
             for (const storeName of token.storeNames) {
-                assert.ok(this._exclusiveLocks[storeName], 'Missing expected exclusive lock for store: ' + storeName);
+                ok(this._exclusiveLocks[storeName], 'Missing expected exclusive lock for store: ' + storeName);
                 this._exclusiveLocks[storeName] = false;
             }
         } else {
             for (const storeName of token.storeNames) {
-                assert.ok(this._readOnlyCounts[storeName] > 0, 'Missing expected readonly lock for store: ' + storeName);
+                ok(this._readOnlyCounts[storeName] > 0, 'Missing expected readonly lock for store: ' + storeName);
                 this._readOnlyCounts[storeName]--;
             }
         }
@@ -158,7 +158,7 @@ class TransactionLockHelper {
     }
 
     private _checkNextTransactions(): void {
-        if (_.some(this._exclusiveLocks, lock => lock) && !this._supportsDiscreteTransactions) {
+        if (some(this._exclusiveLocks, lock => lock) && !this._supportsDiscreteTransactions) {
             // In these cases, no more transactions will be possible.  Break out early.
             return;
         }
@@ -177,7 +177,7 @@ class TransactionLockHelper {
                 continue;
             }
 
-            if (_.some(trans.token.storeNames, storeName => this._exclusiveLocks[storeName] ||
+            if (some(trans.token.storeNames, storeName => this._exclusiveLocks[storeName] ||
                     (trans.token.exclusive && this._readOnlyCounts[storeName] > 0))) {
                 i++;
                 continue;
@@ -201,5 +201,3 @@ class TransactionLockHelper {
         this._checkClose();
     }
 }
-
-export default TransactionLockHelper;

@@ -10,8 +10,8 @@
  * be required piecemeal.
  */
 
-import _ = require('lodash');
-import SyncTasks = require('synctasks');
+import { noop, attempt, isError } from 'lodash';
+import * as SyncTasks from 'synctasks';
 
 // Basic nomenclature types for everyone to agree on.
 export type ItemType = object;
@@ -131,15 +131,15 @@ export abstract class DbProvider {
 
         return this.openTransaction(storeNames, true).then(trans => {
             const clearers = storeNames.map(storeName => {
-                const store = _.attempt(() => {
+                const store = attempt(() => {
                     return trans.getStore(storeName);
                 });
-                if (!store || _.isError(store)) {
+                if (!store || isError(store)) {
                     return SyncTasks.Rejected<void>('Store "' + storeName + '" not found');
                 }
                 return store.clearAllData();
             });
-            return SyncTasks.all(clearers).then(_.noop);
+            return SyncTasks.all(clearers).then(noop);
         });
     }
 
@@ -147,10 +147,10 @@ export abstract class DbProvider {
 
     private _getStoreTransaction(storeName: string, readWrite: boolean): SyncTasks.Promise<DbStore> {
         return this.openTransaction([storeName], readWrite).then(trans => {
-            const store = _.attempt(() => {
+            const store = attempt(() => {
                 return trans.getStore(storeName);
             });
-            if (!store || _.isError(store)) {
+            if (!store || isError(store)) {
                 return SyncTasks.Rejected('Store "' + storeName + '" not found');
             }
             return store;
@@ -184,10 +184,10 @@ export abstract class DbProvider {
 
     private _getStoreIndexTransaction(storeName: string, readWrite: boolean, indexName: string|undefined): SyncTasks.Promise<DbIndex> {
         return this._getStoreTransaction(storeName, readWrite).then(store => {
-            const index = _.attempt(() => {
+            const index = attempt(() => {
                 return indexName ? store.openIndex(indexName) : store.openPrimaryKey();
             });
-            if (!index || _.isError(index)) {
+            if (!index || isError(index)) {
                 return SyncTasks.Rejected('Index "' + indexName + '" not found');
             }
             return index;
