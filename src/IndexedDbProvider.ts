@@ -6,7 +6,7 @@
  * NoSqlProvider provider setup for IndexedDB, a web browser storage module.
  */
 
-import { each, some, find, includes, isObject, attempt, isError, map, filter, compact, clone, isArray, noop } from 'lodash';
+import { each, some, find, includes, isObject, attempt, isError, map, filter, compact, clone, isArray, noop, isUndefined } from 'lodash';
 import SyncTasks = require('synctasks');
 
 import { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
@@ -760,9 +760,17 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
             return IndexedDbIndex.getFromCursorRequest(req, limit, offset);
         }
     }
+    
+    private _isGetAllApiAvailable(reverse?: number, offset?: number): boolean {
+        return !reverse && !offset && !isUndefined(this._store.getAll);
+    }
+
 
     getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
         const reverse = reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse;
+        if (this._isGetAllApiAvailable(limit, offset)) {
+            return IndexedDbProvider.WrapRequest(this._store.getAll(undefined, limit));
+        }
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
         // ************************* Don't change this null to undefined, IE chokes on it... *****************************
@@ -779,6 +787,9 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
             return SyncTasks.Rejected(keyRange);
         }
         const reverse = reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse;
+        if (this._isGetAllApiAvailable(limit, offset)) {
+            return IndexedDbProvider.WrapRequest(this._store.getAll(keyRange, limit));
+        }
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     }
@@ -801,6 +812,9 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         }
 
         const reverse = reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse;
+        if (this._isGetAllApiAvailable(limit, offset)) {
+            return IndexedDbProvider.WrapRequest(this._store.getAll(keyRange, limit));
+        }
         const req = this._store.openCursor(keyRange, reverse ? 'prev' : 'next');
         return this._resolveCursorResult(req, limit, offset);
     }
