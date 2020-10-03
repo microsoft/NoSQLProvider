@@ -8,7 +8,7 @@
 
 import { each, some, find, includes, isObject, attempt, isError, map, filter, compact, clone, isArray, noop } from 'lodash';
 import SyncTasks = require('synctasks');
-
+import { getWindow } from './get-window';
 import { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
 import {
     DbProvider, DbSchema, DbStore, DbTransaction, StoreSchema, DbIndex,
@@ -73,7 +73,7 @@ export class IndexedDbProvider extends DbProvider {
             this._dbFactory = explicitDbFactory;
             this._fakeComplicatedKeys = !explicitDbFactorySupportsCompoundKeys;
         } else {
-            const win = this.getWindow();
+            const win = getWindow();
             this._dbFactory = win._indexedDB || win.indexedDB || win.mozIndexedDB || win.webkitIndexedDB || win.msIndexedDB;
 
             if (typeof explicitDbFactorySupportsCompoundKeys !== 'undefined') {
@@ -84,20 +84,6 @@ export class IndexedDbProvider extends DbProvider {
                 this._fakeComplicatedKeys = isIE();
             }
         }
-    }
-
-    /**
-     * Gets global window object - whether operating in worker or UI thread context.
-     * Adapted from: https://stackoverflow.com/questions/7931182/reliably-detect-if-the-script-is-executing-in-a-web-worker
-     */
-    getWindow() {
-        if (typeof window === 'object' && window.document) {
-            return window;
-        } else if (self && self.document === undefined) {
-            return self;
-        }
-
-        throw new Error('Undefined context');
     }
 
     static WrapRequest<T>(req: IDBRequest): SyncTasks.Promise<T> {

@@ -1,10 +1,10 @@
 import * as assert from 'assert';
+import * as PromiseExtensions from '../Promise.extensions';
 import { find, each, times, values, keys, some, uniqueId } from 'lodash';
 import * as sinon from 'sinon';
 import * as SyncTasks from 'synctasks';
-
 import { KeyComponentType, DbSchema, DbProvider, openListOfProviders, QuerySortOrder, FullTextTermResolution } from '../NoSqlProvider';
-
+import { defer, IDeferred } from '../defer';
 // import { CordovaNativeSqliteProvider } from '../CordovaNativeSqliteProvider';
 import { InMemoryProvider } from '../InMemoryProvider';
 import { IndexedDbProvider } from '../IndexedDbProvider';
@@ -12,6 +12,8 @@ import { WebSqlProvider } from '../WebSqlProvider';
 
 import { serializeValueToOrderableString, isSafari } from '../NoSqlProviderUtils';
 import { SqlTransaction } from '../SqlProviderBase';
+import { getWindow } from '../get-window';
+import Sinon = require('sinon');
 
 // Don't trap exceptions so we immediately see them with a stack trace
 SyncTasks.config.catchExceptions = false;
@@ -61,6 +63,106 @@ function sleep(timeMs: number): SyncTasks.Promise<void> {
     setTimeout(() => { defer.resolve(void 0); }, timeMs);
     return defer.promise();
 }
+
+describe("defer", () => {
+    it("is resolved", async () => {
+        const d: IDeferred<number> = defer();
+        function succeeded(n: number) {
+            d.resolve(n);
+            return d.promise;
+        }
+
+        const val = await succeeded(10);
+        assert.equal(val, 10);
+    });
+
+    it("is rejected", async () => {
+        const d: IDeferred<number> = defer();
+        function failed(err: Error) {
+            d.reject(err);
+            return d.promise;
+        }
+
+        try {
+            await failed(new Error("async op failed"));
+        } catch (err) {
+            assert.equal(err.message, "async op failed");
+        }
+    });
+});
+
+describe('PromiseExtensions', () => {
+    it('Promise.always, always throws an exception', done => {
+        const promise = new Promise((_, reject) => {
+            reject('foo');
+        });
+        promise.always(() => { }).then(() => { throw new Error("foo") }, () => done());
+    });
+    describe('registerPromiseGlobalHandlers', () => {
+        let config: PromiseExtensions.PromiseConfig;
+        let consoleErrorSpy: Sinon.SinonSpy;
+        beforeEach(() => {
+            config = {
+                catchExceptions: false,
+                exceptionHandler: sinon.stub().returns(undefined),
+                exceptionsToConsole: true,
+                unhandledErrorHandler: sinon.stub().returns(undefined)
+            };
+            consoleErrorSpy = sinon.spy(console, "error");
+        });
+        afterEach(() => {
+            PromiseExtensions.unRegisterPromiseGlobalHandlers();
+            consoleErrorSpy.restore();
+        });
+        it('logs handled errors to console if logging is enabled', () => {
+            PromiseExtensions.registerPromiseGlobalHandlers(config);
+            getWindow().dispatchEvent(new Event('rejectionhandled'));
+            assert(consoleErrorSpy.calledOnce);
+        });
+        it('does not log handled errors to console if logging is disabled', () => {
+            PromiseExtensions.registerPromiseGlobalHandlers({
+                ...config,
+                exceptionsToConsole: false
+            });
+            getWindow().dispatchEvent(new Event('rejectionhandled'));
+            assert(consoleErrorSpy.notCalled);
+        });
+        it('logs unhandled errors to console if logging is enabled', () => {
+            PromiseExtensions.registerPromiseGlobalHandlers(config);
+            getWindow().dispatchEvent(new Event('unhandledrejection'));
+            assert(consoleErrorSpy.calledOnce);
+        });
+        it('does not log unhandled errors to console if logging is disabled', () => {
+            PromiseExtensions.registerPromiseGlobalHandlers({
+                ...config,
+                exceptionsToConsole: false
+            });
+            getWindow().dispatchEvent(new Event('unhandledrejection'));
+            assert(consoleErrorSpy.notCalled);
+        });
+        it('invokes unhandled error handler on unhandled errors', () => {
+            PromiseExtensions.registerPromiseGlobalHandlers(config);
+            getWindow().dispatchEvent(new Event('unhandledrejection'));
+            assert((config.unhandledErrorHandler as sinon.SinonStub).calledOnce);
+        });
+        it('invokes exception error handler on handled errors', () => {
+            PromiseExtensions.registerPromiseGlobalHandlers(config);
+            getWindow().dispatchEvent(new Event('rejectionhandled'));
+            assert((config.exceptionHandler as sinon.SinonStub).calledOnce);
+        });
+        it('catches all exceptions and invokes unhandled error handler', async () => {
+            PromiseExtensions.registerPromiseGlobalHandlers({
+                ...config,
+                catchExceptions: true
+            });
+            const event = new Event('unhandledrejection');
+            const eventSpy = sinon.spy(event, "preventDefault");
+            getWindow().dispatchEvent(event);
+            assert((config.unhandledErrorHandler as sinon.SinonStub).calledOnce);
+            assert(eventSpy.calledOnce);
+        });
+    });
+});
 
 describe('NoSqlProvider', function () {
     after('Cleaning up sqllite files', done => {
