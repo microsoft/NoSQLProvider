@@ -9,7 +9,7 @@
  * of the helper interfaces, while the specific database providers should
  * be required piecemeal.
  */
-
+import "./Promise.extensions"; // See the file for why it is being imported like this.
 import { noop, attempt, isError } from 'lodash';
 import * as SyncTasks from 'synctasks';
 
