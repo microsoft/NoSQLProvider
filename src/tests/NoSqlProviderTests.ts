@@ -1,5 +1,5 @@
-import * as assert from 'assert';
 import * as PromiseExtensions from '../Promise.extensions';
+import * as assert from 'assert';
 import { find, each, times, values, keys, some, uniqueId } from 'lodash';
 import * as sinon from 'sinon';
 import * as SyncTasks from 'synctasks';
