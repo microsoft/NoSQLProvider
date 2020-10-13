@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CordovaNativeSqliteProvider.ts
  * Author: David de Regt
  * Copyright: Microsoft 2015
@@ -9,12 +9,11 @@
  */
 
 import { extend } from 'lodash';
-import * as SyncTasks from 'synctasks';
 
 import { DbSchema } from './NoSqlProvider';
 import { SQLTransactionErrorCallback, SQLResultSet, SQLVoidCallback, SqlProviderBase, SqlTransaction, SqliteSqlTransaction }from './SqlProviderBase';
 import { TransactionLockHelper, TransactionToken } from './TransactionLockHelper';
-
+import { IDeferred, defer } from './defer';
 // Extending interfaces that should be in lib.d.ts but aren't for some reason.
 declare global {
     interface Window {
@@ -102,18 +101,18 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase {
     private _db: SqliteDatabase|undefined;
 
     private _dbParams: SqlitePluginDbParams|undefined;
-    private _closingDefer: SyncTasks.Deferred<void>|undefined;
+    private _closingDefer: IDeferred<void>|undefined;
 
-    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
+    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
         this._lockHelper = new TransactionLockHelper(schema, true);
 
         if (!this._plugin || !this._plugin.openDatabase) {
-            return SyncTasks.Rejected<void>('No support for native sqlite in this browser');
+            return Promise.reject<void>('No support for native sqlite in this browser');
         }
 
         if (typeof (navigator) !== 'undefined' && navigator.userAgent && navigator.userAgent.indexOf('Mobile Crosswalk') !== -1) {
-            return SyncTasks.Rejected<void>('Android NativeSqlite is broken, skipping');
+            return Promise.reject<void>('Android NativeSqlite is broken, skipping');
         }
 
         this._dbParams = extend<SqlitePluginDbParams>({
@@ -121,62 +120,62 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase {
             location: 2
         }, this._openOptions);
 
-        const task = SyncTasks.Defer<void>();
+        const task = defer<void>();
         this._db = this._plugin.openDatabase(this._dbParams, () => {
             task.resolve(void 0);
         }, (err: any) => {
             task.reject('Couldn\'t open database: ' + dbName + ', error: ' + JSON.stringify(err));
         });
 
-        return task.promise().then(() => {
+        return task.promise.then(() => {
             return this._ourVersionChecker(wipeIfExists);
         }).catch(err => {
-            return SyncTasks.Rejected<void>('Version check failure. Couldn\'t open database: ' + dbName +
+            return Promise.reject<void>('Version check failure. Couldn\'t open database: ' + dbName +
                 ', error: ' + JSON.stringify(err));
         });
     }
 
-    close(): SyncTasks.Promise<void> {
+    close(): Promise<void> {
         if (!this._db) {
-            return SyncTasks.Rejected<void>('Database already closed');
+            return Promise.reject<void>('Database already closed');
         }
 
         return this._lockHelper!!!.closeWhenPossible().then(() => {
-            let def = SyncTasks.Defer<void>();
+            let def = defer<void>();
             this._db!!!.close(() => {
                 this._db = undefined;
                 def.resolve(void 0);
             }, (err: any) => {
                 def.reject(err);
             });
-            return def.promise();
+            return def.promise;
         });
     }
     
-    protected _deleteDatabaseInternal(): SyncTasks.Promise<void> {
+    protected _deleteDatabaseInternal(): Promise<void> {
         if (!this._plugin || !this._plugin.deleteDatabase) {
-            return SyncTasks.Rejected<void>('No support for deleting');
+            return Promise.reject<void>('No support for deleting');
         }
-        let task = SyncTasks.Defer<void>();
+        let task = defer<void>();
         this._plugin.deleteDatabase(this._dbParams!!!, () => {
             task.resolve(void 0);
         }, err => {
             task.reject('Couldn\'t delete the database ' + this._dbName + ', error: ' + JSON.stringify(err));
         });
-        return task.promise();
+        return task.promise;
     }
 
-    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlTransaction> {
+    openTransaction(storeNames: string[], writeNeeded: boolean): Promise<SqlTransaction> {
         if (!this._db) {
-            return SyncTasks.Rejected('Can\'t openTransation, Database closed');
+            return Promise.reject('Can\'t openTransation, Database closed');
         }
 
         if (this._closingDefer) {
-            return SyncTasks.Rejected('Currently closing provider -- rejecting transaction open');
+            return Promise.reject('Currently closing provider -- rejecting transaction open');
         }
 
         return this._lockHelper!!!.openTransaction(storeNames, writeNeeded).then(transToken => {
-            const deferred = SyncTasks.Defer<SqlTransaction>();
+            const deferred = defer<SqlTransaction>();
 
             let ourTrans: SqliteSqlTransaction;
             (writeNeeded ? this._db!!!.transaction : this._db!!!.readTransaction).call(this._db, (trans: CordovaTransaction) => {
@@ -195,7 +194,7 @@ export class CordovaNativeSqliteProvider extends SqlProviderBase {
                 ourTrans.internal_markTransactionClosed();
                 this._lockHelper!!!.transactionComplete(transToken);
             });
-            return deferred.promise();
+            return deferred.promise;
         });
     }
 }
@@ -211,7 +210,7 @@ class CordovaNativeSqliteTransaction extends SqliteSqlTransaction {
         super(trans, schema, verbose, maxVariables, supportsFTS3);
     }
 
-    getCompletionPromise(): SyncTasks.Promise<void> {
+    getCompletionPromise(): Promise<void> {
         return this._transToken.completionPromise;
     }
 

@@ -7,8 +7,7 @@
  */
 
 import { noop } from 'lodash';
-import * as SyncTasks from 'synctasks';
-
+import { IDeferred, defer } from './defer';
 import { DbSchema } from './NoSqlProvider';
 import { SQLDatabase, SqlProviderBase, SqlTransaction, SqliteSqlTransaction, SQLError, SQLTransaction } from './SqlProviderBase';
 
@@ -34,11 +33,11 @@ export class WebSqlProvider extends SqlProviderBase {
         super(supportsFTS3);
     }
 
-    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
+    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
         if (!window.openDatabase) {
-            return SyncTasks.Rejected<void>('No support for WebSQL in this browser');
+            return Promise.reject<void>('No support for WebSQL in this browser');
         }
 
         try {
@@ -46,18 +45,18 @@ export class WebSqlProvider extends SqlProviderBase {
         } catch (e) {
             if (e.code === 18) {
                 // User rejected the quota attempt
-                return SyncTasks.Rejected<void>('User rejected quota allowance');
+                return Promise.reject<void>('User rejected quota allowance');
             }
 
-            return SyncTasks.Rejected<void>('Unknown Exception opening WebSQL database: ' + e.toString());
+            return Promise.reject<void>('Unknown Exception opening WebSQL database: ' + e.toString());
         }
 
         if (!this._db) {
-            return SyncTasks.Rejected<void>('Couldn\'t open database: ' + dbName);
+            return Promise.reject<void>('Couldn\'t open database: ' + dbName);
         }
 
-        const upgradeDbDeferred = SyncTasks.Defer<void>();
-        let changeVersionDeferred: SyncTasks.Deferred<void> | undefined;
+        const upgradeDbDeferred = defer<void>();
+        let changeVersionDeferred: IDeferred<void> | undefined;
         let oldVersion = Number(this._db.version);
         if (oldVersion !== this._schema!!!.version) {
             // Needs a schema upgrade/change
@@ -66,11 +65,11 @@ export class WebSqlProvider extends SqlProviderBase {
                 // Note: the reported DB version won't change back to the older number until after you do a put command onto the DB.
                 wipeIfExists = true;
             }
-            changeVersionDeferred = SyncTasks.Defer<void>();
+            changeVersionDeferred = defer<void>();
 
             let errorDetail: string;
             this._db.changeVersion(this._db.version, this._schema!!!.version.toString(), (t) => {
-                let trans = new WebSqlTransaction(t, SyncTasks.Defer<void>().promise(), this._schema!!!, this._verbose!!!, 999,
+                let trans = new WebSqlTransaction(t, defer<void>().promise, this._schema!!!, this._verbose!!!, 999,
                     this._supportsFTS3);
 
                 this._upgradeDb(trans, oldVersion, wipeIfExists).then(() => {
@@ -102,30 +101,30 @@ export class WebSqlProvider extends SqlProviderBase {
         } else {
             upgradeDbDeferred.resolve(void 0);
         }
-        return upgradeDbDeferred.promise().then(() => changeVersionDeferred ? changeVersionDeferred.promise() : undefined);
+        return upgradeDbDeferred.promise.then(() => changeVersionDeferred ? changeVersionDeferred.promise : undefined);
     }
 
-    close(): SyncTasks.Promise<void> {
+    close(): Promise<void> {
         this._db = undefined;
-        return SyncTasks.Resolved<void>();
+        return Promise.resolve<void>(undefined);
     }
 
-    protected _deleteDatabaseInternal(): SyncTasks.Promise<void> {
-        return SyncTasks.Rejected<void>('No support for deleting');
+    protected _deleteDatabaseInternal(): Promise<void> {
+        return Promise.reject<void>('No support for deleting');
     }
 
-    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlTransaction> {
+    openTransaction(storeNames: string[], writeNeeded: boolean): Promise<SqlTransaction> {
         if (!this._db) {
-            return SyncTasks.Rejected('Database closed');
+            return Promise.reject('Database closed');
         }
 
-        const deferred = SyncTasks.Defer<SqlTransaction>();
+        const deferred = defer<SqlTransaction>();
 
         let ourTrans: SqliteSqlTransaction|undefined;
-        let finishDefer: SyncTasks.Deferred<void>|undefined = SyncTasks.Defer<void>();
+        let finishDefer: IDeferred<void>|undefined = defer<void>();
         (writeNeeded ? this._db.transaction : this._db.readTransaction).call(this._db,
             (trans: SQLTransaction) => {
-                ourTrans = new WebSqlTransaction(trans, finishDefer!!!.promise(), this._schema!!!, this._verbose!!!, 999,
+                ourTrans = new WebSqlTransaction(trans, finishDefer!!!.promise, this._schema!!!, this._verbose!!!, 999,
                     this._supportsFTS3);
                 deferred.resolve(ourTrans);
             }, (err: SQLError) => {
@@ -149,13 +148,13 @@ export class WebSqlProvider extends SqlProviderBase {
                 }
             });
 
-        return deferred.promise();
+        return deferred.promise;
     }
 }
 
 class WebSqlTransaction extends SqliteSqlTransaction {
     constructor(protected trans: SQLTransaction,
-                private _completionPromise: SyncTasks.Promise<void>, 
+                private _completionPromise: Promise<void>, 
                 schema: DbSchema,
                 verbose: boolean,
                 maxVariables: number,
@@ -163,7 +162,7 @@ class WebSqlTransaction extends SqliteSqlTransaction {
         super(trans, schema, verbose, maxVariables, supportsFTS3);
     }
 
-    getCompletionPromise(): SyncTasks.Promise<void> {
+    getCompletionPromise(): Promise<void> {
         return this._completionPromise;
     }
     
