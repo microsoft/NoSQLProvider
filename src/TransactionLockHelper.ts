@@ -11,10 +11,10 @@ import { ok } from 'assert';
 import { map, some, find, Dictionary, findIndex } from 'lodash';
 
 import { DbSchema } from './NoSqlProvider';
-import * as SyncTasks from 'synctasks';
+import { defer, IDeferred } from './defer';
 
 export interface TransactionToken {
-    readonly completionPromise: SyncTasks.Promise<void>;
+    readonly completionPromise: Promise<void>;
     readonly storeNames: string[];
     readonly exclusive: boolean;
 }
@@ -23,13 +23,13 @@ interface PendingTransaction {
     token: TransactionToken;
 
     opened: boolean;
-    openDefer: SyncTasks.Deferred<TransactionToken>;
-    completionDefer: SyncTasks.Deferred<void>|undefined;
+    openDefer: IDeferred<TransactionToken>;
+    completionDefer: IDeferred<void>|undefined;
     hadSuccess?: boolean;
 }
 
 export class TransactionLockHelper {
-    private _closingDefer: SyncTasks.Deferred<void>|undefined;
+    private _closingDefer: IDeferred<void>|undefined;
     private _closed = false;
 
     private _exclusiveLocks: Dictionary<boolean> = {};
@@ -44,13 +44,13 @@ export class TransactionLockHelper {
         }
     }
 
-    closeWhenPossible(): SyncTasks.Promise<void> {
+    closeWhenPossible(): Promise<void> {
         if (!this._closingDefer) {
-            this._closingDefer = SyncTasks.Defer<void>();
+            this._closingDefer = defer<void>();
             this._checkClose();
         }
         
-        return this._closingDefer.promise();
+        return this._closingDefer.promise;
     }
 
     private _checkClose() {
@@ -66,26 +66,26 @@ export class TransactionLockHelper {
             some(this._readOnlyCounts, (value) => value > 0);
     }
 
-    openTransaction(storeNames: string[]|undefined, exclusive: boolean): SyncTasks.Promise<TransactionToken> {
+    openTransaction(storeNames: string[]|undefined, exclusive: boolean): Promise<TransactionToken> {
         if (storeNames) {
             const missingStore = find(storeNames, name => !some(this._schema.stores, store => name === store.name));
             if (missingStore) {
-                return SyncTasks.Rejected('Opened a transaction with a store name (' + missingStore + ') not defined in your schema!');
+                return Promise.reject('Opened a transaction with a store name (' + missingStore + ') not defined in your schema!');
             }
         }
 
-        const completionDefer = SyncTasks.Defer<void>();
+        const completionDefer = defer<void>();
         const newToken: TransactionToken = {
             // Undefined means lock all stores
             storeNames: storeNames || map(this._schema.stores, store => store.name),
             exclusive,
-            completionPromise: completionDefer.promise()
+            completionPromise: completionDefer.promise
         };
 
         const pendingTrans: PendingTransaction = {
             token: newToken,
             opened: false,
-            openDefer: SyncTasks.Defer<TransactionToken>(),
+            openDefer: defer<TransactionToken>(),
             completionDefer
         };
 
@@ -93,7 +93,7 @@ export class TransactionLockHelper {
 
         this._checkNextTransactions();
 
-        return pendingTrans.openDefer.promise();
+        return pendingTrans.openDefer.promise;
     }
 
     transactionComplete(token: TransactionToken) {

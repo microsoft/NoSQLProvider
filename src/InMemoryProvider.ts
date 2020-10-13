@@ -7,7 +7,6 @@
  */
 
 import { attempt, isError, each, includes, compact, map, find, Dictionary, flatten, assign, filter, keys, reverse } from 'lodash';
-import * as SyncTasks from 'synctasks';
 
 import { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
 import {
@@ -31,7 +30,7 @@ export class InMemoryProvider extends DbProvider {
 
     private _lockHelper: TransactionLockHelper|undefined;
 
-    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
+    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
 
         each(this._schema!!!.stores, storeSchema => {
@@ -40,19 +39,19 @@ export class InMemoryProvider extends DbProvider {
 
         this._lockHelper = new TransactionLockHelper(schema, true);
 
-        return SyncTasks.Resolved<void>();
+        return Promise.resolve<void>(undefined);
     }
 
     protected _deleteDatabaseInternal() {
-        return SyncTasks.Resolved();
+        return Promise.resolve();
     }
 
-    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<DbTransaction> {
+    openTransaction(storeNames: string[], writeNeeded: boolean): Promise<DbTransaction> {
         return this._lockHelper!!!.openTransaction(storeNames, writeNeeded).then(token =>
             new InMemoryTransaction(this, this._lockHelper!!!, token));
     }
 
-    close(): SyncTasks.Promise<void> {
+    close(): Promise<void> {
         return this._lockHelper!!!.closeWhenPossible().then(() => {
             this._stores = {};
         });
@@ -85,7 +84,7 @@ class InMemoryTransaction implements DbTransaction {
         });
     }
 
-    getCompletionPromise(): SyncTasks.Promise<void> {
+    getCompletionPromise(): Promise<void> {
         return this._transToken.completionPromise;
     }
 
@@ -167,39 +166,39 @@ class InMemoryStore implements DbStore {
         this._mergedData = this._committedStoreData;
     }
 
-    get(key: KeyType): SyncTasks.Promise<ItemType|undefined> {
+    get(key: KeyType): Promise<ItemType|undefined> {
         if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected('InMemoryTransaction already closed');
+            return Promise.reject('InMemoryTransaction already closed');
         }
 
         const joinedKey = attempt(() => {
             return serializeKeyToString(key, this._storeSchema.primaryKeyPath);
         });
         if (isError(joinedKey)) {
-            return SyncTasks.Rejected(joinedKey);
+            return Promise.reject(joinedKey);
         }
 
-        return SyncTasks.Resolved(this._mergedData[joinedKey]);
+        return Promise.resolve(this._mergedData[joinedKey]);
     }
 
-    getMultiple(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<ItemType[]> {
+    getMultiple(keyOrKeys: KeyType|KeyType[]): Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected('InMemoryTransaction already closed');
+            return Promise.reject('InMemoryTransaction already closed');
         }
 
         const joinedKeys = attempt(() => {
             return formListOfSerializedKeys(keyOrKeys, this._storeSchema.primaryKeyPath);
         });
         if (isError(joinedKeys)) {
-            return SyncTasks.Rejected(joinedKeys);
+            return Promise.reject(joinedKeys);
         }
 
-        return SyncTasks.Resolved(compact(map(joinedKeys, key => this._mergedData[key])));
+        return Promise.resolve(compact(map(joinedKeys, key => this._mergedData[key])));
     }
 
-    put(itemOrItems: ItemType|ItemType[]): SyncTasks.Promise<void> {
+    put(itemOrItems: ItemType|ItemType[]): Promise<void> {
         if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
+            return Promise.reject<void>('InMemoryTransaction already closed');
         }
         this._checkDataClone();
         const err = attempt(() => {
@@ -211,14 +210,14 @@ class InMemoryStore implements DbStore {
             }
         });
         if (err) {
-            return SyncTasks.Rejected<void>(err);
+            return Promise.reject<void>(err);
         }
-        return SyncTasks.Resolved<void>();
+        return Promise.resolve<void>(undefined);
     }
 
-    remove(keyOrKeys: KeyType|KeyType[]): SyncTasks.Promise<void> {
+    remove(keyOrKeys: KeyType|KeyType[]): Promise<void> {
         if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
+            return Promise.reject<void>('InMemoryTransaction already closed');
         }
         this._checkDataClone();
 
@@ -226,14 +225,14 @@ class InMemoryStore implements DbStore {
             return formListOfSerializedKeys(keyOrKeys, this._storeSchema.primaryKeyPath);
         });
         if (isError(joinedKeys)) {
-            return SyncTasks.Rejected(joinedKeys);
+            return Promise.reject(joinedKeys);
         }
 
         for (const key of joinedKeys) {
             this._pendingCommitDataChanges!!![key] = undefined;
             delete this._mergedData[key];
         }
-        return SyncTasks.Resolved<void>();
+        return Promise.resolve<void>(undefined);
     }
 
     openPrimaryKey(): DbIndex {
@@ -251,16 +250,16 @@ class InMemoryStore implements DbStore {
         return new InMemoryIndex(this._trans, this._mergedData, indexSchema, this._storeSchema.primaryKeyPath);
     }
 
-    clearAllData(): SyncTasks.Promise<void> {
+    clearAllData(): Promise<void> {
         if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected<void>('InMemoryTransaction already closed');
+            return Promise.reject<void>('InMemoryTransaction already closed');
         }
         this._checkDataClone();
         each(this._mergedData, (val, key) => {
             this._pendingCommitDataChanges!!![key] = undefined;
         });
         this._mergedData = {};
-        return SyncTasks.Resolved<void>();
+        return Promise.resolve<void>(undefined);
     }
 }
 
@@ -310,16 +309,16 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         return data;
     }
 
-    getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected('InMemoryTransaction already closed');
+            return Promise.reject('InMemoryTransaction already closed');
         }
 
         const data = attempt(() => {
             return this._calcChunkedData();
         });
         if (isError(data)) {
-            return SyncTasks.Rejected(data);
+            return Promise.reject(data);
         }
 
         const sortedKeys = keys(data).sort();
@@ -327,14 +326,14 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
     }
 
     getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
-            : SyncTasks.Promise<ItemType[]> {
+            : Promise<ItemType[]> {
         return this.getRange(key, key, false, false, reverseOrSortOrder, limit, offset);
     }
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+            reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected('InMemoryTransaction already closed');
+            return Promise.reject('InMemoryTransaction already closed');
         }
 
         let data: Dictionary<ItemType[]>|Dictionary<ItemType>;
@@ -344,7 +343,7 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
             sortedKeys = this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive).sort();
         });
         if (err) {
-            return SyncTasks.Rejected(err);
+            return Promise.reject(err);
         }
 
         return this._returnResultsFromKeys(data!!!, sortedKeys!!!, reverseOrSortOrder, limit, offset);
@@ -374,30 +373,30 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         }
 
         let results = map(sortedKeys, key => data[key]);
-        return SyncTasks.Resolved(flatten(results));
+        return Promise.resolve(flatten(results));
     }
 
-    countAll(): SyncTasks.Promise<number> {
+    countAll(): Promise<number> {
         if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected('InMemoryTransaction already closed');
+            return Promise.reject('InMemoryTransaction already closed');
         }
         const data = attempt(() => {
             return this._calcChunkedData();
         });
         if (isError(data)) {
-            return SyncTasks.Rejected(data);
+            return Promise.reject(data);
         }
-        return SyncTasks.Resolved(keys(data).length);
+        return Promise.resolve(keys(data).length);
     }
 
-    countOnly(key: KeyType): SyncTasks.Promise<number> {
+    countOnly(key: KeyType): Promise<number> {
         return this.countRange(key, key, false, false);
     }
 
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
-            : SyncTasks.Promise<number> {
+            : Promise<number> {
         if (!this._trans.internal_isOpen()) {
-            return SyncTasks.Rejected('InMemoryTransaction already closed');
+            return Promise.reject('InMemoryTransaction already closed');
         }
 
         const keys = attempt(() => {
@@ -405,9 +404,9 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
             return this._getKeysForRange(data, keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (isError(keys)) {
-            return SyncTasks.Rejected(keys);
+            return Promise.reject(keys);
         }
 
-        return SyncTasks.Resolved(keys.length);
+        return Promise.resolve(keys.length);
     }
 }

@@ -40,21 +40,20 @@ if (!Promise.prototype.always) {
 export interface PromiseConfig {
     // If we catch exceptions in success/fail blocks, it silently falls back to the fail case of the outer promise.
     // If this is global variable is true, it will also spit out a console.error with the exception for debugging.
-    exceptionsToConsole: boolean,
+    exceptionsToConsole: boolean;
 
     // Whether or not to actually attempt to catch exceptions with try/catch blocks inside the resolution cases.
     // Disable this for debugging when you'd rather the debugger caught the exception synchronously rather than
     // digging through a stack trace.
-    catchExceptions: boolean,
+    catchExceptions: boolean;
 
     // Regardless of whether an exception is caught or not, this will always execute.
-    exceptionHandler: ((ex: Error) => void) | undefined,
+    exceptionHandler: ((ex: Error) => void) | undefined;
 
     // If an ErrorFunc is not added to the task (then, catch, always) before the task rejects or synchonously
     // after that, then this function is called with the error. Default throws the error.
-    unhandledErrorHandler: (err: any) => void,
+    unhandledErrorHandler: (err: any) => void;
 }
-
 
 let boundRejectionHandledListener: (e: PromiseRejectionEvent) => void;
 let boundUnhandledRejectionListener: (e: PromiseRejectionEvent) => void;
@@ -66,7 +65,7 @@ let boundUnhandledRejectionListener: (e: PromiseRejectionEvent) => void;
 export function registerPromiseGlobalHandlers(config: PromiseConfig) {
     boundRejectionHandledListener = (e: PromiseRejectionEvent) => {
         if (config.exceptionsToConsole) {
-            console.error('handled', e.reason, e.promise)
+            console.error('handled', e.reason, e.promise);
         }
 
         if (config.exceptionHandler) {
@@ -75,7 +74,7 @@ export function registerPromiseGlobalHandlers(config: PromiseConfig) {
     };
     boundUnhandledRejectionListener = (e: PromiseRejectionEvent) => {
         if (config.exceptionsToConsole) {
-            console.error('unhandled', e.reason, e.promise)
+            console.error('unhandled', e.reason, e.promise);
         }
 
         if (config.catchExceptions) {

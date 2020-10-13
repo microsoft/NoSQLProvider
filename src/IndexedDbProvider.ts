@@ -7,7 +7,6 @@
  */
 
 import { each, some, find, includes, isObject, attempt, isError, map, filter, compact, clone, isArray, noop, isUndefined } from 'lodash';
-import SyncTasks = require('synctasks');
 import { getWindow } from './get-window';
 import { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
 import {
@@ -19,7 +18,7 @@ import {
     getValueForSingleKeypath, getSerializedKeyForKeypath
 } from './NoSqlProviderUtils';
 import { TransactionLockHelper, TransactionToken } from './TransactionLockHelper';
-
+import { defer } from './defer';
 const IndexPrefix = 'nsp_i_';
 
 // Extending interfaces that should be in lib.d.ts but aren't for some reason.
@@ -86,8 +85,8 @@ export class IndexedDbProvider extends DbProvider {
         }
     }
 
-    static WrapRequest<T>(req: IDBRequest): SyncTasks.Promise<T> {
-        const task = SyncTasks.Defer<T>();
+    static WrapRequest<T>(req: IDBRequest): Promise<T> {
+        const task = defer<T>();
 
         req.onsuccess = (/*ev*/) => {
             task.resolve(req.result);
@@ -96,16 +95,16 @@ export class IndexedDbProvider extends DbProvider {
             task.reject(ev);
         };
 
-        return task.promise();
+        return task.promise;
     }
 
-    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): SyncTasks.Promise<void> {
+    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): Promise<void> {
         // Note: DbProvider returns null instead of a promise that needs waiting for.
         super.open(dbName, schema, wipeIfExists, verbose);
 
         if (!this._dbFactory) {
             // Couldn't even find a supported indexeddb object on the browser...
-            return SyncTasks.Rejected<void>('No support for IndexedDB in this browser');
+            return Promise.reject<void>('No support for IndexedDB in this browser');
         }
 
         if (typeof (navigator) !== 'undefined') {
@@ -114,12 +113,12 @@ export class IndexedDbProvider extends DbProvider {
             const browserInfo = getBrowserInfo();
             if (browserInfo.name === 'Safari' && Number(browserInfo.version) < 10) {
                 // Safari < 10 doesn't support indexeddb properly, so don't let it try
-                return SyncTasks.Rejected<void>('Safari versions before 10.0 don\'t properly implement IndexedDB');
+                return Promise.reject<void>('Safari versions before 10.0 don\'t properly implement IndexedDB');
             }
 
             if (navigator.userAgent.indexOf('Mobile Crosswalk') !== -1) {
                 // Android crosswalk indexeddb is slow, don't use it
-                return SyncTasks.Rejected<void>('Android Crosswalk\'s IndexedDB implementation is very slow');
+                return Promise.reject<void>('Android Crosswalk\'s IndexedDB implementation is very slow');
             }
         }
 
@@ -135,7 +134,7 @@ export class IndexedDbProvider extends DbProvider {
 
         const dbOpen = this._dbFactory.open(dbName, schema.version);
 
-        let migrationPutters: SyncTasks.Promise<void>[] = [];
+        let migrationPutters: Promise<void>[] = [];
 
         dbOpen.onupgradeneeded = (event) => {
             const db: IDBDatabase = dbOpen.result;
@@ -266,13 +265,13 @@ export class IndexedDbProvider extends DbProvider {
                     const fakeToken: TransactionToken = {
                         storeNames: [storeSchema.name],
                         exclusive: false,
-                        completionPromise: SyncTasks.Defer<void>().promise()
+                        completionPromise: defer<void>().promise
                     };
                     const iTrans = new IndexedDbTransaction(trans, undefined, fakeToken, schema, this._fakeComplicatedKeys);
                     const tStore = iTrans.getStore(storeSchema.name);
 
                     const cursorReq = store.openCursor();
-                    let thisIndexPutters: SyncTasks.Promise<void>[] = [];
+                    let thisIndexPutters: Promise<void>[] = [];
                     migrationPutters.push(IndexedDbIndex.iterateOverCursorRequest(cursorReq, cursor => {
                         const err = attempt(() => {
                             const item = removeFullTextMetadataAndReturn(storeSchema, (cursor as any).value);
@@ -280,9 +279,9 @@ export class IndexedDbProvider extends DbProvider {
                             thisIndexPutters.push(tStore.put(item));
                         });
                         if (err) {
-                            thisIndexPutters.push(SyncTasks.Rejected<void>(err));
+                            thisIndexPutters.push(Promise.reject<void>(err));
                         }
-                    }).then(() => SyncTasks.all(thisIndexPutters).then(noop)));
+                    }).then(() => Promise.all(thisIndexPutters).then(noop)));
                 }
             }
         };
@@ -290,7 +289,7 @@ export class IndexedDbProvider extends DbProvider {
         const promise = IndexedDbProvider.WrapRequest<IDBDatabase>(dbOpen);
 
         return promise.then(db => {
-            return SyncTasks.all(migrationPutters).then(() => {
+            return Promise.all(migrationPutters).then(() => {
                 this._db = db;
             });
         }, err => {
@@ -301,30 +300,30 @@ export class IndexedDbProvider extends DbProvider {
                     return this.open(dbName, schema, true, verbose);
                 }
             }
-            return SyncTasks.Rejected<void>(err);
+            return Promise.reject<void>(err);
         });
     }
 
-    close(): SyncTasks.Promise<void> {
+    close(): Promise<void> {
         if (!this._db) {
-            return SyncTasks.Rejected('Database already closed');
+            return Promise.reject('Database already closed');
         }
 
         this._db.close();
         this._db = undefined;
-        return SyncTasks.Resolved<void>();
+        return Promise.resolve<void>(undefined);
     }
 
-    protected _deleteDatabaseInternal(): SyncTasks.Promise<void> {
+    protected _deleteDatabaseInternal(): Promise<void> {
         const trans = attempt(() => {
             return this._dbFactory.deleteDatabase(this._dbName!!!);
         });
 
         if (isError(trans)) {
-            return SyncTasks.Rejected(trans);
+            return Promise.reject(trans);
         }
 
-        const deferred = SyncTasks.Defer<void>();
+        const deferred = defer<void>();
 
         trans.onsuccess = () => {
             deferred.resolve(void 0);
@@ -333,12 +332,12 @@ export class IndexedDbProvider extends DbProvider {
             deferred.reject(ev);
         };
 
-        return deferred.promise();
+        return deferred.promise;
     }
 
-    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<DbTransaction> {
+    openTransaction(storeNames: string[], writeNeeded: boolean): Promise<DbTransaction> {
         if (!this._db) {
-            return SyncTasks.Rejected('Can\'t openTransaction, database is closed');
+            return Promise.reject('Can\'t openTransaction, database is closed');
         }
 
         let intStoreNames = storeNames;
@@ -364,7 +363,7 @@ export class IndexedDbProvider extends DbProvider {
                 }
             }
             if (missingStores.length > 0) {
-                return SyncTasks.Rejected('Can\'t find store(s): ' + missingStores.join(','));
+                return Promise.reject('Can\'t find store(s): ' + missingStores.join(','));
             }
         }
 
@@ -373,7 +372,7 @@ export class IndexedDbProvider extends DbProvider {
                 return this._db!!!.transaction(intStoreNames, writeNeeded ? 'readwrite' : 'readonly');
             });
             if (isError(trans)) {
-                return SyncTasks.Rejected(trans);
+                return Promise.reject(trans);
             }
 
             return new IndexedDbTransaction(trans, this._lockHelper, transToken, this._schema!!!, this._fakeComplicatedKeys);
@@ -453,7 +452,7 @@ class IndexedDbTransaction implements DbTransaction {
         return new IndexedDbStore(store, indexStores, storeSchema, this._fakeComplicatedKeys);
     }
 
-    getCompletionPromise(): SyncTasks.Promise<void> {
+    getCompletionPromise(): Promise<void> {
         return this._transToken.completionPromise;
     }
 
@@ -488,13 +487,13 @@ class IndexedDbStore implements DbStore {
         // NOP
     }
 
-    get(key: KeyType): SyncTasks.Promise<ItemType | undefined> {
+    get(key: KeyType): Promise<ItemType | undefined> {
         if (this._fakeComplicatedKeys && isCompoundKeyPath(this._schema.primaryKeyPath)) {
             const err = attempt(() => {
                 key = serializeKeyToString(key, this._schema.primaryKeyPath);
             });
             if (err) {
-                return SyncTasks.Rejected(err);
+                return Promise.reject(err);
             }
         }
 
@@ -502,7 +501,7 @@ class IndexedDbStore implements DbStore {
             .then(val => removeFullTextMetadataAndReturn(this._schema, val));
     }
 
-    getMultiple(keyOrKeys: KeyType | KeyType[]): SyncTasks.Promise<ItemType[]> {
+    getMultiple(keyOrKeys: KeyType | KeyType[]): Promise<ItemType[]> {
         const keys = attempt(() => {
             const keys = formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
 
@@ -512,20 +511,20 @@ class IndexedDbStore implements DbStore {
             return keys;
         });
         if (isError(keys)) {
-            return SyncTasks.Rejected(keys);
+            return Promise.reject(keys);
         }
 
         // There isn't a more optimized way to do this with indexeddb, have to get the results one by one
-        return SyncTasks.all(
+        return Promise.all(
             map(keys, key => IndexedDbProvider.WrapRequest<ItemType | undefined>(this._store.get(key))
                 .then(val => removeFullTextMetadataAndReturn(this._schema, val))))
             .then(compact);
     }
 
-    put(itemOrItems: ItemType | ItemType[]): SyncTasks.Promise<void> {
+    put(itemOrItems: ItemType | ItemType[]): Promise<void> {
         let items = arrayify(itemOrItems);
 
-        let promises: SyncTasks.Promise<void>[] = [];
+        let promises: Promise<void>[] = [];
 
         const err = attempt(() => {
             for (const item of items) {
@@ -590,7 +589,7 @@ class IndexedDbStore implements DbStore {
                                             };
                                             return IndexedDbProvider.WrapRequest<void>(indexStore.put(indexObj));
                                         });
-                                        return SyncTasks.all(iputters);
+                                        return Promise.all(iputters);
                                     }).then(noop));
                             } else if (isCompoundKeyPath(index.keyPath)) {
                                 (item as any)[IndexPrefix + index.name] =
@@ -622,19 +621,19 @@ class IndexedDbStore implements DbStore {
                 }
 
                 if (errToReport) {
-                    promises.push(SyncTasks.Rejected<void>(errToReport));
+                    promises.push(Promise.reject<void>(errToReport));
                 }
             }
         });
 
         if (err) {
-            return SyncTasks.Rejected<void>(err);
+            return Promise.reject<void>(err);
         }
 
-        return SyncTasks.all(promises).then(noop);
+        return Promise.all(promises).then(noop);
     }
 
-    remove(keyOrKeys: KeyType | KeyType[]): SyncTasks.Promise<void> {
+    remove(keyOrKeys: KeyType | KeyType[]): Promise<void> {
         const keys = attempt(() => {
             const keys = formListOfKeys(keyOrKeys, this._schema.primaryKeyPath);
 
@@ -644,10 +643,10 @@ class IndexedDbStore implements DbStore {
             return keys;
         });
         if (isError(keys)) {
-            return SyncTasks.Rejected<void>(keys);
+            return Promise.reject<void>(keys);
         }
 
-        return SyncTasks.all(map(keys, key => {
+        return Promise.all(map(keys, key => {
             if (this._fakeComplicatedKeys && some(this._schema.indexes, index => index.multiEntry || index.fullText)) {
                 // If we're faking keys and there's any multientry indexes, we have to do the way more complicated version...
                 return IndexedDbProvider.WrapRequest<any>(this._store.get(key)).then(item => {
@@ -665,7 +664,7 @@ class IndexedDbStore implements DbStore {
                                     tempRefKey;
                             });
                             if (isError(refKey)) {
-                                return SyncTasks.Rejected<void>(refKey);
+                                return Promise.reject<void>(refKey);
                             }
 
                             // First clear out the old values from the index store for the refkey
@@ -676,7 +675,7 @@ class IndexedDbStore implements DbStore {
                         });
                         // Also remember to nuke the item from the actual store
                         promises.push(IndexedDbProvider.WrapRequest<void>(this._store['delete'](key)));
-                        return SyncTasks.all(promises).then(noop);
+                        return Promise.all(promises).then(noop);
                     }
                     return undefined;
                 });
@@ -712,7 +711,7 @@ class IndexedDbStore implements DbStore {
         return new IndexedDbIndex(this._store, undefined, this._schema.primaryKeyPath, this._fakeComplicatedKeys);
     }
 
-    clearAllData(): SyncTasks.Promise<void> {
+    clearAllData(): Promise<void> {
         let storesToClear = [this._store];
         if (this._indexStores) {
             storesToClear = storesToClear.concat(this._indexStores);
@@ -720,7 +719,7 @@ class IndexedDbStore implements DbStore {
 
         let promises = map(storesToClear, store => IndexedDbProvider.WrapRequest(store.clear()));
 
-        return SyncTasks.all(promises).then(noop);
+        return Promise.all(promises).then(noop);
     }
 }
 
@@ -733,14 +732,14 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         super(indexSchema, primaryKeyPath);
     }
 
-    private _resolveCursorResult(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    private _resolveCursorResult(req: IDBRequest, limit?: number, offset?: number): Promise<ItemType[]> {
         if (this._fakeComplicatedKeys && this._fakedOriginalStore) {
             // Get based on the keys from the index store, which have refkeys that point back to the original store
             return IndexedDbIndex.getFromCursorRequest<{ key: string, refkey: any }>(req, limit, offset).then(rets => {
                 // Now get the original items using the refkeys from the index store, which are PKs on the main store
                 const getters = map(rets, ret => IndexedDbProvider.WrapRequest<{ key: string, refkey: any }>(
                     this._fakedOriginalStore!!!.get(ret.refkey)));
-                return SyncTasks.all(getters);
+                return Promise.all(getters);
             });
         } else {
             return IndexedDbIndex.getFromCursorRequest(req, limit, offset);
@@ -748,11 +747,10 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
     }
     
     private _isGetAllApiAvailable(reverse?: number, offset?: number): boolean {
-        return !reverse && !offset && !isUndefined(this._store.getAll);
+        return !reverse && !offset && !isUndefined(this._store.getAll) && !this._fakeComplicatedKeys;
     }
 
-
-    getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+    getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
         const reverse = reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse;
         if (this._isGetAllApiAvailable(limit, offset)) {
             return IndexedDbProvider.WrapRequest(this._store.getAll(undefined, limit));
@@ -765,12 +763,12 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
     }
 
     getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
-        : SyncTasks.Promise<ItemType[]> {
+        : Promise<ItemType[]> {
         const keyRange = attempt(() => {
             return this._getKeyRangeForOnly(key);
         });
         if (isError(keyRange)) {
-            return SyncTasks.Rejected(keyRange);
+            return Promise.reject(keyRange);
         }
         const reverse = reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse;
         if (this._isGetAllApiAvailable(limit, offset)) {
@@ -789,12 +787,12 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
     }
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-        reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): SyncTasks.Promise<ItemType[]> {
+        reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
         const keyRange = attempt(() => {
             return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (isError(keyRange)) {
-            return SyncTasks.Rejected(keyRange);
+            return Promise.reject(keyRange);
         }
 
         const reverse = reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse;
@@ -818,17 +816,17 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         return IDBKeyRange.bound(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
     }
 
-    countAll(): SyncTasks.Promise<number> {
+    countAll(): Promise<number> {
         const req = this._store.count();
         return this._countRequest(req);
     }
 
-    countOnly(key: KeyType): SyncTasks.Promise<number> {
+    countOnly(key: KeyType): Promise<number> {
         const keyRange = attempt(() => {
             return this._getKeyRangeForOnly(key);
         });
         if (isError(keyRange)) {
-            return SyncTasks.Rejected(keyRange);
+            return Promise.reject(keyRange);
         }
 
         const req = this._store.count(keyRange);
@@ -836,19 +834,19 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
     }
 
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
-        : SyncTasks.Promise<number> {
+        : Promise<number> {
         let keyRange = attempt(() => {
             return this._getKeyRangeForRange(keyLowRange, keyHighRange, lowRangeExclusive, highRangeExclusive);
         });
         if (isError(keyRange)) {
-            return SyncTasks.Rejected(keyRange);
+            return Promise.reject(keyRange);
         }
 
         const req = this._store.count(keyRange);
         return this._countRequest(req);
     }
 
-    static getFromCursorRequest<T>(req: IDBRequest, limit?: number, offset?: number): SyncTasks.Promise<T[]> {
+    static getFromCursorRequest<T>(req: IDBRequest, limit?: number, offset?: number): Promise<T[]> {
         let outList: T[] = [];
         return this.iterateOverCursorRequest(req, cursor => {
             // Typings on cursor are wrong...
@@ -858,8 +856,8 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
         });
     }
 
-    private _countRequest(req: IDBRequest): SyncTasks.Promise<number> {
-        const deferred = SyncTasks.Defer<number>();
+    private _countRequest(req: IDBRequest): Promise<number> {
+        const deferred = defer<number>();
 
         req.onsuccess = (event) => {
             deferred.resolve((<IDBRequest>event.target).result as number);
@@ -868,12 +866,12 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
             deferred.reject(ev);
         };
 
-        return deferred.promise();
+        return deferred.promise;
     }
 
     static iterateOverCursorRequest(req: IDBRequest, func: (cursor: IDBCursor) => void, limit?: number, offset?: number)
-        : SyncTasks.Promise<void> {
-        const deferred = SyncTasks.Defer<void>();
+        : Promise<void> {
+        const deferred = defer<void>();
 
         let count = 0;
         req.onsuccess = (event) => {
@@ -900,6 +898,6 @@ class IndexedDbIndex extends DbIndexFTSFromRangeQueries {
             deferred.reject(ev);
         };
 
-        return deferred.promise();
+        return deferred.promise;
     }
 }

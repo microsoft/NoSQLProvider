@@ -8,8 +8,8 @@
  */
 
 import { Database, verbose } from 'sqlite3';
-import * as SyncTasks from 'synctasks';
 
+import { defer } from './defer';
 import { DbSchema } from './NoSqlProvider';
 import { SqlProviderBase, SqlTransaction } from  './SqlProviderBase';
 import { TransactionLockHelper, TransactionToken } from './TransactionLockHelper';
@@ -23,7 +23,7 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase {
         super(supportsFTS3);
     }
 
-    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, setVerbose: boolean): SyncTasks.Promise<void> {
+    open(dbName: string, schema: DbSchema, wipeIfExists: boolean, setVerbose: boolean): Promise<void> {
         super.open(dbName, schema, wipeIfExists, setVerbose);
 
         if (setVerbose) {
@@ -37,9 +37,9 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase {
         return this._ourVersionChecker(wipeIfExists);
     }
 
-    openTransaction(storeNames: string[], writeNeeded: boolean): SyncTasks.Promise<SqlTransaction> {
+    openTransaction(storeNames: string[], writeNeeded: boolean): Promise<SqlTransaction> {
         if (!this._db) {
-            return SyncTasks.Rejected('Can\'t openTransaction on a closed database');
+            return Promise.reject('Can\'t openTransaction on a closed database');
         }
         if (this._verbose) {
             console.log('openTransaction Called with Stores: ' + (storeNames ? storeNames.join(',') : undefined) +
@@ -60,12 +60,12 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase {
         });
     }
 
-    close(): SyncTasks.Promise<void> {
+    close(): Promise<void> {
         if (!this._db) {
-            return SyncTasks.Rejected('Database already closed');
+            return Promise.reject('Database already closed');
         }
         return this._lockHelper!!!.closeWhenPossible().then(() => {
-            let task = SyncTasks.Defer<void>();
+            let task = defer<void>();
             this._db!!!.close((err) => {
                 this._db = undefined;
                 if (err) {
@@ -74,12 +74,12 @@ export default class NodeSqlite3DbProvider extends SqlProviderBase {
                     task.resolve(void 0);
                 }
             });
-            return task.promise();
+            return task.promise;
         });
     }
 
-    protected _deleteDatabaseInternal(): SyncTasks.Promise<void> {
-        return SyncTasks.Rejected<void>('No support for deleting');
+    protected _deleteDatabaseInternal(): Promise<void> {
+        return Promise.reject<void>('No support for deleting');
     }
 }
 
@@ -120,7 +120,7 @@ class NodeSqlite3Transaction extends SqlTransaction {
         }, 0) as any as number;
     }
 
-    getCompletionPromise(): SyncTasks.Promise<void> {
+    getCompletionPromise(): Promise<void> {
         return this._transToken.completionPromise;
     }
 
@@ -140,15 +140,15 @@ class NodeSqlite3Transaction extends SqlTransaction {
         });
     }
 
-    runQuery(sql: string, parameters: any[] = []): SyncTasks.Promise<any[]> {
+    runQuery(sql: string, parameters: any[] = []): Promise<any[]> {
         if (!this._isTransactionOpen()) {
-            return SyncTasks.Rejected('SqliteSqlTransaction already closed');
+            return Promise.reject('SqliteSqlTransaction already closed');
         }
 
         this._clearTimer();
         this._openQueryCount++;
 
-        const deferred = SyncTasks.Defer<any[]>();
+        const deferred = defer<any[]>();
 
         if (this._verbose) {
             console.log('Query: ' + sql + (parameters ? ', Args: ' + JSON.stringify(parameters) : ''));
@@ -172,6 +172,6 @@ class NodeSqlite3Transaction extends SqlTransaction {
             stmt.finalize();
         });
 
-        return deferred.promise();
+        return deferred.promise;
     }
 }
