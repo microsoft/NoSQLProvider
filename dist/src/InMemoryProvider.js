@@ -33,7 +33,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var lodash_1 = require("lodash");
 var FullTextSearchHelpers_1 = require("./FullTextSearchHelpers");
 var NoSqlProvider_1 = require("./NoSqlProvider");
-var core_1 = require("@collectable/core");
 var NoSqlProviderUtils_1 = require("./NoSqlProviderUtils");
 var TransactionLockHelper_1 = require("./TransactionLockHelper");
 var red_black_tree_1 = require("@collectable/red-black-tree");
@@ -308,7 +307,7 @@ var InMemoryIndex = /** @class */ (function (_super) {
     __extends(InMemoryIndex, _super);
     function InMemoryIndex(_mergedData, indexSchema, primaryKeyPath) {
         var _this = _super.call(this, indexSchema, primaryKeyPath) || this;
-        _this._rbIndex = red_black_tree_1.empty(core_1.stringCompare, true);
+        _this._rbIndex = red_black_tree_1.empty(function (a, b) { return (a < b ? -1 : (a > b ? 1 : 0)); }, true);
         _this.put(lodash_1.values(_mergedData), true);
         return _this;
     }

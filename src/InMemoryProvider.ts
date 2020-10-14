@@ -12,7 +12,6 @@ import {
     StoreSchema, DbProvider, DbSchema, DbTransaction,
     DbIndex, IndexSchema, DbStore, QuerySortOrder, ItemType, KeyPathType, KeyType
 } from './NoSqlProvider';
-import { stringCompare } from '@collectable/core';
 import {
     arrayify, serializeKeyToString, formListOfSerializedKeys,
     getSerializedKeyForKeypath, getValueForSingleKeypath
@@ -71,11 +70,11 @@ class InMemoryTransaction implements DbTransaction {
     private _stores: Map<string, InMemoryStore> = new Map();
     private _openTimer: number | undefined;
     constructor(
-        private _prov: InMemoryProvider, 
-        private _lockHelper: TransactionLockHelper, 
-        private _transToken: TransactionToken, 
+        private _prov: InMemoryProvider,
+        private _lockHelper: TransactionLockHelper,
+        private _transToken: TransactionToken,
         writeNeeded: boolean) {
-         // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
+        // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
         // goes by, there can't have been anything pending.
         if (writeNeeded) {
             this._openTimer = setTimeout(() => {
@@ -88,7 +87,7 @@ class InMemoryTransaction implements DbTransaction {
             this._commitTransaction();
             this._lockHelper.transactionComplete(this._transToken);
         }
-        
+
     }
 
     private _commitTransaction(): void {
@@ -105,7 +104,7 @@ class InMemoryTransaction implements DbTransaction {
         this._stores.forEach(store => {
             store.internal_rollbackPendingData();
         });
-        
+
         if (this._openTimer) {
             clearTimeout(this._openTimer);
             this._openTimer = undefined;
@@ -264,7 +263,7 @@ class InMemoryStore implements DbStore {
 
         if (!this._indices.has(indexSchema.name)) {
             this._indices.set(
-                indexSchema.name, 
+                indexSchema.name,
                 new InMemoryIndex(this._mergedData, indexSchema, this._storeSchema.primaryKeyPath)
             );
         }
@@ -295,7 +294,7 @@ class InMemoryStore implements DbStore {
             this._mergedData.delete(key);
             if (existingItem) {
                 this._removeFromIndices(key, existingItem);
-            }    
+            }
         });
 
         return Promise.resolve<void>(void 0);
@@ -320,7 +319,7 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         indexSchema: IndexSchema,
         primaryKeyPath: KeyPathType) {
         super(indexSchema, primaryKeyPath);
-        this._rbIndex = empty<string, ItemType[]>(stringCompare, true);
+        this._rbIndex = empty<string, ItemType[]>((a: string, b: string) => (a < b ? -1 : (a > b ? 1 : 0)), true);
         this.put(values(_mergedData), true);
     }
 
@@ -356,20 +355,20 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
         each(items, item => {
             // Each item may be non-unique so store as an array of items for each key
             const keys = this.internal_getKeysFromItem(item);
-            
+
             each(keys, key => {
                 if (has(key, this._rbIndex)) {
                     const existingItems = get(key, this._rbIndex)!!! as ItemType[];
                     existingItems.push(item);
-                    set<string, ItemType[]>(key, existingItems, this._rbIndex); 
+                    set<string, ItemType[]>(key, existingItems, this._rbIndex);
                 } else {
-                    set(key, [item], this._rbIndex); 
+                    set(key, [item], this._rbIndex);
                 }
             });
         });
     }
 
-    getMultiple(keyOrKeys: KeyType|KeyType[]): Promise<ItemType[]> {
+    getMultiple(keyOrKeys: KeyType | KeyType[]): Promise<ItemType[]> {
         const joinedKeys = attempt(() => {
             return formListOfSerializedKeys(keyOrKeys, this._keyPath);
         });
