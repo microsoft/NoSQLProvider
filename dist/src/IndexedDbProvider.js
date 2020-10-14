@@ -692,9 +692,6 @@ var IndexedDbIndex = /** @class */ (function (_super) {
         var _this = this;
         var keys = lodash_1.attempt(function () {
             var keys = NoSqlProviderUtils_1.formListOfKeys(keyOrKeys, _this._keyPath);
-            // if (this._fakeComplicatedKeys && isCompoundKeyPath(this._keyPath)) {
-            //     return map(keys, key => serializeKeyToString(key, this._keyPath));
-            // }
             return keys;
         });
         if (lodash_1.isError(keys)) {
@@ -703,6 +700,8 @@ var IndexedDbIndex = /** @class */ (function (_super) {
         if (this._store.get && !this._fakeComplicatedKeys) {
             return Promise.all(lodash_1.map(keys, function (key) { return IndexedDbProvider.WrapRequest(_this._store.get(key)); })).then(lodash_1.compact);
         }
+        // when dealing with fakeComplicatedKeys, the store tries to store key and refkey, not the entire object.
+        // therefore it calls getOnly to get the whole object through openCursor
         return Promise.all(lodash_1.map(keys, function (key) { return _this.getOnly(key); })).then(function (vals) { return lodash_1.compact(lodash_1.flatten(vals)); });
     };
     // Warning: This function can throw, make sure to trap.
