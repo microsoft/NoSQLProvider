@@ -73,19 +73,21 @@ class InMemoryTransaction implements DbTransaction {
         private _lockHelper: TransactionLockHelper,
         private _transToken: TransactionToken,
         isWriteNeeded: boolean) {
-        const closeTransaction = () => {
-            this._openTimer = undefined;
-            this._commitTransaction();
-            this._lockHelper.transactionComplete(this._transToken);
-        };
-        // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
-        // goes by, there can't have been anything pending.   
+
         // In the event this transaction doesn't need any writes, 
         // then we can commit the transaction immediately as there's no mutation of the data.
         if (isWriteNeeded) {
-            this._openTimer = setTimeout(() => closeTransaction(), 0) as any as number;
+            // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
+            // goes by, there can't have been anything pending.   
+            this._openTimer = setTimeout(() => {
+                this._openTimer = undefined;
+                this._commitTransaction();
+                this._lockHelper.transactionComplete(this._transToken);
+            }, 0) as any as number;
         } else {
-            closeTransaction();
+            // Release any locks present, there's no timer or data to commit so 
+            // skip those operations.
+            this._lockHelper.transactionComplete(this._transToken);
         }
     }
 
