@@ -5,7 +5,7 @@
  *
  * NoSqlProvider provider setup for a non-persisted in-memory database backing provider.
  */
-
+import 'core-js/features/set-immediate';
 import { attempt, isError, each, includes, compact, map, find, Dictionary, flatten, assign, filter, keys, reverse } from 'lodash';
 
 import { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
