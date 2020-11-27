@@ -24,6 +24,29 @@ export interface StoreData {
     schema: StoreSchema;
 }
 
+let asyncCallbacks: Set<() => void> = new Set();
+
+/**
+ * This function will defer callback of the specified callback lambda until the next JS tick, simulating standard A+ promise behavior
+ */
+function asyncCallback(callback: () => void): void {
+    asyncCallbacks.add(callback);
+
+    if (asyncCallbacks.size === 1) {
+        setImmediate(resolveAsyncCallbacks);
+    }
+}
+
+function abortAsyncCallback(callback: () => void): void {
+    asyncCallbacks.delete(callback);
+}
+
+function resolveAsyncCallbacks(): void {
+    const savedCallbacks = asyncCallbacks;
+    asyncCallbacks = new Set()
+    savedCallbacks.forEach((item) =>item());
+}
+
 // Very simple in-memory dbprovider for handling IE inprivate windows (and unit tests, maybe?)
 export class InMemoryProvider extends DbProvider {
     private _stores: { [storeName: string]: StoreData } = {};
@@ -48,7 +71,7 @@ export class InMemoryProvider extends DbProvider {
 
     openTransaction(storeNames: string[], writeNeeded: boolean): Promise<DbTransaction> {
         return this._lockHelper!!!.openTransaction(storeNames, writeNeeded).then(token =>
-            new InMemoryTransaction(this, this._lockHelper!!!, token, writeNeeded));
+            new InMemoryTransaction(this, this._lockHelper!!!, token));
     }
 
     close(): Promise<void> {
@@ -64,31 +87,19 @@ export class InMemoryProvider extends DbProvider {
 
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
 class InMemoryTransaction implements DbTransaction {
-    private _openTimer: number | undefined;
-
     private _stores: Dictionary<InMemoryStore> = {};
-
+    private _transactionCallback?: () => void;
     constructor(
         private _prov: InMemoryProvider,
         private _lockHelper: TransactionLockHelper,
-        private _transToken: TransactionToken,
-        isWriteNeeded: boolean) {
-
-        // In the event this transaction doesn't need any writes, 
-        // then we can commit the transaction immediately as there's no mutation of the data.
-        if (isWriteNeeded) {
-            // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
-            // goes by, there can't have been anything pending.   
-            this._openTimer = setTimeout(() => {
-                this._openTimer = undefined;
-                this._commitTransaction();
-                this._lockHelper.transactionComplete(this._transToken);
-            }, 0) as any as number;
-        } else {
-            // Release any locks present, there's no timer or data to commit so 
-            // skip those operations.
+        private _transToken: TransactionToken) {
+        this._transactionCallback = () => {
+            this._commitTransaction();
             this._lockHelper.transactionComplete(this._transToken);
-        }
+        };
+        // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
+        // goes by, there can't have been anything pending.   
+        asyncCallback(this._transactionCallback);
     }
 
     private _commitTransaction(): void {
@@ -107,9 +118,9 @@ class InMemoryTransaction implements DbTransaction {
         });
         this._stores = {};
 
-        if (this._openTimer) {
-            clearTimeout(this._openTimer);
-            this._openTimer = undefined;
+        if (this._transactionCallback) {
+            abortAsyncCallback(this._transactionCallback);
+            this._transactionCallback = undefined;
         }
 
         this._lockHelper.transactionFailed(this._transToken, 'InMemoryTransaction Aborted');
@@ -136,7 +147,7 @@ class InMemoryTransaction implements DbTransaction {
     }
 
     internal_isOpen() {
-        return !!this._openTimer;
+        return !!this._transactionCallback;
     }
 }
 
