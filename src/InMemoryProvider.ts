@@ -24,11 +24,34 @@ export interface StoreData {
     schema: StoreSchema;
 }
 
+let asyncCallbacks: Set<() => void> = new Set();
+
+/**
+ * This function will defer callback of the specified callback lambda until the next JS tick, simulating standard A+ promise behavior
+ */
+function asyncCallback(callback: () => void): void {
+    asyncCallbacks.add(callback);
+
+    if (asyncCallbacks.size === 1) {
+        setImmediate(resolveAsyncCallbacks);
+    }
+}
+
+function abortAsyncCallback(callback: () => void): void {
+    asyncCallbacks.delete(callback);
+}
+
+function resolveAsyncCallbacks(): void {
+    const savedCallbacks = asyncCallbacks;
+    asyncCallbacks = new Set();
+    savedCallbacks.forEach((item) => item());
+}
+
 // Very simple in-memory dbprovider for handling IE inprivate windows (and unit tests, maybe?)
 export class InMemoryProvider extends DbProvider {
     private _stores: { [storeName: string]: StoreData } = {};
 
-    private _lockHelper: TransactionLockHelper|undefined;
+    private _lockHelper: TransactionLockHelper | undefined;
 
     open(dbName: string, schema: DbSchema, wipeIfExists: boolean, verbose: boolean): Promise<void> {
         super.open(dbName, schema, wipeIfExists, verbose);
@@ -64,18 +87,20 @@ export class InMemoryProvider extends DbProvider {
 
 // Notes: Doesn't limit the stores it can fetch to those in the stores it was "created" with, nor does it handle read-only transactions
 class InMemoryTransaction implements DbTransaction {
-    private _openTimer: number|undefined;
-
     private _stores: Dictionary<InMemoryStore> = {};
-
-    constructor(private _prov: InMemoryProvider, private _lockHelper: TransactionLockHelper, private _transToken: TransactionToken) {
-        // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
-        // goes by, there can't have been anything pending.
-        this._openTimer = setTimeout(() => {
-            this._openTimer = undefined;
+    private _transactionCallback?: () => void;
+    constructor(
+        private _prov: InMemoryProvider,
+        private _lockHelper: TransactionLockHelper,
+        private _transToken: TransactionToken) {
+        this._transactionCallback = () => {
             this._commitTransaction();
             this._lockHelper.transactionComplete(this._transToken);
-        }, 0) as any as number;
+            this._transactionCallback = undefined;
+        };
+        // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
+        // goes by, there can't have been anything pending.   
+        asyncCallback(this._transactionCallback);
     }
 
     private _commitTransaction(): void {
@@ -94,9 +119,9 @@ class InMemoryTransaction implements DbTransaction {
         });
         this._stores = {};
 
-        if (this._openTimer) {
-            clearTimeout(this._openTimer);
-            this._openTimer = undefined;
+        if (this._transactionCallback) {
+            abortAsyncCallback(this._transactionCallback);
+            this._transactionCallback = undefined;
         }
 
         this._lockHelper.transactionFailed(this._transToken, 'InMemoryTransaction Aborted');
@@ -123,12 +148,12 @@ class InMemoryTransaction implements DbTransaction {
     }
 
     internal_isOpen() {
-        return !!this._openTimer;
+        return !!this._transactionCallback;
     }
 }
 
 class InMemoryStore implements DbStore {
-    private _pendingCommitDataChanges: Dictionary<ItemType|undefined>|undefined;
+    private _pendingCommitDataChanges: Dictionary<ItemType | undefined> | undefined;
 
     private _committedStoreData: Dictionary<ItemType>;
     private _mergedData: Dictionary<ItemType>;
@@ -166,7 +191,7 @@ class InMemoryStore implements DbStore {
         this._mergedData = this._committedStoreData;
     }
 
-    get(key: KeyType): Promise<ItemType|undefined> {
+    get(key: KeyType): Promise<ItemType | undefined> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
@@ -181,7 +206,7 @@ class InMemoryStore implements DbStore {
         return Promise.resolve(this._mergedData[joinedKey]);
     }
 
-    getMultiple(keyOrKeys: KeyType|KeyType[]): Promise<ItemType[]> {
+    getMultiple(keyOrKeys: KeyType | KeyType[]): Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
@@ -196,7 +221,7 @@ class InMemoryStore implements DbStore {
         return Promise.resolve(compact(map(joinedKeys, key => this._mergedData[key])));
     }
 
-    put(itemOrItems: ItemType|ItemType[]): Promise<void> {
+    put(itemOrItems: ItemType | ItemType[]): Promise<void> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject<void>('InMemoryTransaction already closed');
         }
@@ -215,7 +240,7 @@ class InMemoryStore implements DbStore {
         return Promise.resolve<void>(undefined);
     }
 
-    remove(keyOrKeys: KeyType|KeyType[]): Promise<void> {
+    remove(keyOrKeys: KeyType | KeyType[]): Promise<void> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject<void>('InMemoryTransaction already closed');
         }
@@ -266,12 +291,12 @@ class InMemoryStore implements DbStore {
 // Note: Currently maintains nothing interesting -- rebuilds the results every time from scratch.  Scales like crap.
 class InMemoryIndex extends DbIndexFTSFromRangeQueries {
     constructor(private _trans: InMemoryTransaction, private _mergedData: Dictionary<ItemType>,
-            indexSchema: IndexSchema|undefined, primaryKeyPath: KeyPathType) {
+        indexSchema: IndexSchema | undefined, primaryKeyPath: KeyPathType) {
         super(indexSchema, primaryKeyPath);
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _calcChunkedData(): Dictionary<ItemType[]>|Dictionary<ItemType> {
+    private _calcChunkedData(): Dictionary<ItemType[]> | Dictionary<ItemType> {
         if (!this._indexSchema) {
             // Primary key -- use data intact
             return this._mergedData;
@@ -326,17 +351,17 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
     }
 
     getOnly(key: KeyType, reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number)
-            : Promise<ItemType[]> {
+        : Promise<ItemType[]> {
         return this.getRange(key, key, false, false, reverseOrSortOrder, limit, offset);
     }
 
     getRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean,
-            reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
+        reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
 
-        let data: Dictionary<ItemType[]>|Dictionary<ItemType>;
+        let data: Dictionary<ItemType[]> | Dictionary<ItemType>;
         let sortedKeys: string[];
         const err = attempt(() => {
             data = this._calcChunkedData();
@@ -350,8 +375,8 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
     }
 
     // Warning: This function can throw, make sure to trap.
-    private _getKeysForRange(data: Dictionary<ItemType[]>|Dictionary<ItemType>, keyLowRange: KeyType, keyHighRange: KeyType,
-            lowRangeExclusive?: boolean, highRangeExclusive?: boolean): string[] {
+    private _getKeysForRange(data: Dictionary<ItemType[]> | Dictionary<ItemType>, keyLowRange: KeyType, keyHighRange: KeyType,
+        lowRangeExclusive?: boolean, highRangeExclusive?: boolean): string[] {
         const keyLow = serializeKeyToString(keyLowRange, this._keyPath);
         const keyHigh = serializeKeyToString(keyHighRange, this._keyPath);
         return filter(keys(data), key =>
@@ -359,7 +384,7 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
     }
 
     private _returnResultsFromKeys(data: Dictionary<ItemType[]> | Dictionary<ItemType>, sortedKeys: string[],
-            reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number) {
+        reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number) {
         if (reverseOrSortOrder === true || reverseOrSortOrder === QuerySortOrder.Reverse) {
             sortedKeys = reverse(sortedKeys);
         }
@@ -394,7 +419,7 @@ class InMemoryIndex extends DbIndexFTSFromRangeQueries {
     }
 
     countRange(keyLowRange: KeyType, keyHighRange: KeyType, lowRangeExclusive?: boolean, highRangeExclusive?: boolean)
-            : Promise<number> {
+        : Promise<number> {
         if (!this._trans.internal_isOpen()) {
             return Promise.reject('InMemoryTransaction already closed');
         }
