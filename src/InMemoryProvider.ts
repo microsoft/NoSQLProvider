@@ -96,6 +96,7 @@ class InMemoryTransaction implements DbTransaction {
         this._transactionCallback = () => {
             this._commitTransaction();
             this._lockHelper.transactionComplete(this._transToken);
+            this._transactionCallback = undefined;
         };
         // Close the transaction on the next tick.  By definition, anything is completed synchronously here, so after an event tick
         // goes by, there can't have been anything pending.   
