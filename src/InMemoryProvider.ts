@@ -43,8 +43,8 @@ function abortAsyncCallback(callback: () => void): void {
 
 function resolveAsyncCallbacks(): void {
     const savedCallbacks = asyncCallbacks;
-    asyncCallbacks = new Set()
-    savedCallbacks.forEach((item) =>item());
+    asyncCallbacks = new Set();
+    savedCallbacks.forEach((item) => item());
 }
 
 // Very simple in-memory dbprovider for handling IE inprivate windows (and unit tests, maybe?)
