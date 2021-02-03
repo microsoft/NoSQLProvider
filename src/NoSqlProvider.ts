@@ -57,6 +57,16 @@ export enum FullTextTermResolution {
     Or
 }
 
+/**
+ * Used to parse event.target object when the IndexedDB connection is closed.
+ * It is consumed by IDBDatabase.onclose to log DB name and object stores
+ * affected by an unexpected closure.
+ */
+export interface IDBCloseConnectionEventDetails extends EventTarget {
+readonly name: string;
+readonly objectStoreNames: DOMStringList;
+}
+
 // Interface type describing an index being opened for querying.
 export interface DbIndex {
     getAll(reverseOrSortOrder?: boolean | QuerySortOrder, limit?: number, offset?: number): Promise<ItemType[]>;

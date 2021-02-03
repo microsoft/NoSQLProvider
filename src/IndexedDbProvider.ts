@@ -6,10 +6,10 @@
  * NoSqlProvider provider setup for IndexedDB, a web browser storage module.
  */
 
-import { each, some, find, includes, isObject, attempt, isError, map, filter, compact, clone, isArray, noop, flatten } from 'lodash';
+import { each, some, find, includes, isObject, attempt, isError, map, filter, compact, clone, isArray, noop, flatten, join } from 'lodash';
 
 import { DbIndexFTSFromRangeQueries, getFullTextIndexWordsForItem } from './FullTextSearchHelpers';
-import { DbProvider, DbSchema, DbStore, DbTransaction, StoreSchema, DbIndex, QuerySortOrder, IndexSchema } from './NoSqlProvider';
+import { DbProvider, DbSchema, DbStore, DbTransaction, StoreSchema, DbIndex, QuerySortOrder, IndexSchema, IDBCloseConnectionEventDetails } from './NoSqlProvider';
 import { ItemType, KeyPathType, KeyType } from './NoSqlProvider';
 import {
     isIE, isCompoundKeyPath, serializeKeyToString, getKeyForKeypath, arrayify, formListOfKeys,
@@ -261,6 +261,7 @@ export class IndexedDbProvider extends DbProvider {
         return promise.then(db => {
             return Promise.all(migrationPutters).then(() => {
                 this._db = db;
+                this.handleOnClose(this._db);
             });
         }, err => {
             if (err && err.type === 'error' && err.target && err.target.error && err.target.error.name === 'VersionError') {
@@ -347,6 +348,26 @@ export class IndexedDbProvider extends DbProvider {
                 new IndexedDbTransaction(trans, this._lockHelper, transToken, this._schema!!!, this._fakeComplicatedKeys));
         });
     }
+
+    /**
+     *
+     * Triggered when the database is unexpectedly closed.
+     * This can happen, for example, when the application is shut down
+     * or access to the disk the database is stored on is lost while the database is open.
+     * https://developer.mozilla.org/en-US/docs/Web/API/IDBDatabase/onclose
+     * @param db
+     */
+    protected handleOnClose(db: IDBDatabase) {
+        db.onclose = (event: Event) => {
+          const closedDBConnection: IDBCloseConnectionEventDetails = <any>(event.target);
+          const payload = {
+            name: closedDBConnection.name,
+            objectStores: join(closedDBConnection.objectStoreNames, ","),
+            type: event.type
+          };
+          console.error(`The database connection to ${payload.name} for objectStores(${payload.objectStores}) has been closed unexpectedly due to a '${payload.type}' event.`);
+        };
+      }
 }
 
 // DbTransaction implementation for the IndexedDB DbProvider.
